@@ -1,3 +1,20 @@
+
+# ---------------------------------------------------------------------------
+# Generic Stuff
+
+.work/
+dist/
+.vscode/
+
+
+# ---------------------------------------------------------------------------
+# Golang stuff
+vendor/
+
+
+# ---------------------------------------------------------------------------
+# Python Stuff
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -10,7 +27,6 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/

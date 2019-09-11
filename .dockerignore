@@ -1,0 +1,7 @@
+
+.work/
+.venv/
+.idea/
+dist/
+docs/
+python/

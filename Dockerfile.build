@@ -1,0 +1,15 @@
+FROM golang:alpine
+
+RUN apk add --update \
+    tzdata bash wget curl git
+
+# define work directory
+ADD . /go/src/github.com/groboclown/nightjar-mesh
+WORKDIR /go/src/github.com/groboclown/nightjar-mesh
+
+# Create binary directory, install glide and fresh
+RUN mkdir -p $$GOPATH/bin \
+    && mkdir -p dist \
+    && ( curl https://glide.sh/get | sh )
+
+CMD glide update && go build -tags netgo -installsuffix netgo -o /nightjar-mesh main.go

@@ -1,0 +1,149 @@
+hash: 6f1f13c0cd7bb0fcb1521e0b8dd059989fc79fa4ffdb974c84cbcebb5b036de0
+updated: 2019-09-10T23:34:36.5398209-05:00
+imports:
+- name: github.com/aws/aws-sdk-go
+  version: b8c6c48ee663acddf78784df497eaaff8b2de6b8
+  subpackages:
+  - aws
+  - aws/awserr
+  - aws/awsutil
+  - aws/client
+  - aws/client/metadata
+  - aws/corehandlers
+  - aws/credentials
+  - aws/credentials/ec2rolecreds
+  - aws/credentials/endpointcreds
+  - aws/credentials/processcreds
+  - aws/credentials/stscreds
+  - aws/csm
+  - aws/defaults
+  - aws/ec2metadata
+  - aws/endpoints
+  - aws/request
+  - aws/session
+  - aws/signer/v4
+  - internal/ini
+  - internal/sdkio
+  - internal/sdkmath
+  - internal/sdkrand
+  - internal/sdkuri
+  - internal/shareddefaults
+  - private/protocol
+  - private/protocol/json/jsonutil
+  - private/protocol/jsonrpc
+  - private/protocol/query
+  - private/protocol/query/queryutil
+  - private/protocol/rest
+  - private/protocol/xml/xmlutil
+  - service/ecs
+  - service/elbv2
+  - service/route53
+  - service/sts
+  - service/sts/stsiface
+- name: github.com/envoyproxy/go-control-plane
+  version: ea3b659a3ccd774676c757e7592829ad5d112544
+  subpackages:
+  - envoy/api/v2
+  - envoy/api/v2/auth
+  - envoy/api/v2/cluster
+  - envoy/api/v2/core
+  - envoy/api/v2/endpoint
+  - envoy/api/v2/listener
+  - envoy/api/v2/route
+  - envoy/config/filter/accesslog/v2
+  - envoy/config/filter/network/http_connection_manager/v2
+  - envoy/service/discovery/v2
+  - envoy/type
+  - pkg/cache
+  - pkg/log
+  - pkg/server
+  - pkg/util
+- name: github.com/envoyproxy/protoc-gen-validate
+  version: fd7de029969b7c0ef8b754660b997399b6fd812a
+  subpackages:
+  - validate
+- name: github.com/gogo/protobuf
+  version: 8a5ed79f688836cf007ca23aefe0299791e7bea5
+  subpackages:
+  - gogoproto
+  - jsonpb
+  - proto
+  - protoc-gen-gogo/descriptor
+  - sortkeys
+  - types
+- name: github.com/golang/protobuf
+  version: 822fe56949f5d56c9e2f02367c657e0e9b4d27d1
+  subpackages:
+  - proto
+  - protoc-gen-go/descriptor
+  - ptypes
+  - ptypes/any
+  - ptypes/duration
+  - ptypes/timestamp
+- name: github.com/jmespath/go-jmespath
+  version: c2b33e8439af944379acbdd9c3a5fe0bc44bd8a5
+- name: golang.org/x/net
+  version: a7b16738d86b947dd0fadb08ca2c2342b51958b6
+  subpackages:
+  - http/httpguts
+  - http2
+  - http2/hpack
+  - idna
+  - internal/timeseries
+  - trace
+- name: golang.org/x/sys
+  version: bbd175535a8b9969bb0b33f1502f681ee0b122bd
+  subpackages:
+  - unix
+- name: golang.org/x/text
+  version: 3d0f7978add91030e5e8976ff65ccdd828286cba
+  subpackages:
+  - secure/bidirule
+  - transform
+  - unicode/bidi
+  - unicode/norm
+- name: google.golang.org/genproto
+  version: 92dd089d5514cecde7a465f807541f83dfd486d5
+  subpackages:
+  - googleapis/rpc/status
+- name: google.golang.org/grpc
+  version: ac35b67779b9802189d5c0bcfc25d84ce7ba36a1
+  subpackages:
+  - balancer
+  - balancer/base
+  - balancer/roundrobin
+  - binarylog/grpc_binarylog_v1
+  - codes
+  - connectivity
+  - credentials
+  - credentials/internal
+  - encoding
+  - encoding/proto
+  - grpclog
+  - internal
+  - internal/backoff
+  - internal/balancerload
+  - internal/binarylog
+  - internal/channelz
+  - internal/envconfig
+  - internal/grpcrand
+  - internal/grpcsync
+  - internal/syscall
+  - internal/transport
+  - keepalive
+  - metadata
+  - naming
+  - peer
+  - resolver
+  - resolver/dns
+  - resolver/passthrough
+  - serviceconfig
+  - stats
+  - status
+  - tap
+- name: istio.io/gogo-genproto
+  version: 4801a8955c3d52f608591e3af772540f117cdd18
+  subpackages:
+  - googleapis/google/api
+  - googleapis/google/rpc
+testImports: []
