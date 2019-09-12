@@ -1,5 +1,5 @@
-hash: 6f1f13c0cd7bb0fcb1521e0b8dd059989fc79fa4ffdb974c84cbcebb5b036de0
-updated: 2019-09-10T23:34:36.5398209-05:00
+hash: 013f4a49b1f88c8e44506b964567d082916430e48ffee36f616bff179fae59aa
+updated: 2019-09-11T12:54:45.9966074-05:00
 imports:
 - name: github.com/aws/aws-sdk-go
   version: b8c6c48ee663acddf78784df497eaaff8b2de6b8
@@ -29,12 +29,14 @@ imports:
   - internal/sdkuri
   - internal/shareddefaults
   - private/protocol
+  - private/protocol/ec2query
   - private/protocol/json/jsonutil
   - private/protocol/jsonrpc
   - private/protocol/query
   - private/protocol/query/queryutil
   - private/protocol/rest
   - private/protocol/xml/xmlutil
+  - service/ec2
   - service/ecs
   - service/elbv2
   - service/route53
@@ -103,11 +105,11 @@ imports:
   - unicode/bidi
   - unicode/norm
 - name: google.golang.org/genproto
-  version: 92dd089d5514cecde7a465f807541f83dfd486d5
+  version: 1774047e7e5133fa3573a4e51b37a586b6b0360c
   subpackages:
   - googleapis/rpc/status
 - name: google.golang.org/grpc
-  version: ac35b67779b9802189d5c0bcfc25d84ce7ba36a1
+  version: 40ed2eb467471df2bd3c59e66cc5357159062d48
   subpackages:
   - balancer
   - balancer/base

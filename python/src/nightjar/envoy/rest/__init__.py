@@ -1,4 +1,0 @@
-
-"""
-Envoy Proxy REST API.
-"""

@@ -1,0 +1,6 @@
+package nightjar
+
+
+func EnvoyCheck() {
+	
+}

@@ -60,6 +60,7 @@ Envoy Proxy Setup:
 
 Miscellaneous Setup:
 * `WAITTIME` (optional) time, in milliseconds, to wait between data gathering of the services.  Defaults to 100 milliseconds.
+* `AWS_REGION` this may need to be set, to explicitly tell Nightjar which AWS region to look in.
 
 Note that the same service can appear multiple times, which allows for having multiple URLs associated with the same service.
 
@@ -67,6 +68,8 @@ Note that the same service can appear multiple times, which allows for having mu
 ## Limitations
 
 Currently, the Envoy proxy is limited to just one inbound traffic port, forwarded to the other services.
+
+Nightjar doesn't currently support running as a sidecar in Fargate.  There is some logic that can work with Fargate, but it is not a currently supported environment.
 
 
 ## AWS Configuration Details
@@ -107,22 +110,11 @@ The nightjar task needs the following execution roles to run:
     Statement:
       - Effect: Allow
         Action:
-          # TODO refine these
-          - ecs:Get*
-        Resource:
-          - "*"
-      - Effect: Allow
-        Action:
-          # TODO refine these
-          - elbv2:Get*
-        Resource:
-          - "*"
-      - Effect: Allow
-        Action:
-          - "route53:GetHostedZone"
-          - "route53:ListHostedZones"
-          - "route53:ListResourceRecordSets"
-          - "route53:ListHostedZonesByName"
+          - ec2:DescribeInstances
+          - ecs:DescribeContainerInstances
+          - ecs:DescribeServices
+          - ecs:ListTasks
+          - ecs:DescribeTasks
         Resource:
           - "*"
 ```
@@ -133,3 +125,5 @@ The nightjar task needs the following execution roles to run:
 Simply run the `bin/build.sh` script to generate the executable in the `dist` directory.  This uses docker to host the build, so you don't need to worry about installing go or any of Nightjar's dependencies.
 
 Then, you can run `docker -t my-image-name .` to create the distributable docker image.
+
+For information on how to work on making Nightjar better, see the [developers guide](docs/developing).

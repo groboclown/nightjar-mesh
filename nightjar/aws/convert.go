@@ -1,8 +1,9 @@
 package aws
 
+
 import (
-    "fmt"
     "github.com/groboclown/nightjar-mesh/nightjar/enviro"
+    "github.com/groboclown/nightjar-mesh/nightjar/util"
 )
 
 
@@ -12,8 +13,8 @@ import (
 func DiscoverInOutTasks(svc *AwsSvc, egressList []*enviro.PathRef, ingressList []*enviro.PathRef) ([]*AwsTaskPortInfo, []*AwsTaskPortInfo, error) {
     serviceArnsByCluster := collectServiceClusters(egressList, ingressList)
 
-    retOut := make([]*AwsTaskPortInfo, 1)
-    retIn := make([]*AwsTaskPortInfo, 1)
+    retOut := make([]*AwsTaskPortInfo, 0)
+    retIn := make([]*AwsTaskPortInfo, 0)
     for cluster, serviceArns := range *serviceArnsByCluster {
         taskPorts, err := DiscoverServiceDetails(svc, serviceArns, &cluster)
         if err != nil {
@@ -23,7 +24,7 @@ func DiscoverInOutTasks(svc *AwsSvc, egressList []*enviro.PathRef, ingressList [
             retOut = append(retOut, findMatches(egress, taskPorts)...)
         }
         for _, ingress := range ingressList {
-            retIn = append(retIn, findMatches(ingress, taskPorts)...)
+            retIn = append(retIn, filterNonLocal(findMatches(ingress, taskPorts), svc.LocalIp)...)
         }
     }
 
@@ -38,7 +39,7 @@ func collectServiceClusters(lists ...[]*enviro.PathRef) *map[string][]*string {
             if pathRef.ServiceArn != nil && pathRef.Cluster != nil {
                 serviceList, ok := serviceArnsByCluster[*(pathRef.Cluster)]
                 if ! ok {
-                    serviceList = make([]*string, 2)
+                    serviceList = make([]*string, 0)
                 }
                 serviceArnsByCluster[*(pathRef.Cluster)] = append(serviceList, pathRef.ServiceArn)
             }
@@ -57,7 +58,7 @@ func findMatches(pathRef *enviro.PathRef, taskPorts []*AwsTaskPortInfo) []*AwsTa
     // It can match against multiple deployments, though.
 
     notDisplayedErrorHeader := true
-    matches := make([]*AwsTaskPortInfo, 1)
+    matches := make([]*AwsTaskPortInfo, 0)
     var usingPort int64 = -1
     var usingContainerName *string = nil
 
@@ -77,19 +78,19 @@ func findMatches(pathRef *enviro.PathRef, taskPorts []*AwsTaskPortInfo) []*AwsTa
                 (pathRef.ContainerName == nil && usingContainerName != nil && *usingContainerName != *taskPort.ContainerName)) {
             if notDisplayedErrorHeader {
                 notDisplayedErrorHeader = false
-                fmt.Printf("[ERROR] Discovered multiple conflicting matches")
-                fmt.Printf("        Requested task:")
-                fmt.Printf("           Cluster: %s", pathRef.Cluster)
-                fmt.Printf("       Service ARN: %s", pathRef.ServiceArn)
+                util.Warn(" Discovered multiple conflicting matches")
+                util.Warn("   Requested task:")
+                util.Warn("          Cluster: %s", pathRef.Cluster)
+                util.Warn("      Service ARN: %s", pathRef.ServiceArn)
                 if pathRef.ContainerName == nil {
-                    fmt.Printf("         Container: (not given)")
+                    util.Warn("        Container: (not given)")
                 } else {
-                    fmt.Printf("         Container: %s", pathRef.ContainerName)
+                    util.Warn("        Container: %s", pathRef.ContainerName)
                 }
                 if pathRef.ContainerPort < 0 {
-                    fmt.Printf("              Constainer Port: (not given)")
-                    } else {
-                    fmt.Printf("              Constainer Port: %d", pathRef.ContainerPort)
+                    util.Warn("  Constainer Port: (not given)")
+                } else {
+                    util.Warn("  Constainer Port: %d", pathRef.ContainerPort)
                 }
                 // Show the already matched ones.
                 for _, match := range matches {
@@ -110,15 +111,32 @@ func findMatches(pathRef *enviro.PathRef, taskPorts []*AwsTaskPortInfo) []*AwsTa
 
 
 func displayMatch(taskPort *AwsTaskPortInfo) {
-    fmt.Printf("        Matched Against:")
-    fmt.Printf(" -----------------------")
+    util.Warn("        Matched Against:")
+    util.Warn(" -----------------------")
     // Always the same, so don't show:
     //   ServiceName, ClusterArn
     // Don't need to show?
     //   ContainerArn, DockerRuntimeId, ContainerInstanceArn, LaunchType
     //   TaskDefinitionArn, TaskDefinitionDeploymentId, ContainerBindIp, HostPort
-    fmt.Printf("               Task ARN: %s", taskPort.TaskArn)
-    // fmt.Printf("          Container ARN: %s", taskPort.ContainerArn)
-    fmt.Printf("         Container Name: %s", taskPort.ContainerName)
-    fmt.Printf("         Container Port: %s %d", *taskPort.Protocol, *taskPort.ContainerPort)
+    util.Warn("               Task ARN: %s", taskPort.TaskArn)
+    // util.Warn("          Container ARN: %s", taskPort.ContainerArn)
+    util.Warn("         Container Name: %s", taskPort.ContainerName)
+    util.Warn("         Container Port: %s %d", *taskPort.Protocol, *taskPort.ContainerPort)
+}
+
+
+/**
+ * Filter out all the task ports which do not reference a service running on the
+ * current computer.
+ */
+func filterNonLocal(taskPorts []*AwsTaskPortInfo, localIp string) []*AwsTaskPortInfo {
+    ret := make([]*AwsTaskPortInfo, len(taskPorts))
+
+    for _, taskPort := range taskPorts {
+        if *taskPort.Ec2InstancePrivateIp == localIp {
+            ret = append(ret, taskPort)
+        }
+    }
+
+    return ret
 }

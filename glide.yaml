@@ -4,6 +4,7 @@ import:
   subpackages:
   - aws/session
   - service/ecs
+  - service/ec2
   - service/elbv2
   - service/route53
 - package: github.com/envoyproxy/go-control-plane

@@ -1,4 +1,4 @@
-package enviro
+package enviro_test
 
 import (
     "os"

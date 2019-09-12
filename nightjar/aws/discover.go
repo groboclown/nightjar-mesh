@@ -11,5 +11,12 @@ func DiscoverServiceDetails(svc *AwsSvc, serviceArns []*string, cluster *string)
         return []*AwsTaskPortInfo{}, nil
     }
 
-    return LoadTasks(svc.ecs, serviceBuilders, cluster)
+    tasks, ltErr := LoadTasks(svc.ecs, serviceBuilders, cluster)
+    if ltErr != nil {
+        return tasks, ltErr
+    }
+    if err := PopulateContainerInstances(svc, tasks) ; err != nil {
+        return tasks, err
+    }
+    return tasks, nil
 }

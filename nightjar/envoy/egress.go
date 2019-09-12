@@ -5,9 +5,11 @@ import (
 )
 
 
-func UpdateEgress(diffs *aws.AwsTaskPortInfoDiffs, envoySvc *EnvoySvc) {
+func UpdateEgress(diffs *aws.AwsTaskPortInfoDiffs, envoySvc *EnvoySvc) error {
     if diffs == nil || envoySvc == nil || (len(diffs.Removed) <= 0 && len(diffs.Added) <= 0) {
         // Nothing to do
-        return
+        return nil
     }
+
+    return nil
 }

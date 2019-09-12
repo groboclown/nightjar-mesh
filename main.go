@@ -1,38 +1,37 @@
 package main
 
 import (
-    "fmt"
-    "time"
+    "flag"
 
-    "github.com/groboclown/nightjar-mesh/nightjar/enviro"
-    "github.com/groboclown/nightjar-mesh/nightjar/aws"
-    "github.com/groboclown/nightjar-mesh/nightjar/envoy"
+    "github.com/groboclown/nightjar-mesh/nightjar"
+    "github.com/groboclown/nightjar-mesh/nightjar/util"
 )
 
 func main() {
-    awsSvc := aws.NewAwsSvc()
-    waitTime := enviro.ReadWaitTime()
-    services := enviro.ReadEgress()
-    tasks := enviro.ReadIngress()
-    envoySvc := envoy.NewEnvoySvc(enviro.ReadEnvoy(), func (err error) {
-        fmt.Println("[ERROR] Envoy problem:", err)
-    })
+    mode := flag.String("mode", "poll",
+        "Alters the operational mode of the program.  Options are one of: " +
+        "'poll': Poll for changes in the AWS ECS configuration; " +
+        "'aws-check': Report the current ECS configuration based on the environment variables and quit; " +
+        "'envoy-check': Report the current Envoy configuration based on the environment variables and quit.",
+    )
+    debug := flag.Bool("d", false, "debug logging")
+    verbose := flag.Bool("v", false, "verbose logging")
+    flag.Parse()
 
-    oldEgress := make([]*aws.AwsTaskPortInfo, 0)
-    oldIngress := make([]*aws.AwsTaskPortInfo, 0)
+    if *verbose {
+        util.SetLogLevel(util.VERBOSE)
+    }
+    if *debug {
+        util.SetLogLevel(util.DEBUG)
+    }
 
-    for {
-        // fmt.Println("[DEBUG] loading services...")
-        egress, ingress, err := aws.DiscoverInOutTasks(awsSvc, services, tasks)
-        if err != nil {
-            fmt.Println("[ERROR] Problem discovering AWS services:", err)
-        } else {
-            envoy.UpdateEgress(aws.FindDiffs(oldEgress, egress), envoySvc)
-            envoy.UpdateIngress(aws.FindDiffs(oldIngress, ingress), envoySvc)
-            oldEgress = egress
-            oldIngress = ingress
-        }
-
-        time.Sleep(waitTime * time.Millisecond)
+    if *mode == "poll" {
+        nightjar.Poll()
+    } else if *mode == "aws-check" {
+        nightjar.AwsCheck()
+    } else if *mode == "envoy-check" {
+        nightjar.EnvoyCheck()
+    } else {
+        util.Fatal("Invalid `mode` flag value:", mode)
     }
 }

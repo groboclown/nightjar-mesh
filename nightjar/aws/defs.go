@@ -32,6 +32,14 @@ type AwsTaskPortInfo struct {
     ContainerPort               *int64
     HostPort                    *int64
     Protocol                    *string
+
+    // Populated separately in the "container.go" file.
+    Ec2InstanceId               *string
+    Ec2InstancePublicDns        *string
+    Ec2InstancePublicIp         *string
+    Ec2InstancePrivateDns       *string
+    Ec2InstancePrivateIp        *string
+    Ec2InstanceSubnetId         *string
 }
 
 
