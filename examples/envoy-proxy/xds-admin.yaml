@@ -1,17 +1,7 @@
-# Base config for a split xDS management server on 9902, admin port on 9901
-# The admin ports are open to listen on all network cards to allow for running
-# as a stand-alone docker container within an EC2 container instance in an
-# ECS cluster.
-dynamic_resources:
-  # LDS: envoy.api.v2.Listener
-  # RDS: envoy.api.v2.RouteConfiguration
-  # VHDS: envoy.api.v2.Vhds
-  # CDS: envoy.api.v2.Cluster
-  # EDS: envoy.api.v2.ClusterLoadAssignment
-  # SDS: envoy.api.v2.Auth.Secret
-  # RTDS: envoy.service.discovery.v2.Runtime
+# Base config for running the nightjar admin server on port 9902,
+# linkable through 
 
-name: xds_cluster
+name: managed
 node:
   cluster: test-cluster
   id: test-id
@@ -26,18 +16,21 @@ dynamic_resources:
         cluster_name: ads_cluster
 static_resources:
   clusters:
-  - name: ads_cluster
+  # The nightjar server.
+  # It should be accessible through a link in the docker setup, so that
+  # "nightjar" host refers to the nightjar container.
+  - name: nightjar
     connect_timeout: { seconds: 5 }
-    type: STATIC
+    type: STRICT_DNS
     load_assignment:
-      cluster_name: ads_cluster
+      cluster_name: nightjar
       endpoints:
         - lb_endpoints:
             - endpoint:
                 address:
                   socket_address:
-                    address: 127.0.0.1
-                    port_value: 9901
+                    address: nightjar
+                    port_value: 9902
     lb_policy: ROUND_ROBIN
     http2_protocol_options: {}
 admin:

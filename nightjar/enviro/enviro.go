@@ -1,149 +1,153 @@
+// Loads up the environment variables for use with the rest of the program.
 package enviro
 
 import (
-    "os"
-    "time"
-    "strings"
-    "strconv"
+	"os"
+	"time"
+	"strings"
+	"strconv"
 )
 
+// PathRef contains information about a service, either inbound or outbound.
 type PathRef struct {
-    Id              string
-    ServiceArn      *string
-    Path            *string
-    ContainerName   *string
-    ContainerPort   int64
-    Cluster         *string
+	Id              string
+	ServiceArn      *string
+	Path            *string
+	ContainerName   *string
+	ContainerPort   uint32
+	Cluster         *string
 }
 
+// EnvoyRef contains information that describes how to setup and connect to Envoy.
 type EnvoyRef struct {
-    AdminHostname        string
-    AdminPort            int64
-    IngressPort          int64 // <= 0 if not used
-    EgressPort           int64 // <= 0 if not used
+	AdminPort	uint32
+	IngressPort	uint32 // <= 0 if not used
+	EgressPort	uint32 // <= 0 if not used
+	HealthCheckPath	string
+	HealthCheckStatus uint32
+	HealthCheckBody string
 }
 
-/**
- * Read the service definitions from the environment variables.
- */
+
+// ReadEgress loads the service definitions from the environment variables.
 func ReadEgress() []*PathRef {
-    ret := make([]*PathRef, 0)
+	ret := make([]*PathRef, 0)
 
-    defaultCluster, defaultClusterOk := os.LookupEnv("CLUSTER")
+	defaultCluster, defaultClusterOk := os.LookupEnv("CLUSTER")
 
-    i := 1
-    for {
-        arnVal, arnOk := lookup_index_env("SERVICE_ARN_", i)
-        pathVal, pathOk := lookup_index_env("SERVICE_PATH_", i)
-        containerVal, _ := lookup_index_env("SERVICE_CONTAINER_", i)
-        portVal := lookup_int_env("SERVICE_PORT_", i, -1)
-        clusterVal, clusterOk := lookup_index_env("SERVICE_CLUSTER_", i)
-        if !clusterOk {
-            clusterOk = defaultClusterOk
-            clusterVal = &defaultCluster
-        }
+	i := 1
+	for {
+		arnVal, arnOk := lookupIndexEnv("SERVICE_ARN_", i)
+		pathVal, pathOk := lookupIndexEnv("SERVICE_PATH_", i)
+		containerVal, _ := lookupIndexEnv("SERVICE_CONTAINER_", i)
+		portVal := lookupIntEnv("SERVICE_PORT_", i, 0)
+		clusterVal, clusterOk := lookupIndexEnv("SERVICE_CLUSTER_", i)
+		if !clusterOk {
+			clusterOk = defaultClusterOk
+			clusterVal = &defaultCluster
+		}
 
-        if arnOk && pathOk && clusterOk {
-            ret = append(ret, mk_pathref(
-                arnVal, pathVal, containerVal, portVal, clusterVal,
-            ))
-        } else {
-            return ret
-        }
-        i += 1
-    }
+		if arnOk && pathOk && clusterOk {
+			ret = append(ret, NewPathRef(
+				arnVal, pathVal, containerVal, portVal, clusterVal,
+			))
+		} else {
+			return ret
+		}
+		i += 1
+	}
 }
 
 
-/**
- * Read the exported, local service tasks that receive inbound traffic.
- */
+// ReadIngress loads exported, local service tasks that receive inbound traffic.
 func ReadIngress() []*PathRef {
-    ret := make([]*PathRef, 0)
+	ret := make([]*PathRef, 0)
 
-    arnVal, arnOk := os.LookupEnv("CURRENT_SERVICE_ARN")
-    clusterVal, clusterOk := os.LookupEnv("CLUSTER")
-    if !arnOk || !clusterOk {
-        return ret
-    }
+	arnVal, arnOk := os.LookupEnv("CURRENT_SERVICE_ARN")
+	clusterVal, clusterOk := os.LookupEnv("CLUSTER")
+	if !arnOk || !clusterOk {
+		return ret
+	}
 
-    i := 1
-    for {
-        nameVal, nameOk := lookup_index_env("TASK_NAME_", i)
-        pathVal, pathOk := lookup_index_env("TASK_PATH_", i)
-        port := lookup_int_env("TASK_PORT_", i, -1)
+	i := 1
+	for {
+		nameVal, nameOk := lookupIndexEnv("TASK_NAME_", i)
+		pathVal, pathOk := lookupIndexEnv("TASK_PATH_", i)
+		port := lookupIntEnv("TASK_PORT_", i, 0)
 
-        if nameOk && pathOk {
-            ret = append(ret, mk_pathref(
-                &arnVal, pathVal, nameVal, port, &clusterVal,
-            ))
-        } else {
-            return ret
-        }
-        i += 1
-    }
+		if nameOk && pathOk {
+			ret = append(ret, NewPathRef(
+				&arnVal, pathVal, nameVal, port, &clusterVal,
+			))
+		} else {
+			return ret
+		}
+		i += 1
+	}
 }
 
-const DEFAULT_HOSTNAME string = "localhost"
-const DEFAULT_PORT int64 = 9901
+// Default envoy setup values
+const (
+	defaultPort uint32 = 9902
+)
 
+// ReadEnvoy loads the envoy configuration information.
 func ReadEnvoy() *EnvoyRef {
-    ret := EnvoyRef{ Hostname: DEFAULT_HOSTNAME, Port: DEFAULT_PORT }
+	ret := EnvoyRef{
+		AdminPort: lookupIntEnv("ENVOY_ADMIN_PORT", -1, defaultPort),
+		EgressPort: lookupIntEnv("EGRESS_LISTEN_PORT", -1, 0),
+		IngressPort: lookupIntEnv("INGRESS_LISTEN_PORT", -1, 0),
 
-    hostVal, hostOk := os.LookupEnv("ENVOY_CONTAINER_NAME")
-    if hostOk {
-        ret.Hostname = hostVal
-    }
-    ret.Port = lookup_int_env("ENVOY_ADMIN_PORT", -1, DEFAULT_PORT)
-    return &ret
+	}
+	return &ret
 }
 
 
+// ReadWaitTime reads the polling wait time.
 func ReadWaitTime() time.Duration {
-    return time.Duration(lookup_int_env("WAITTIME", -1, 100))
+	return time.Duration(lookupIntEnv("WAITTIME", -1, 100))
 }
 
 
-func lookup_index_env(prefix string, index int) (*string, bool) {
-    env := strings.Join([]string{prefix, strconv.Itoa(index)}, "")
-    v, ok := os.LookupEnv(env)
-    return &v, ok
+func lookupIndexEnv(prefix string, index int) (*string, bool) {
+	env := strings.Join([]string{prefix, strconv.Itoa(index)}, "")
+	v, ok := os.LookupEnv(env)
+	return &v, ok
 }
 
 
-func lookup_int_env(prefix string, index int, defaultVal int64) int64 {
-    env := prefix
-    if index >= 0 {
-        env = strings.Join([]string{prefix, strconv.Itoa(index)}, "")
-    }
-    val, ok := os.LookupEnv(env)
-    if ok {
-        reti, err := strconv.Atoi(val)
-        if err != nil {
-            return int64(reti)
-        }
-    }
-    return defaultVal
+func lookupIntEnv(prefix string, index int, defaultVal uint32) uint32 {
+	env := prefix
+	if index >= 0 {
+		env = strings.Join([]string{prefix, strconv.Itoa(index)}, "")
+	}
+	val, ok := os.LookupEnv(env)
+	if ok {
+		reti, err := strconv.Atoi(val)
+		if err != nil {
+			return uint32(reti)
+		}
+	}
+	return defaultVal
 }
 
 
-
-func mk_pathref(
-        serviceArn *string, 
-        path *string,
-        containerName *string,
-        containerPort int64,
-        cluster *string,
+func NewPathRef(
+		serviceArn *string, 
+		path *string,
+		containerName *string,
+		containerPort uint32,
+		cluster *string,
 ) *PathRef {
-    id := strings.Join([]string{
-        *serviceArn, *path, *containerName, strconv.FormatInt(containerPort, 10), *cluster,
-    }, "&")
-    return &PathRef{
-        Id: id,
-        ServiceArn: serviceArn,
-        Path: path,
-        ContainerName: containerName,
-        ContainerPort: containerPort,
-        Cluster: cluster,
-    }
+	id := strings.Join([]string{
+		*serviceArn, *path, *containerName, strconv.FormatInt(int64(containerPort), 10), *cluster,
+	}, "&")
+	return &PathRef{
+		Id: id,
+		ServiceArn: serviceArn,
+		Path: path,
+		ContainerName: containerName,
+		ContainerPort: containerPort,
+		Cluster: cluster,
+	}
 }

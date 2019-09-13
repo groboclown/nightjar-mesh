@@ -46,7 +46,6 @@ Note that you can, optionally, include multiple container definitions to allow t
 The nightjar-mesh controller container definition needs to include the following environment variables; replace "X" with number.  Nightjar-mesh will start looking for `1`, and increment until a value is not found.
 
 Egress Definitions:
-* `EGRESS_LISTEN_PORT` the Envoy proxy listening port that the internal services connect to for communication with outside services.
 * `SERVICE_ARN_X` ARN of the service at index X.
 * `SERVICE_PATH_X` URL path (no schema or host) for the service.  Must have leading "/".
 * `SERVICE_CONTAINER_X` (optional) name of the task definition container that listens to the path; if there is just one container, then this is not necessary.
@@ -54,7 +53,6 @@ Egress Definitions:
 * `SERVICE_CLUSTER_X` (optional) name of the ECS cluster running the service.  If not specified, then the cluster name is read from `CLUSTER`.
 
 Ingress Definitions:
-* `INGRESS_LISTEN_PORT` the Envoy proxy listening port that the AWS load balancers connect to for communication with internal services.
 * `CLUSTER` the ECS cluster name running the current container.
 * `CURRENT_SERVICE_ARN` the ECS service running the current container.
 * `CONTAINER_NAME_X` container name in the task definition at index X.
@@ -62,8 +60,9 @@ Ingress Definitions:
 * `CONTAINER_PORT_X` (optional) port number the task for this path listens on.  Only required to be set if the task defines more than one container port.
 
 Envoy Proxy Setup:
-* `ENVOY_CONTAINER_NAME` (optional) the container name of the Envoy proxy.  If not specified, then "localhost" is used.
-* `ENVOY_ADMIN_PORT` (optional) the Envoy proxy administration port.  Defaults to 9901.
+* `ENVOY_ADMIN_PORT` (optional) the control-plane (nightjar) port.  Defaults to 9902.
+* `EGRESS_LISTEN_PORT` the Envoy proxy listening port that the internal services connect to for communication with outside services.
+* `INGRESS_LISTEN_PORT` the Envoy proxy listening port that the AWS load balancers connect to for communication with internal services.
 
 Miscellaneous Setup:
 * `WAITTIME` (optional) time, in milliseconds, to wait between data gathering of the services.  Defaults to 100 milliseconds.
@@ -72,6 +71,13 @@ Miscellaneous Setup:
 Note that the same service can appear multiple times, which allows for having multiple URLs associated with the same service.
 
 If you only have inbound traffic, then you can leave out the egress definitions.  Likewise, if you only have outbound traffic, you can leave out the ingress definitions.  For example, if all the internal services are directly connected to a load balancer, then you don't need any ingress definitions.
+
+### Test Modes
+
+You can test the different aspects of nightjar by using the `-mode` command-line argument.
+
+* `-mode aws-check` Displays to stdout all the information nightjar discovered about the AWS configuration based on the environment variables, and exits.
+* `-mode envoy-check` Displays to stdout all the information nightjar discovered about the Envoy Proxy configuration based on the environment variables, and exits.
 
 
 ## Limitations

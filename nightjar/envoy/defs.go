@@ -1,14 +1,14 @@
 package envoy
 
 
-type ServiceEndpoint {
+type ServiceEndpoint struct {
 	HostIP		string
-    HostPort    uint32
+	HostPort    uint32
 }
 
-type ServceCluster {
-    ServiceName string
-    Paths       []string
-    Endpoints   []ServiceEndpoint
-    Http1Only   bool
+type ServiceCluster struct {
+	ServiceName string
+	Paths       []string
+	Endpoints   []ServiceEndpoint
+	Http1Only   bool
 }

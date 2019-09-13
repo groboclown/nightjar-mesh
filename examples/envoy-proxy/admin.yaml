@@ -1,0 +1,25 @@
+# Base config for a split xDS management server on 9902, admin port on 9901
+# The admin ports are open to listen on all network cards to allow for running
+# as a stand-alone docker container within an EC2 container instance in an
+# ECS cluster.
+dynamic_resources:
+  # LDS: envoy.api.v2.Listener
+  # RDS: envoy.api.v2.RouteConfiguration
+  # VHDS: envoy.api.v2.Vhds
+  # CDS: envoy.api.v2.Cluster
+  # EDS: envoy.api.v2.ClusterLoadAssignment
+  # SDS: envoy.api.v2.Auth.Secret
+  # RTDS: envoy.service.discovery.v2.Runtime
+
+name: xds_cluster
+node:
+  cluster: test-cluster
+  id: test-id
+static_resources:
+admin:
+  access_log_path: /dev/stdout
+  address:
+    socket_address:
+      # Listen to all networks, so that nightjar can call into it.
+      address: 0.0.0.0
+      port_value: 9901

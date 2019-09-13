@@ -77,6 +77,6 @@ func displayPtrS(format string, v *string) {
 	fmt.Printf(format + "\n", util.AsStr(v))
 }
 
-func displayPtrI(format string, v *int64) {
-	fmt.Printf(format + "\n", util.AsInt64(v))
+func displayPtrI(format string, v uint32) {
+	fmt.Printf(format + "\n", v)
 }
