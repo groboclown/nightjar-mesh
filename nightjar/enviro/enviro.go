@@ -17,8 +17,10 @@ type PathRef struct {
 }
 
 type EnvoyRef struct {
-    Hostname        string
-    Port            int64
+    AdminHostname        string
+    AdminPort            int64
+    IngressPort          int64 // <= 0 if not used
+    EgressPort           int64 // <= 0 if not used
 }
 
 /**

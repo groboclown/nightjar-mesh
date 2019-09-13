@@ -1,4 +1,5 @@
 FROM golang:alpine
+LABEL author=https://github.com/groboclown/nightjar-mesh
 
 RUN apk add --update \
     tzdata bash wget curl git

@@ -1,5 +1,5 @@
 FROM busybox
-MAINTAINER https://github.com/groboclown/nightjar-mesh
+LABEL author=https://github.com/groboclown/nightjar-mesh
 
 # This may need to switch to alpine so we can grab the certificates easier.
 # It'll still be small, but not as small.

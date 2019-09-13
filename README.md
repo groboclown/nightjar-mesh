@@ -2,13 +2,18 @@
 
 An AWS ECS Control Mesh Sidecar for Envoy Proxy
 
+*That's a fancy way to say that Nightjar monitors AWS Elastic Cloud Services for changes, and sends updates to a local Envoy Proxy to change the inbound and outbound traffic routes.*
+
+
 ## About
 
 [Nightjar](https://en.wikipedia.org/wiki/Nightjar) is a **Control Mesh** for Envoy Proxy, designed to run as a Docker sidecar within Amazon Web Services (AWS) Elastic Cloud Services (ECS).
 
 AWS provides their [App Mesh](https://aws.amazon.com/app-mesh/) tooling, but it involves many limitations that some deployments cannot work around, or should not work around.  Nightjar acts as a low-level intermediary between the AWS API and the Envoy Proxy to make deployments in EC2 or Fargate possible.
 
-Like most other control mesh solutions, Nightjar uses [Envoy Proxy](https://envoyproxy.github.io/envoy/) acts as the data mesh for the docker services.  Nightjar uses the Envoy Proxy administration port to control the configuration to match the current AWS configuration.
+Nightjar periodically loads the AWS configuration, and sends updates to [Envoy Proxy](https://envoyproxy.github.io/envoy/) to change the host and port for a static list of path mappings.  The mappings can be for inbound network traffic directed to the hosted services (*ingress proxy*), or outbound traffic from the hosted services to other services in your deployment (*egress proxy*).
+
+Nightjar only looks at the traffic routing, and does not provide other traffic flow controls or monitoring.
 
 
 ## How It Works
@@ -34,13 +39,14 @@ The task definition will need to contain these two "sidecar" container definitio
 
 You may also want to include a data volume sidecar, with an explicit purpose of only providing files that other containers `VolumesFrom` section can reference.  Alternatively, you'll need custom docker images that have your custom files baked in. 
 
-You will want to point the load balancer at the Envoy Proxy container port.
+You will want to point the load balancer at the Envoy Proxy container ingress port.
 
 Note that you can, optionally, include multiple container definitions to allow the one task definition to start multiple services.
 
-The nightjar-mesh controller container definition needs to include the following environment variables; replace "X" with an index starting with 1.  Nightjar-mesh will start looking for `1`, and increment until a value is not found.
+The nightjar-mesh controller container definition needs to include the following environment variables; replace "X" with number.  Nightjar-mesh will start looking for `1`, and increment until a value is not found.
 
 Egress Definitions:
+* `EGRESS_LISTEN_PORT` the Envoy proxy listening port that the internal services connect to for communication with outside services.
 * `SERVICE_ARN_X` ARN of the service at index X.
 * `SERVICE_PATH_X` URL path (no schema or host) for the service.  Must have leading "/".
 * `SERVICE_CONTAINER_X` (optional) name of the task definition container that listens to the path; if there is just one container, then this is not necessary.
@@ -48,6 +54,7 @@ Egress Definitions:
 * `SERVICE_CLUSTER_X` (optional) name of the ECS cluster running the service.  If not specified, then the cluster name is read from `CLUSTER`.
 
 Ingress Definitions:
+* `INGRESS_LISTEN_PORT` the Envoy proxy listening port that the AWS load balancers connect to for communication with internal services.
 * `CLUSTER` the ECS cluster name running the current container.
 * `CURRENT_SERVICE_ARN` the ECS service running the current container.
 * `CONTAINER_NAME_X` container name in the task definition at index X.
@@ -60,16 +67,18 @@ Envoy Proxy Setup:
 
 Miscellaneous Setup:
 * `WAITTIME` (optional) time, in milliseconds, to wait between data gathering of the services.  Defaults to 100 milliseconds.
-* `AWS_REGION` this may need to be set, to explicitly tell Nightjar which AWS region to look in.
+* `AWS_REGION` (optional) this may need to be set, to explicitly tell Nightjar which AWS region to look in.
 
 Note that the same service can appear multiple times, which allows for having multiple URLs associated with the same service.
+
+If you only have inbound traffic, then you can leave out the egress definitions.  Likewise, if you only have outbound traffic, you can leave out the ingress definitions.  For example, if all the internal services are directly connected to a load balancer, then you don't need any ingress definitions.
 
 
 ## Limitations
 
 Currently, the Envoy proxy is limited to just one inbound traffic port, forwarded to the other services.
 
-Nightjar doesn't currently support running as a sidecar in Fargate.  There is some logic that can work with Fargate, but it is not a currently supported environment.
+Nightjar doesn't currently support running as a sidecar in Fargate.  There is some logic that can work with Fargate, but it is not a currently supported environment.  This may be supported in the future.
 
 
 ## AWS Configuration Details
@@ -126,4 +135,4 @@ Simply run the `bin/build.sh` script to generate the executable in the `dist` di
 
 Then, you can run `docker -t my-image-name .` to create the distributable docker image.
 
-For information on how to work on making Nightjar better, see the [developers guide](docs/developing).
+For information on how to work on making Nightjar better, see the [developers guide](docs/developing.md).

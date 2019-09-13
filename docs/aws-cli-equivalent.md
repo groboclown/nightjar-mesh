@@ -23,9 +23,16 @@ aws ecs list-tasks \
 ```
 
 
+## Get a List of EC2 Instances That the ECS Tasks Are Running On
+
+... describe the ECS tasks returned by `ecs list-tasks`.
+... run `ecs describe-container-instances` for each container instance ARN on the task description.  This includes the EC2 instance ID.
+... run `ec2 describe-instances` for the list of instance IDs.
+
+
 ## Get Load Balancers and Port Mapping for a List of ECS Services
 
-How to find the load balancers used by ECS service ARNs running in the same cluster.
+How to find the load balancers used by ECS service ARNs running in the same cluster.  *Nightjar doesn't use this anymore.*
 
 ```bash
 aws ecs describe-services \
@@ -50,7 +57,7 @@ aws elbv2 describe-listeners \
 
 ## Look up Route 53 DNS Aliases
 
-Given a DNS alias name, we'll need to get the zone ID
+Given a DNS alias name, we'll need to get the zone ID.  *Nightjar doesn't use this anymore.*
 
 ```bash
 aws route53 list-hosted-zones
