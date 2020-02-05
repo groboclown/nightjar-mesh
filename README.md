@@ -30,7 +30,7 @@ You configure the Nightjar container with two sets of properties:
 
 To setup the services, you need to register your tasks using AWS Cloud Map (aka Service Discovery) using SVR registration.  This makes available to Nightjar the service members and how to connect to them.
 
-The beta version is written in Python, and constructs the Envoy Proxy configuration as a static yaml file.  This makes it possible to change the static generation to include extra Envoy features that don't come out of the box.  Eventually, this construction will be moved to a better templating engine to make construction even easier.
+The beta version is written in Python, and constructs the Envoy Proxy configuration as a static yaml file using data created in the python file, and transformed from a mustache style template file, which can be changed out at runtime.  This makes it possible to change the static generation to include extra Envoy features that don't come out of the box.
 
 
 ## Using Nightjar
@@ -267,6 +267,9 @@ Resources:
         # High level information about the service/color.
         SERVICE: tuna
         COLOR: blue
+
+        # If your service uses HTTP2, then set this attribute and value.
+        HTTP2: enabled
         
         # List of all the URI path prefixes that receive traffic.
         # The relative weight to assign this service/color for this path.

@@ -1,0 +1,105 @@
+# A json schema definition of the data used to generate the envoy yaml file.
+# See https://json-schema.org/
+
+description: Input data for the mustache file generation.  The data is constructed in the script, but this file keeps the template reference easy.
+type: object
+required:
+  - admin_port
+  - listeners
+  - has_clusters
+  - clusters
+properties:
+  admin_port:
+    description: Envoy administration listening port.
+    type: int
+
+  listeners:
+    description: list of mesh routing definitions
+    type: array
+    items:
+      type: object
+      required:
+        - mesh_port
+        - healthcheck_path
+        - routes
+      properties:
+        mesh_port:
+          description: egress port that the service connects to for sending requests to other members of the mesh.
+          type: int
+        healthcheck_path:
+          description: URI path to the static healthcheck for the envoy proxy.  Must start with a '/'.
+          type: string
+        routes:
+          description: List of routes and their weights.
+          type: array
+          items:
+            type: object
+            required:
+              - route_path
+              - has_one_cluster
+              - has_many_clusters
+              - total_cluster_weight
+              - clusters
+            properties:
+              route_path:
+                description: Prefix path for this route.
+                type: string
+              has_one_cluster:
+                description: Is there just one cluster?
+                type: bool
+              has_many_clusters:
+                description: Is there more than one cluster?
+                type: bool
+              total_cluster_weight:
+                description: sum of all of route's cluster's weights.
+                type: int
+              clusters:
+                description: list of clusters that handle this path prefix.
+                type: array
+                items:
+                  type: object
+                  required:
+                    - cluster_name
+                    - route_weight
+                  properties:
+                    cluster_name:
+                      description: name of the cluster, in the cluster section.
+                      type: string
+                    route_weight:
+                      description: this cluster's route's relative weight
+                      type: int
+
+  has_clusters:
+    description: are there 1 or more clusters?
+    type: bool
+  clusters:
+    description: list of each service/cluster routed to by the listeners.
+    type: array
+    items:
+      type: object
+      required:
+        - name
+        - uses_http2
+        - endpoints
+      properties:
+        name:
+          description: name of the service
+          type: string
+        uses_http2:
+          description: uses HTTP2 for connections
+          type: bool
+        endpoints:
+          description: list of connection endpoints
+          type: array
+          items:
+            type: object
+            required:
+              - ipv4
+              - port
+            properties:
+              ipv4:
+                description: IPv4 address of the instance.
+                type: string
+              port:
+                description: endpoint listening port.  This is container's host port.
+                type: int
