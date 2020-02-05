@@ -2,7 +2,7 @@
 
 An AWS ECS Control Mesh with Envoy Proxy
 
-*That's a fancy way to say that Nightjar monitors AWS Elastic Cloud Services for changes, and sends updates to a local Envoy Proxy to change the inbound and outbound traffic routes.*
+*That's a fancy way to say that Nightjar monitors AWS Elastic Cloud Services for changes, and sends updates to a local Envoy Proxy to change the outbound traffic routes.*
 
 
 ## About
