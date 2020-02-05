@@ -58,7 +58,7 @@ The `SERVICE_MEMBER` must reference a [Cloud Map service](https://docs.aws.amazo
 * `SERVICE` - the name of the service.
 * `COLOR` - the deployment "color" (usually blue or green).
 * `AWS_INSTANCE_IPV4` and `AWS_INSTANCE_PORT` - these keys are required by AWS, but the value doesn't matter for the purposes of Nightjar.
-* For each path prefix that the service handles, register that path as the key, and the relative weight that this service instance should be assigned to that prefix.  For example, if the "blue" deployment has just been released and you want to lightly load it before switching over, give its paths a number significantly lower than the "green" deployment.  If the path is explicitly only used within the mesh, and should never be accessible from outside this mesh, then prepend a question mark ('?') to the start of the key.
+* For each path prefix that the service handles, register that path as the key, and the relative weight that this service instance should be assigned to that prefix.  For example, if the "blue" deployment has just been released and you want to lightly load it before switching over, give its paths a number significantly lower than the "green" deployment.  If the path is explicitly only used within the mesh, and should never be accessible from outside this mesh, then prepend a question mark ('?') to the start of the key.  Note that to be recognized as a path key, the key must start with a `/`, `?`, or `*`.
 
 
 ## Example of Nightjar with a Service
