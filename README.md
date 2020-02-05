@@ -11,12 +11,12 @@ An AWS ECS Control Mesh with Envoy Proxy
 
 AWS provides their [App Mesh](https://aws.amazon.com/app-mesh/) tooling, but it involves many limitations that some deployments cannot work around, or should not work around.  Nightjar acts as a low-level intermediary between the AWS API and the Envoy Proxy to make deployments in EC2 or Fargate possible, with little fuss.  It even works without `awsvpc` networks, and takes advantage of ephemeral ports!
 
-Nightjar periodically loads the AWS configuration, and sends updates to [Envoy Proxy](https://envoyproxy.github.io/envoy/) to change the host and port for a dynamic list of weighted path mappings.  This works for both inbound traffic into the mesh (a "gateway" service) and for services running inside the mesh ("egress proxy").  The Envoy Proxies themselves manage the network traffic directly to the services, and the services contact the sidecar envoy proxy.
+Nightjar periodically loads the AWS configuration, and sends updates to [Envoy Proxy](https://envoyproxy.github.io/envoy/) to change the host and port for a dynamic list of weighted path mappings.  This works for both inbound traffic into the mesh (a "gateway" service) and for services running inside the mesh ("egress proxy").  Within the mesh, the envoy proxies send the data directly to the other service containers.
 
 
 ## Some Notes on Terminology
 
-I use the word "mesh" to describe services that can talk to each other as peers.  This is to avoid confusing the term "cluster", which AWS uses to describe the computing resources where ECS tasks run.  Nightjar uses the phrase "namespace", because it splits the different meshes based on AWS Cloud Map namespaces.
+This document uses the word "mesh" to describe services that can talk to each other as peers.  This avoids confusing the term "cluster", which AWS uses to describe the computing resources where ECS tasks run.  Nightjar uses the phrase "namespace", because it splits the different meshes based on AWS Cloud Map namespaces.
 
 ## How It Works
 
