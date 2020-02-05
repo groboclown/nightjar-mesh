@@ -302,6 +302,10 @@ With all that boilerplate out of the way, adding in Nightjar to the template is 
         # The relative weight to assign this service/color for this path.
         "/tuna": "100"
         
+        # Note that the paths weights above are not fixed.  You can adjust
+        # these values through the Cloud Map UI or through the AWS cli.
+
+        
         # These settings are required for SRV records, but for this
         # record, the values are never used.  So we set these to valid
         # values that are harmless.
