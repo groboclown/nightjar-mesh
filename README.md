@@ -25,8 +25,9 @@ This document uses the word "mesh" to describe services that can talk to each ot
 You configure the Nightjar container to run inside an [ECS Task Definition](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html), along with a single service container.  The Nightjar container runs the Envoy proxy, and is considered a "sidecar" container here.  The service must be configured to send all traffic to other services in the mesh to the Nightjar container.  Inbound traffic to the service comes from the Nightjar containers running in the other services. 
 
 You configure the Nightjar container with two sets of properties:
-    * The local service name.  This tells Nightjar to not handle traffic sent to this local container.  It also indirectly tells Nightjar which mesh it belongs to.
-    * The other cluster names.  If you split your network into multiple clusters, then each of the other clusters is defined by name and can direct traffic directly within the other networks.  This is completely optional; if you prefer to have the other clusters have a separate mesh, then you need to have the services connect directly to the other meshs' gateway proxies.
+
+* The local service name.  This tells Nightjar to not handle traffic sent to this local container.  It also indirectly tells Nightjar which mesh it belongs to.
+* The other cluster names.  If you split your network into multiple clusters, then each of the other clusters is defined by name and can direct traffic directly within the other networks.  This is completely optional; if you prefer to have the other clusters have a separate mesh, then you need to have the services connect directly to the other meshs' gateway proxies.
 
 To setup the services, you need to register your tasks using AWS Cloud Map (aka Service Discovery) using SVR registration.  This makes available to Nightjar the service members and how to connect to them.
 
@@ -50,6 +51,14 @@ Nightjar itself takes these environment variables to configure its operation:
 * `ENVOY_ADMIN_PORT` (defaults to 9901) the Envoy proxy administration port.
 * `AWS_REGION` (required, no default) The AWS region name (i.e. `us-west-2`) in which the Cloud Map registration is managed.
 * `DEBUG_CONTAINER` (no default) set this to `1` to start the container as a shell, to help in debugging the container.
+
+
+The `SERVICE_MEMBER` must reference a [Cloud Map service](https://docs.aws.amazon.com/cloud-map/latest/dg/working-with-services.html) with SVC DNS registration, which has all the ECS services for that service registered as [instances](https://docs.aws.amazon.com/cloud-map/latest/dg/working-with-instances.html).  In addition, it must also have a special service instance with ID `service-settings` and the given keys:
+
+* `SERVICE` - the name of the service.
+* `COLOR` - the deployment "color" (usually blue or green).
+* `AWS_INSTANCE_IPV4` and `AWS_INSTANCE_PORT` - these keys are required by AWS, but the value doesn't matter for the purposes of Nightjar.
+* For each path prefix that the service handles, register that path as the key, and the relative weight that this service instance should be assigned to that prefix.  For example, if the "blue" deployment has just been released and you want to lightly load it before switching over, give its paths a number significantly lower than the "green" deployment.  If the path is explicitly only used within the mesh, and should never be accessible from outside this mesh, then prepend a question mark ('?') to the start of the key.
 
 
 ## Example of Nightjar with a Service
