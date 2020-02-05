@@ -87,7 +87,7 @@ class DiscoveryServiceColor:
         path_weights: Dict[str, int] = {}
         instances: List[DiscoveryServiceInstance] = []
 
-        client = get_client('servicediscovery')
+        client = get_servicediscovery_client()
         paginator = client.get_paginator('list_instances')
         page_iterator = paginator.paginate(ServiceId=self.service_id)
         for page in page_iterator:
@@ -128,7 +128,7 @@ class DiscoveryServiceColor:
         self.cache_load_time = datetime.datetime.now()
 
     def load_namespace(self, listen_port: int) -> 'DiscoveryServiceNamespace':
-        client = get_client('servicediscovery')
+        client = get_servicediscovery_client()
         raw = client.get_namespace(Id=self.namespace_id)
         return DiscoveryServiceNamespace.from_resp(listen_port, raw)
 
@@ -154,7 +154,7 @@ class DiscoveryServiceColor:
 
     @staticmethod
     def from_single_id(service_id: str) -> 'DiscoveryServiceColor':
-        client = get_client('servicediscovery')
+        client = get_servicediscovery_client()
         return DiscoveryServiceColor.from_resp(client.get_service(Id=service_id))
 
 
@@ -190,7 +190,7 @@ class DiscoveryServiceNamespace:
     def load_services(self, refresh_cache: bool) -> None:
         if _skip_reload(self.cache_load_time, refresh_cache):
             return
-        client = get_client('servicediscovery')
+        client = get_servicediscovery_client()
 
         service_paginator = client.get_paginator('list_services')
         service_iter = service_paginator.paginate(
@@ -234,7 +234,7 @@ class DiscoveryServiceNamespace:
     def load_namespaces(namespace_ports: Dict[str, int]) -> List['DiscoveryServiceNamespace']:
         ret: List['DiscoveryServiceNamespace'] = []
         remaining = set(namespace_ports.keys())
-        client = get_client('servicediscovery')
+        client = get_servicediscovery_client()
         paginator = client.get_paginator('list_namespaces')
         for page in paginator.paginate():
             for raw in dt_list_dict(page, 'Namespaces'):
@@ -489,15 +489,16 @@ def collate_ports_and_clusters(
     if local:
         is_local_route = True
         local.load_service(refresh_cache)
-        in_namespaces = False
-        for namespace in namespaces:
-            if namespace.namespace_id == local.service_color.namespace_id:
-                in_namespaces = True
-                break
-        if not in_namespaces:
-            namespaces.extend(DiscoveryServiceNamespace.load_namespaces({
-                local.service_color.namespace_id: local.service_member_port
-            }))
+        if local.service_color:
+            in_namespaces = False
+            for namespace in namespaces:
+                if namespace.namespace_id == local.service_color.namespace_id:
+                    in_namespaces = True
+                    break
+            if not in_namespaces:
+                namespaces.extend(DiscoveryServiceNamespace.load_namespaces({
+                    local.service_color.namespace_id: local.service_member_port
+                }))
 
     for namespace in namespaces:
         routes: Dict[str, Dict[str, int]] = {}
@@ -521,7 +522,7 @@ def collate_ports_and_clusters(
                         c=service_color.group_color_name
                     )
                 cluster = EnvoyCluster(
-                    service_color.group_service_name + '-' + service_color.group_color_name,
+                    '{0}-{1}'.format(service_color.group_service_name, service_color.group_color_name),
                     service_color.uses_http2,
                     service_color.instances
                 )
@@ -548,39 +549,41 @@ def collate_ports_and_clusters(
 CLIENTS: Dict[str, object] = {}
 
 
-def get_client(client_name: str, **args: Any) -> Any:
+def get_servicediscovery_client() -> Any:
+    client_name = 'servicediscovery'
     if client_name not in CLIENTS:
-        settings: Dict[str, str] = {}
-        region = os.environ.get('AWS_REGION')
-        if region:
-            settings['region_name'] = region
-        profile = os.environ.get('AWS_PROFILE')
-        if profile:
-            settings['profile_name'] = profile
-        session = boto3.session.Session(**settings)
-        CLIENTS[client_name] = session.client(client_name, **args)
+        region = os.environ.get('AWS_REGION', None)
+        profile = os.environ.get('AWS_PROFILE', None)
+        session = boto3.session.Session(
+            region_name=region,
+            profile_name=profile,
+        )
+        CLIENTS[client_name] = session.client('servicediscovery')
     return CLIENTS[client_name]
 
 
 def dt_get(d: Dict[str, Any], *keys: Union[str, int]) -> Any:
-    current = d
+    current: Union[List[Any], Dict[str, Any]] = d
     for k in keys:
-        current = d[k]
+        # Ignore the type here, because it *should* be an int -> list
+        # and str -> dict.  The dict can take an int argument, but the
+        # list can't, and will generate an index error.
+        try:
+            current = current[k]  # type: ignore
+        except TypeError:
+            raise ValueError('unexpected key {0} in {1}'.format(k, current))
+        except IndexError:
+            raise ValueError('unexpected key {0} in {1}'.format(k, current))
+        except KeyError:
+            raise ValueError('unexpected key {0} in {1}'.format(k, current))
     return current
 
 
 def dt_opt_get(d: Dict[str, Any], *keys: Union[str, int]) -> Any:
-    current = d
-    for k in keys:
-        try:
-            current = d[k]
-        except TypeError:
-            return None
-        except IndexError:
-            return None
-        except KeyError:
-            return None
-    return current
+    try:
+        dt_get(d, *keys)
+    except ValueError:
+        return None
 
 
 def dt_str(d: Dict[str, Any], *keys: Union[str, int]) -> str:

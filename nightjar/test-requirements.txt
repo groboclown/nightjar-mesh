@@ -1,0 +1,5 @@
+mypy>=0.761
+boto3-stubs>=1.11.10.0
+mypy-boto3>=1.11.10.0
+mypy-boto3-servicediscovery>=1.11.10.0
+coverage>=5.0.3

@@ -1,8 +1,15 @@
 
-.work/
-.venv/
-venv/
 .idea/
 dist/
 docs/
 examples/
+test*.py
+test-requirements.txt
+
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.coverage/
+.mypy_cache/
+venv/
