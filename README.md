@@ -39,7 +39,7 @@ Using Nightjar involves registering your services with AWS Cloud Map, adding a s
 
 Nightjar itself takes these environment variables to configure its operation:
 
-* `SERVICE_MEMBER` (required, no default) the AWS Cloud Map service ID (not the ARN) of the service to which this Nightjar sidecar belongs to.  See the example below for how to set this value.  Set this to `-gateway-` to have Nightjar run in "gateway" mode, where it does not run as a sidecar to another service container, but instead as a gateway proxy into the mesh.
+* `SERVICE_MEMBER` (required, no default) the AWS Cloud Map service ID (not the ARN) of the service to which this Nightjar sidecar belongs to.  It will be in the form `svg-randomlettersandnumbers`; see the example below for how to set this value easily from a CFT.  Set this to `-gateway-` to have Nightjar run in "gateway" mode, where it does not run as a sidecar to another service container, but instead as a gateway proxy into the mesh.
 * `SERVICE_PORT` (defaults to 8080) the port number that the envoy proxy will listen for requests that are sent to other services within the `SERVICE_MEMBER` namespace.
 * `NAMESPACE_x` where *x* is some number between 0 and 99.  This defines a AWS Cloud Map service namespace other than the `SERVICE_MEMBER` namespace, which Nightjar will forward requests.
 * `NAMESPACE_x_PORT` the listening port number that the Envoy proxy will forward requests into the corresponding `NAMESPACE_x` service namespace.  Services send a request to the Nightjar container on this port number to connect to the other namespace.
@@ -125,7 +125,7 @@ Resources:
           Value: tuna
       ContainerDefinitions:
         - Name: service
-          Image: !Sub "${AWS:AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/tuna:latest"
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/tuna:latest"
           Essential: true
           Cpu: 256
           MemoryReservation: 1024
@@ -143,15 +143,14 @@ Resources:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
-          -
-            Effect: Allow
+          - Effect: Allow
             Principal:
               Service:
                 - "ecs-tasks.amazonaws.com"
             Action:
               - "sts:AssumeRole"
       Policies:
-        - PolicyName: DeveloperLocalDockerImagesExec
+        - PolicyName: LaunchContainer
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -185,12 +184,12 @@ Resources:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - "ecs-tasks.amazonaws.com"
-          Action:
-          - "sts:AssumeRole"
+          - Effect: Allow
+            Principal:
+              Service:
+                - "ecs-tasks.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
       # Add policies as necessary.
       # This definition here allows for logging
       # and writing to an XRay daemon.
@@ -204,16 +203,16 @@ Resources:
       # container to work.  But, all containers within an ECS service must
       # share the same IAM role.
       Policies:
-      - PolicyName: DeveloperLocalDockerImages
+      - PolicyName: ServicePlusNightjar
         PolicyDocument:
           Version: "2012-10-17"
           Statement:
             - Effect: Allow
               Action:
-              - "servicediscovery:List*"
-              - "servicediscovery:Get*"
+                - "servicediscovery:List*"
+                - "servicediscovery:Get*"
               Resource:
-              - "*"
+                - "*"
 ```
 
 This creates the service, which starts the container in our ECS cluster.  The only way to connect to this service is through the ephemeral port on the EC2 instance, which is above the 32768 range.
@@ -254,9 +253,37 @@ Resources:
       HealthCheckCustomConfig:
         FailureThreshold: 1
 
-  # A data-only service discovery instance.  Each instance includes one of these to
-  # tell Nightjar additional meta-data about the specific service.  This includes
-  # the different paths.
+  # Update the service to include registration 
+  TunaBlueService:
+    Type: "AWS::ECS::Service"
+    Properties:
+      Cluster: !Ref "ClusterName"
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DesiredCount: 1
+      LaunchType: EC2
+      TaskDefinition: !Ref "TunaBlueTaskDef"
+      ServiceRegistries:
+        - RegistryArn: !GetAtt "TunaBlueServiceDiscoveryRecord.Arn"
+          # The container name and port of the service we're registering.
+          ContainerName: service
+          ContainerPort: 3000
+```
+
+If the Tuna container goes down, or if it scales up with 16 running containers, then the service discovery instances are also updated to reflect that changing topology.  That's part of the magic of that `ServiceRegistries` key.
+
+That seems like a lot of work to setup just one container, and it is, but that's the boilerplate we need to get started with a mesh.
+
+### Add in Nightjar
+
+With all that boilerplate out of the way, adding in Nightjar to the template is now trivial.  It's just adding in a new container to the existing task definition with some special properties, and adding a link from the service to the Nightjar container, and add in a special meta-data service discovery instance to tell Nightjar about the service it's running in.
+
+```yaml
+
+  # A data-only service discovery instance.  Each discovery service includes
+  # one of these to tell Nightjar additional meta-data about the specific
+  # service.  This includes the different paths.
   TunaBlueReferenceInstance:
     Type: AWS::ServiceDiscovery::Instance
     Properties:
@@ -281,44 +308,15 @@ Resources:
         AWS_INSTANCE_IPV4: 127.0.0.1
         AWS_INSTANCE_PORT: 1234
 
-  # Update the service to include registration 
-  TunaBlueService:
-    Type: "AWS::ECS::Service"
-    Properties:
-      Cluster: !Ref "ClusterName"
-      DeploymentConfiguration:
-        MaximumPercent: 200
-        MinimumHealthyPercent: 100
-      DesiredCount: 1
-      LaunchType: EC2
-      TaskDefinition: !Ref "TunaBlueTaskDef"
-      ServiceRegistries:
-        - RegistryArn: !GetAtt "TunaBlueServiceDiscoveryRecord.Arn"
-          # The container name and port of the service we're registering.
-          ContainerName: service
-          ContainerPort: 3000
-```
-
-If the Tuna container goes down, or if it scales up with 16 running containers, then the service discovery instances are also updated to reflect that changing topology.  That's part of the magic of that `ServiceRegistries` key.
-
-That seems like a lot of work to setup just one container, and it is, but that's the boilerplate we need to get started with a mesh.
-
-### Add In Nightjar
-
-With all that boilerplate out of the way, adding in Nightjar to the template is now trivial.  It's just adding in a new container to the existing task definition with some special properties, and adding a link from the service to the Nightjar container.
-
-```yaml
   TunaBlueTaskDef:
     Type: "AWS::ECS::TaskDefinition"
     Properties:
       RequiresCompatibilities:
         - EC2
-      # No network definition, which means to use the EC2 standard bridge networking mode.
       ExecutionRoleArn: !Ref TaskExecRole
       TaskRoleArn: !Ref ServiceTaskRole
       Family: "yummy-tuna-blue"
       Tags:
-        # Generally good practice to help you out in a production environment.
         - Key: color
           Value: blue
         - Key: service
@@ -331,7 +329,6 @@ With all that boilerplate out of the way, adding in Nightjar to the template is 
           MemoryReservation: 1024
           PortMappings:
             - ContainerPort: 3000
-              # No "HostPort", which makes this an ephemeral port.
               Protocol: "tcp"
           
           # New!
@@ -346,41 +343,44 @@ With all that boilerplate out of the way, adding in Nightjar to the template is 
           Essential: true
           Memory: 128
           Ulimits:
-          - Name: nofile
-            HardLimit: 15000
-            SoftLimit: 15000
+            - Name: nofile
+              HardLimit: 15000
+              SoftLimit: 15000
           Environment:
-          # These environment variables must be carefully set.
-
-          # The AWS region, so Nightjar can ask for the right resources.
-          - Name: AWS_REGION
-            Value: !Ref "AWS::Region"
-
-          # The nightjar-running Envoy proxy's logging level.
-          - Name: ENVOY_LOG_LEVEL
-            Value: info
-
-          # The Envoy proxy administration port.  Defaults to 9901
-          - Name: ENVOY_ADMIN_PORT
-            Value: 9901
-    
-          # Which service record that defines the service in which Nightjar runs.
-          - Name: SERVICE_MEMBER
-            Value: !Ref "TunaBlueServiceDiscoveryRecord"
-
-          # The port number that the envoy proxy will listen to for connections
-          # *from* the sidecar service *to* the mesh.
-          - Name: SERVICE_PORT
-            Value: 8090
+            # These environment variables must be carefully set.
+  
+            # The AWS region, so Nightjar can ask for the right resources.
+            - Name: AWS_REGION
+              Value: !Ref "AWS::Region"
+  
+            # The nightjar-running Envoy proxy's logging level.
+            - Name: ENVOY_LOG_LEVEL
+              Value: info
+  
+            # The Envoy proxy administration port.  Defaults to 9901
+            - Name: ENVOY_ADMIN_PORT
+              Value: 9901
+      
+            # Which service record that defines the service in which Nightjar runs.
+            - Name: SERVICE_MEMBER
+              Value: !Ref "TunaBlueServiceDiscoveryRecord"
+  
+            # The port number that the envoy proxy will listen to for connections
+            # *from* the sidecar service *to* the mesh.
+            - Name: SERVICE_PORT
+              Value: 8090
           PortMappings:
-          - ContainerPort: 9901
-            Protocol: tcp
-          - ContainerPort: 8090
-            Protocol: tcp
+            # The ENVOY_ADMIN_PORT above
+            - ContainerPort: 9901
+              Protocol: tcp
+    
+            # The SERVICE_PORT above
+            - ContainerPort: 8090
+              Protocol: tcp
           HealthCheck:
             Command:
-            - "CMD-SHELL"
-            - "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
+              - "CMD-SHELL"
+              - "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
             Interval: 5
             Timeout: 2
             Retries: 3
@@ -428,7 +428,7 @@ Nightjar produces this with just a few tweaks.  You'll want to set the nightjar 
       - YummyNamespace
     Properties:
       RequiresCompatibilities:
-      - EC2
+        - EC2
       ExecutionRoleArn: !Ref TaskExecRole
       TaskRoleArn: !Ref ServiceTaskRole
       Family: "yummy-gateway"
@@ -444,38 +444,37 @@ Nightjar produces this with just a few tweaks.  You'll want to set the nightjar 
           Essential: true
           Memory: 128
           Ulimits:
-          - Name: nofile
-            HardLimit: 15000
-            SoftLimit: 15000
+            - Name: nofile
+              HardLimit: 15000
+              SoftLimit: 15000
           Environment:
-          # To configure Nightjar as a gateway, we assign it a special reserved name.
-          - Name: SERVICE_MEMBER
-            Value: "-gateway-"
-          # It will not think of itself as part of a service, so it won't ignore any
-          # paths.  Instead, it listens for connections on the mesh, defined using
-          # the namespace information.
-          - Name: NAMESPACE_1
-            Value: !Ref YummyNamespace
-          - Name: NAMESPACE_1_PORT
+            # To configure Nightjar as a gateway, we assign it a special reserved name.
+            - Name: SERVICE_MEMBER
+              Value: "-gateway-"
+            # It will not think of itself as part of a service, so it won't ignore any
+            # paths.  Instead, it listens for connections on the mesh, defined using
+            # the namespace information.
+            - Name: NAMESPACE_1
+              Value: !Ref YummyNamespace
             # This is the port that the load balancer is forwarding to.
-            Value: "2000"
-
-          # All these are the same...
-          - Name: AWS_REGION
-            Value: !Ref "AWS::Region"
-          - Name: ENVOY_LOG_LEVEL
-            Value: info
-          - Name: ENVOY_ADMIN_PORT
-            Value: 9901
+            - Name: NAMESPACE_1_PORT
+              Value: "2000"
+  
+            # All these are the same maning from what we saw before...
+            - Name: AWS_REGION
+              Value: !Ref "AWS::Region"
+            - Name: ENVOY_ADMIN_PORT
+              Value: 9901
           PortMappings:
-          - ContainerPort: 9901
-            Protocol: tcp
-          - ContainerPort: 2000
-            Protocol: tcp
+            - ContainerPort: 9901
+              Protocol: tcp
+            # The NAMESPACE_1_PORT
+            - ContainerPort: 2000
+              Protocol: tcp
           HealthCheck:
             Command:
-            - "CMD-SHELL"
-            - "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
+              - "CMD-SHELL"
+              - "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
             Interval: 5
             Timeout: 2
             Retries: 3
