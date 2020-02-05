@@ -17,7 +17,7 @@ test -f /tmp/stop.txt && rm /tmp/stop.txt
 while [ ! -f /tmp/stop.txt ] ; do
   # Generate the envoy file
   echo "Generating the new envoy file."
-  python3 /setup-src/generate-proxy-file.py > /tmp/new-envoy.yaml
+  python3 /nightjar/generate-proxy-file.py > /tmp/new-envoy.yaml
   if [ $? -ne 0 ] ; then
     echo "Failed to generate proxy file."
     if [ $EXIT_ON_GENERATION_FAILURE -ne 0 ] ; then

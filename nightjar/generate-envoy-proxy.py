@@ -6,12 +6,17 @@ import os
 import sys
 import datetime
 import boto3
+import pystache
 
 
 MAX_NAMESPACE_COUNT = 99
 SERVICE_SETTINGS_INSTANCE_ID = 'service-settings'
 SERVICE_NAME_ATTRIBUTE_KEY = 'SERVICE'
 COLOR_NAME_ATTRIBUTE_KEY = 'COLOR'
+USES_HTTP2_ATTRIBUTE_KEY = 'HTTP2'
+USES_HTTP2_AFFIRMATIVE_VALUES = (
+    'yes', 'true', 'enabled', 'active', '1', 'http2',
+)
 SERVICE_MEMBER_GATEWAY = '-gateway-'
 DEFAULT_SERVICE_PORT = '8080'
 REQUIRE_REFRESH_LIMIT = datetime.timedelta(minutes=2)
@@ -57,7 +62,9 @@ class DiscoveryServiceColor:
     path_weights: Dict[str, int]
     cache_load_time: Optional[datetime.datetime]
 
-    def __init__(self, arn: str, namespace_id: str, service_id: str, discovery_service_name: str) -> None:
+    def __init__(
+            self, arn: str, namespace_id: str, service_id: str, discovery_service_name: str
+    ) -> None:
         self.service_arn = arn
         self.namespace_id = namespace_id
         self.service_id = service_id
@@ -68,6 +75,7 @@ class DiscoveryServiceColor:
         # The service association
         self.group_service_name = None
         self.group_color_name = None
+        self.uses_http2 = False
 
         self.cache_load_time = None
 
@@ -96,6 +104,8 @@ class DiscoveryServiceColor:
                             group_service_name = value
                         elif key == COLOR_NAME_ATTRIBUTE_KEY:
                             group_color_name = value
+                        elif key == USES_HTTP2_ATTRIBUTE_KEY:
+                            self.uses_http2 = value.lower() in USES_HTTP2_AFFIRMATIVE_VALUES
                         elif key not in AWS_STANDARD_ATTRIBUTES:
                             try:
                                 weight = int(value)
@@ -349,49 +359,27 @@ class EnvoyRoute:
         self.total_weight = sum(cluster_weights.values())
         self.is_local_route = is_local_route
 
-    def to_yaml(self, indent: str) -> str:
+    def get_context(self) -> Optional[Dict[str, Any]]:
         # skip creation if:
         #  - this is a proxy to a non-local namespace
         #  - this is a private path.
         if not self.is_local_route and self.is_private:
-            return ''
+            return None
 
         cluster_count = len(self.cluster_weights)
         if cluster_count <= 0:
-            return ''
+            return None
 
-        if cluster_count == 1:
-            route = '{i}    cluster: {cluster}'.format(
-                i=indent,
-                cluster=list(self.cluster_weights.keys())[0]
-            )
-        else:
-            clusters = ''
-            for cluster_name, cluster_weight in self.cluster_weights.items():
-                clusters += '{i}        - name: {n}\n{i}          weight: {w}\n'.format(
-                    i=indent, n=cluster_name, w=cluster_weight
-                )
-            route = (
-'''
-{i}    weighted_clusters:
-{i}      total_weight: {tw}
-{i}      clusters:
-{clusters}
-'''
-            ).format(
-                i=indent,
-                tw=self.total_weight,
-                clusters=clusters,
-            )
-
-        return (
-'''
-{i}- match:
-{i}    prefix: {path}
-{i}  route:
-{route}
-'''
-        ).format(i=indent, path=self.path_prefix, route=route)
+        return {
+            'route_path': self.path_prefix,
+            'has_one_cluster': cluster_count == 1,
+            'has_many_clusters': cluster_count > 1,
+            'total_cluster_weight': self.total_weight,
+            'clusters': [{
+                'cluster_name': cn,
+                'route_weight': cw,
+            } for cn, cw in self.cluster_weights.items()],
+        }
 
 
 class EnvoyListener:
@@ -402,47 +390,22 @@ class EnvoyListener:
         self.port = port
         self.routes = list(routes)
 
-    def to_yaml(self, indent: str) -> str:
-        return (
-"""
-{i}- address:
-{i}    socket_address:
-{i}      address: "0.0.0.0"
-{i}      port_value: {port}
-{i}  filter_chains:
-{i}  - filters:
-{i}    - name: envoy.http_connection_manager
-{i}      typed_config:
-{i}        "@type": type.googleapis.com/envoy.config.filter.network.http_connection_manager.v2.HttpConnectionManager
-{i}        codec_type: auto
-{i}        stat_prefix: ingress_http
-{i}        http_filters:
-{i}        - name: envoy.router
-{i}          typed_config: {{}}
-{i}        route_config:
-{i}          name: local_route
-{i}          virtual_hosts:
-{i}          - name: backend
-{i}            domains:
-{i}            - "*"
-{i}            routes:
-{i}            - match:
-{i}                path: /ping
-{i}              direct_response:
-{i}                status: "200"
-{i}                body:
-{i}                  inline_string: "pong"
-{i}              response_headers_to_add:
-{i}                - header:
-{i}                    key: "Content-type"
-{i}                    value: "text/plain"
-{routes}
-"""
-        ).format(
-            i=indent,
-            port=self.port,
-            routes='\n'.join([r.to_yaml(indent + '            ') for r in self.routes])
-        )
+    def get_route_contexts(self) -> List[Dict[str, Any]]:
+        ret: List[Dict[str, Any]] = []
+        for route in self.routes:
+            ctx = route.get_context()
+            if ctx:
+                ret.append(ctx)
+        return ret
+
+    def get_context(self) -> Dict[str, Any]:
+        return {
+            'mesh_port': self.port,
+            'routes': self.get_route_contexts(),
+
+            # TODO make this configurable
+            'healthcheck_path': '/ping',
+        }
 
 
 class EnvoyCluster:
@@ -452,15 +415,17 @@ class EnvoyCluster:
     def __init__(
             self,
             cluster_name: str,
+            uses_http2: bool,
             instances: List[DiscoveryServiceInstance]
     ) -> None:
         self.cluster_name = cluster_name
+        self.uses_http2 = uses_http2
         self.instances = list(instances)
 
     def endpoint_count(self) -> int:
         return len(self.instances)
 
-    def to_yaml(self, indent: str) -> str:
+    def get_context(self) -> Dict[str, Any]:
         instances = self.instances
         if not instances:
             _note("No instances known for cluster {c}; creating temporary one.", c=self.cluster_name)
@@ -469,39 +434,14 @@ class EnvoyCluster:
                 ATTR_AWS_INSTANCE_IPV4: '127.0.0.1',
                 ATTR_AWS_INSTANCE_PORT: '99',
             })]
-        # "strict_dns" sets the address endpoint to have a $ instead of a 1?
-        return (
-"""
-{i}- name: {name}
-{i}  connect_timeout: 300s
-{i}  type: static
-{i}  dns_lookup_family: V4_ONLY
-{i}  lb_policy: round_robin
-{i}  # Enabling http2_protocol_options means forcing connections to the cluster as http/2 requests.
-{i}  # http2_protocol_options: {{}}
-{i}  load_assignment:
-{i}    cluster_name: {name}
-{i}    endpoints:
-{i}    - lb_endpoints:
-{endpoints}
-"""
-        ).format(
-            i=indent,
-            name=self.cluster_name,
-            endpoints='\n'.join([(
-"""
-{i}      - endpoint:
-{i}          address:
-{i}            socket_address:
-{i}              address: "{ipv4}"
-{i}              port_value: {port}
-"""
-            ).format(
-                i=indent,
-                ipv4=dsi.ipv4,
-                port=dsi.port_str,
-            ) for dsi in instances]),
-        )
+        return {
+            'name': self.cluster_name,
+            'uses_http2': self.uses_http2,
+            'endpoints': [{
+                'ipv4': inst.ipv4,
+                'port': inst.port_str,
+            } for inst in instances],
+        }
 
 
 class EnvoyConfig:
@@ -514,37 +454,16 @@ class EnvoyConfig:
         self.clusters = clusters
         self.admin_port = admin_port
 
-    def to_yaml(self) -> str:
+    def get_context(self) -> Dict[str, Any]:
         if not self.listeners:
             _fatal('No listeners; cannot be a proxy.')
         cluster_endpoint_count = sum([c.endpoint_count() for c in self.clusters])
-        if cluster_endpoint_count > 0:
-            cluster_text = "  clusters:\n" + '\n'.join([(
-                ct.to_yaml('  ')
-            ) for ct in self.clusters])
-        else:
-            cluster_text = ""
-
-        return (
-"""
-static_resources:
-  listeners:
-{listeners}
-{clusters}
-admin:
-  access_log_path: "/dev/stdout"
-  address:
-    socket_address:
-      address: 0.0.0.0
-      port_value: {port}
-"""
-        ).format(
-            listeners='\n'.join([(
-                lt.to_yaml('  ')
-            ) for lt in self.listeners]),
-            clusters=cluster_text,
-            port=self.admin_port,
-        )
+        return {
+            'admin_port': self.admin_port,
+            'listeners': [lt.get_context() for lt in self.listeners],
+            'has_clusters': cluster_endpoint_count > 0,
+            'clusters': [c.get_context() for c in self.clusters],
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -603,6 +522,7 @@ def collate_ports_and_clusters(
                     )
                 cluster = EnvoyCluster(
                     service_color.group_service_name + '-' + service_color.group_color_name,
+                    service_color.uses_http2,
                     service_color.instances
                 )
                 if service_color.path_weights:
@@ -723,12 +643,20 @@ def _fatal(msg: str, **args: Any) -> None:
 
 # ---------------------------------------------------------------------------
 def main(exec_name: str, args: Sequence[str]) -> int:
+    if not args:
+        template_filename = os.path.join(os.path.dirname(exec_name), 'envoy.yaml.mustache')
+    else:
+        template_filename = args[0]
     env = EnvSetup.from_env()
     namespaces = env.get_loaded_namespaces()
     envoy_config = collate_ports_and_clusters(
         env.admin_port, namespaces, env.local_service, True
     )
-    print(envoy_config.to_yaml())
+    context = envoy_config.get_context()
+    pystache.defaults.TAG_ESCAPE = lambda u: u.replace('"', '\\"')
+    with open(template_filename, 'r') as f:
+        template = f.read()
+    print(pystache.render(template, context))
     return 0
 
 

@@ -267,6 +267,9 @@ Resources:
         # High level information about the service/color.
         SERVICE: tuna
         COLOR: blue
+
+        # If your service uses HTTP2, then set this attribute and value.
+        HTTP2: enabled
         
         # List of all the URI path prefixes that receive traffic.
         # The relative weight to assign this service/color for this path.
