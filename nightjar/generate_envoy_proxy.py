@@ -6,6 +6,7 @@ import os
 import sys
 import datetime
 import boto3
+from botocore.exceptions import ClientError
 import pystache
 
 
@@ -82,45 +83,53 @@ class DiscoveryServiceColor:
     def load_instances(self, refresh_cache: bool) -> None:
         if _skip_reload(self.cache_load_time, refresh_cache):
             return
-        group_service_name = 'undefined'
-        group_color_name = 'undefined'
+        group_service_name: Optional[str] = self.group_service_name
+        group_color_name: Optional[str] = self.group_color_name
         path_weights: Dict[str, int] = {}
         instances: List[DiscoveryServiceInstance] = []
 
         client = get_servicediscovery_client()
         paginator = client.get_paginator('list_instances')
         page_iterator = paginator.paginate(ServiceId=self.service_id)
-        for page in page_iterator:
-            for instance in dt_list_dict(page, 'Instances'):
-                # instance ID is the assigned-to name of the instance, which is unique only for the
-                # service.
-                instance_id = dt_str(instance, 'Id')
-                attributes = dt_dict(instance, 'Attributes')
-                if instance_id == SERVICE_SETTINGS_INSTANCE_ID:
-                    # This is the special instance registration to define the
-                    # data for this service.
-                    for key, value in attributes.items():
-                        if key == SERVICE_NAME_ATTRIBUTE_KEY:
-                            group_service_name = value
-                        elif key == COLOR_NAME_ATTRIBUTE_KEY:
-                            group_color_name = value
-                        elif key == USES_HTTP2_ATTRIBUTE_KEY:
-                            self.uses_http2 = value.lower() in USES_HTTP2_AFFIRMATIVE_VALUES
-                        elif key not in AWS_STANDARD_ATTRIBUTES and key[0] in '/?*':
-                            try:
-                                weight = int(value)
-                            except ValueError:
-                                _warn(
-                                    "Not integer path weight for service {s}, instance {i}, path {p}, value [{v}]",
-                                    s=self.service_id,
-                                    i=instance_id,
-                                    p=key,
-                                    v=value,
-                                )
-                                weight = 1
-                            path_weights[key] = weight
-                else:
-                    instances.append(DiscoveryServiceInstance(instance_id, attributes))
+        try:
+            for page in page_iterator:
+                for instance in dt_list_dict(page, 'Instances'):
+                    # instance ID is the assigned-to name of the instance, which is unique only for the
+                    # service.
+                    instance_id = dt_str(instance, 'Id')
+                    attributes = dt_dict(instance, 'Attributes')
+                    if instance_id == SERVICE_SETTINGS_INSTANCE_ID:
+                        # This is the special instance registration to define the
+                        # data for this service.
+                        for key, value in attributes.items():
+                            if key == SERVICE_NAME_ATTRIBUTE_KEY:
+                                group_service_name = value.strip()
+                            elif key == COLOR_NAME_ATTRIBUTE_KEY:
+                                group_color_name = value.strip()
+                            elif key == USES_HTTP2_ATTRIBUTE_KEY:
+                                self.uses_http2 = value.strip().lower() in USES_HTTP2_AFFIRMATIVE_VALUES
+                            elif key not in AWS_STANDARD_ATTRIBUTES and key[0] in '/?*':
+                                try:
+                                    weight = int(value.strip())
+                                except ValueError:
+                                    _warn(
+                                        "Not integer path weight for service {s}, instance {i}, path {p}, value [{v}]",
+                                        s=self.service_id,
+                                        i=instance_id,
+                                        p=key,
+                                        v=value,
+                                    )
+                                    weight = 1
+                                path_weights[key.strip()] = weight
+                    else:
+                        instances.append(DiscoveryServiceInstance(instance_id, attributes))
+        except ClientError as e:
+            # This means that either there was a communication error, or the
+            # service was deleted during the query.
+            # Clear out the instances and weights, since they can no longer be trusted.
+            _warn('Failed to load instances for service {svc}: {e}', svc=self.service_id, e=e)
+            instances = []
+            path_weights = {}
         self.group_service_name = group_service_name
         self.group_color_name = group_color_name
         self.path_weights = path_weights
@@ -153,9 +162,13 @@ class DiscoveryServiceColor:
         return ret
 
     @staticmethod
-    def from_single_id(service_id: str) -> 'DiscoveryServiceColor':
+    def from_single_id(service_id: str) -> Optional['DiscoveryServiceColor']:
         client = get_servicediscovery_client()
-        return DiscoveryServiceColor.from_resp(client.get_service(Id=service_id))
+        try:
+            return DiscoveryServiceColor.from_resp(client.get_service(Id=service_id))
+        except ClientError as e:
+            _warn('Could not find service discovery service with id {svc}: {e}', svc=repr(service_id), e=e)
+            return None
 
 
 class DiscoveryServiceNamespace:
@@ -645,11 +658,10 @@ def _fatal(msg: str, **args: Any) -> None:
 
 
 # ---------------------------------------------------------------------------
-def main(exec_name: str, args: Sequence[str]) -> int:
-    if not args:
-        template_filename = os.path.join(os.path.dirname(exec_name), 'envoy.yaml.mustache')
-    else:
-        template_filename = args[0]
+def main(exec_name: str, _args: Sequence[str]) -> int:
+    # When the "mustach" Alpine package comes out of test, this file will
+    # remove the dependency on pystache, and instead just generate the json data file.
+    template_filename = os.path.join(os.path.dirname(exec_name), 'envoy.yaml.mustache')
     env = EnvSetup.from_env()
     namespaces = env.get_loaded_namespaces()
     envoy_config = collate_ports_and_clusters(
