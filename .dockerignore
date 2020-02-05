@@ -1,7 +1,8 @@
 
 .work/
 .venv/
+venv/
 .idea/
 dist/
 docs/
-python/
+examples/

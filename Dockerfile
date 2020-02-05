@@ -1,19 +1,33 @@
-FROM busybox
-LABEL author=https://github.com/groboclown/nightjar-mesh
+FROM envoyproxy/envoy-alpine:v1.13.0
 
-# This may need to switch to alpine so we can grab the certificates easier.
-# It'll still be small, but not as small.
-# FROM alpine:3.4
-# RUN apk add --no-cache ca-certificates apache2-utils
+# Expose the default admin port and service port.
+EXPOSE 9901 8080
 
+ENV ENVOY_ADMIN_PORT 9901
+ENV SERVICE_PORT 8080
+ENV SERVICE_MEMBER NOT_SET
+ENV SERVICE_CONTAINER_NAME NOT_SET
 
-# Declare a volume, so that the examples can be shared by other containers.
-VOLUME ["/shared"]
+# Broken into smaller chunks to make file updates create fewer layers.
+COPY nightjar/requirements.txt /tmp/requirements.txt
+RUN echo "start" \
+    && apk upgrade \
+    && apk add --update python3 curl \
+    && python3 -m pip install --upgrade pip \
+    && python3 -m pip install -r /tmp/requirements.txt \
+    && rm /tmp/requirements.txt \
+    && mv /etc/envoy/envoy.yaml /etc/envoy/envoy-example.yaml \
+    && echo "end"
 
-COPY dist/nightjar-mesh /nightjar-mesh
-COPY bin/entrypoint-nightjar.sh /entrypoint-nightjar.sh
-ADD examples/envoy-proxy /shared/envoy-proxy
+COPY nightjar/ /nightjar/
+COPY entrypoint-nightjar.sh /entrypoint-nightjar.sh
 
-# Avoid adding an extra "RUN" layer to the docker script by directly running
-# "sh" and pass in the right script.
-CMD [ "/bin/sh", "/entrypoint-nightjar.sh" ]
+RUN echo "start" \
+    && tr -d '\015' < /entrypoint-nightjar.sh > /tmp/entrypoint-nightjar.sh \
+    && mv /tmp/entrypoint-nightjar.sh /entrypoint-nightjar.sh \
+    && chmod +x /entrypoint-nightjar.sh \
+    && echo "end"
+
+USER 1337
+
+ENTRYPOINT ["/entrypoint-nightjar.sh"]
