@@ -17,7 +17,7 @@ ENV SERVICE_CONTAINER_NAME NOT_SET
 COPY nightjar-src/requirements.txt /tmp/requirements.txt
 RUN echo "start" \
     && apk upgrade \
-    && apk add --update python3 curl \
+    && apk add --update python3 curl unzip \
     && python3 -m pip install --upgrade pip \
     && python3 -m pip install -r /tmp/requirements.txt \
     && rm /tmp/requirements.txt \

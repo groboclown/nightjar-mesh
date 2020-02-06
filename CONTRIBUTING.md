@@ -30,11 +30,10 @@ The code must:
 * Pass Python unit tests.
     * `cd nightjar-src && python3 -m coverage run --source . -m unittest discover`
 * And code coverage must not go down.
-    * `cd nightjar-src && python3 -m coverage report -m generate_template_input_data.py generate_envoy_configuration.py`
+    * `cd nightjar-src && python3 -m coverage report -m generate_template_input_data.py`
     * `python3 -m coverage json && jq '.files."generate_template_input_data.py".summary.percent_covered' < coverage.json`
-    * `python3 -m coverage json && jq '.files."generate_envoy_configuration.py".summary.percent_covered' < coverage.json`
 * Pass mypy checks.
-    * `cd nightjar-src && mypy --warn-redundant-casts --ignore-missing-imports --warn-unused-ignores generate_template_input_data.py generate_envoy_configuration.py`
+    * `cd nightjar-src && mypy --warn-redundant-casts --ignore-missing-imports --warn-unused-ignores generate_template_input_data.py`
 * Pass shell script tests.
     * `docker build -t my/nightjar-test -f Dockerfile.shell-test . && docker run -it --rm my/nightjar-test`
 * The docker image constructs without failures.

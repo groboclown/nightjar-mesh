@@ -1,20 +1,34 @@
 #!/bin/sh
 
-outfile="$1"
+indir="$1"
+outdir="$2"
 
-test -f "$outfile" && rm "$outfile"
+test -d "${outdir}" && rm -r "${outdir}"
+mkdir -p "${outdir}"
 
 echo "Generating the template input data."
-python3 ./generate_template_input_data.py > /tmp/input.json
+python3 ./generate_template_input_data.py > "${outdir}/input.json"
 if [ $? -ne 0 ] ; then
   echo "Failed to generate the template input data."
   exit 1
 fi
 
-echo "Generating the envoy configuration file."
-python3 ./generate_envoy_configuration.py /tmp/input.json "$ENVOY_CONFIGURATION_TEMPLATE" > "$outfile"
-if [ $? -ne 0 ] ; then
-  echo "Failed to generate envoy configuration file."
-  exit 1
-fi
+echo "Generating the envoy configuration files."
+for i in "${indir}/*" ; do
+  if [ -e "$i" ]; then
+    case "${i}" in
+      *.mustache)
+        filename=$( basename "${i}" .mustache )
+        pystache "${i}" "${outdir}/input.json" > "${outdir}/${filename}"
+        if [ $? -ne 0 ] ; then
+          echo "Failed to generate envoy configuration file ${filename}."
+          exit 1
+        fi
+      ;;
+      *)
+        cp -R "${i}" "${outdir}/." || exit 1
+      ;;
+    esac
+  fi
+done
 exit 0

@@ -7,7 +7,7 @@ An AWS ECS Control Plane with Envoy Proxy
 
 ## About
 
-[Nightjar](https://en.wikipedia.org/wiki/Nightjar) is a **Control Plane** for [Envoy Proxy](https://envoyproxy.github.io/envoy/), designed to run within the Amazon Web Services (AWS) ecosystem.  It uses the AWS Cloud Map to configure how the Envoy **data plane** operates within the Elastic Cloud Services (ECS).
+[Nightjar](https://en.wikipedia.org/wiki/Nightjar) is a **Control Plane** for [Envoy Proxy](https://envoyproxy.github.io/envoy/), designed to run within the Amazon Web Services (AWS) ecosystem.  It uses [AWS Cloud Map](https://aws.amazon.com/cloud-map/) to configure how the Envoy **data plane** operates within the Elastic Cloud Services (ECS).
 
 ![2 services communicating through nightjar + Envoy Proxy](2-service-traffic.svg)
 
@@ -31,36 +31,34 @@ The **control plane** manages the configuration of the data plane.  Normal docum
 
 ## How It Works
 
-You configure the Nightjar container to run inside an [ECS Task Definition](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html), along with a single service container.  The Nightjar container runs the Envoy proxy, and is considered a "sidecar" container here.  The service must be configured to send all traffic to other services in the service mesh to the Nightjar container.  Inbound traffic to the service comes from the Nightjar containers running in the other services. 
+You add the Nightjar container to an [ECS Task Definition](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html), along with your existing service container.  The Nightjar container runs the Envoy proxy, and is considered a "sidecar" container here.  The service must be configured to send all traffic to other services in the service mesh to the Nightjar container.  Inbound traffic to the service comes from the Nightjar containers running in the other services. 
 
 You configure the Nightjar container with two sets of properties:
 
-* The local service name.  This tells Nightjar to not handle traffic sent to this local container.  It also indirectly tells Nightjar which service mesh it belongs to.
-* The other cluster names.  If you split your network into multiple clusters, then each of the other clusters is defined by name and can direct traffic directly within the other networks.  This is completely optional; if you prefer to have the other clusters have a separate service mesh, then you need to have the services connect directly to the other mesh's gateway proxies.
+* The local [service name](https://docs.aws.amazon.com/cloud-map/latest/dg/working-with-services.html).  This tells Nightjar to not handle traffic sent to this local container.  It also indirectly tells Nightjar which service mesh it belongs to.
+* The other [service mesh names](https://docs.aws.amazon.com/cloud-map/latest/dg/working-with-namespaces.html).  If you split your network into multiple service meshes, then each of the other meshes is defined by name and can direct traffic directly within the other mesh.  This is completely optional; you can instead direct all other service mesh traffic to not go through the local Envoy Proxy.
 
 To setup the services, you need to register your tasks using AWS Cloud Map (aka Service Discovery) using SVR registration.  This makes available to Nightjar the service members and how to connect to them.
 
-
-## Future Direction
-
-The current version is written in Python and shell scripts.  It constructs the Envoy Proxy configuration by creating an input data file (json) and processing that through a mustache template file.  This makes it possible to change the static generation to include extra Envoy features that don't come out of the box.
-
-The general concept behind this (well defined data input into a user-controlled template file) gives the end user the right level of control over the proxy configuration.
-
-Future direction will change the Envoy configuration to instead be a simple, dynamic configuration.  Then the processing will connect to the Envoy administration port to dynamically change the configuration.  This will allow the configuration changes to not interrupt the network traffic.
+Note that there are many more configuration possibilities with Nightjar.  It's constructed to give you the power to setup Envoy how you want it.
 
 
 ## Using Nightjar
 
 Using Nightjar involves registering your services with AWS Cloud Map, adding a specially named service registration instance to cloud map that describes metadata for your service, and adding the Nightjar sidecar container to your services.
 
-Nightjar itself takes these environment variables to configure its operation:
+The primary power from Nightjar is the [Cloud Map data extraction tool](nightjar-src/generate_template_input_data.py), which uses your AWS Cloud Map configuration, plus a few environment variables to tell it where to look.  Everything else is window dressing to make it easy to use.
 
-* `SERVICE_MEMBER` (required, no default) the AWS Cloud Map service ID (not the ARN) of the service to which this Nightjar sidecar belongs to.  It will be in the form `svg-randomlettersandnumbers`; see the example below for how to set this value easily from a CFT.  Set this to `-gateway-` to have Nightjar run in "gateway" mode, where it does not run as a sidecar to another service container, but instead as a gateway proxy into the service mesh.
-* `SERVICE_PORT` (defaults to 8080) the port number that the envoy proxy will listen for requests that are sent to other services within the `SERVICE_MEMBER` namespace.
+### Cloud Map Data Processing
+
+It uses these environment variables to configure its operation:
+
+* `SERVICE_MEMBER` (required, no default).  The AWS Cloud Map service ID (not the ARN) of the service to which this Nightjar sidecar belongs to.  It will be in the form `svg-randomlettersandnumbers`; see the example below for how to set this value easily from a CFT.  Set this to `-gateway-` to have Nightjar run in "gateway" mode, where it does not run as a sidecar to another service container, but instead as a gateway proxy into the service mesh.
+* `SERVICE_PORT` (defaults to 8080).  The port number that the envoy proxy will listen for requests that are sent to other services within the `SERVICE_MEMBER` namespace.
 * `NAMESPACE_x` where *x* is some number between 0 and 99.  This defines a AWS Cloud Map service namespace other than the `SERVICE_MEMBER` namespace, which Nightjar will forward requests.
-* `NAMESPACE_x_PORT` the listening port number that the Envoy proxy will forward requests into the corresponding `NAMESPACE_x` service namespace.  Services send a request to the Nightjar container on this port number to connect to the other namespace.
-* `AWS_REGION` (required, no default) The AWS region name (i.e. `us-west-2`) in which the Cloud Map registration is managed.
+* `NAMESPACE_x_PORT`.  The listening port number that the Envoy proxy will forward requests into the corresponding `NAMESPACE_x` service namespace.  Services send a request to the Nightjar container on this port number to connect to the other namespace.
+* `AWS_REGION` (required, no default). The AWS region name (i.e. `us-west-2`) in which the Cloud Map registration is managed.
+* `ENVOY_ADMIN_PORT` (defaults to 9901). the Envoy proxy administration port.
 
 The `SERVICE_MEMBER` must reference a [Cloud Map service](https://docs.aws.amazon.com/cloud-map/latest/dg/working-with-services.html) with SVC DNS registration, which has all the ECS services for that service registered as [instances](https://docs.aws.amazon.com/cloud-map/latest/dg/working-with-instances.html).  In addition, it must also have a special service instance with ID `service-settings` and the given keys:
 
@@ -69,15 +67,27 @@ The `SERVICE_MEMBER` must reference a [Cloud Map service](https://docs.aws.amazo
 * `AWS_INSTANCE_IPV4` and `AWS_INSTANCE_PORT` - these keys are required by AWS, but the value doesn't matter for the purposes of Nightjar.
 * For each path prefix that the service handles, register that path as the key, and the relative weight that this service instance should be assigned to that prefix.  For example, if the "blue" deployment has just been released and you want to lightly load it before switching over, give its paths a number significantly lower than the "green" deployment.  If the path is explicitly only used within the service mesh, and should never be accessible from outside this mesh, then prepend a question mark ('?') to the start of the key.  Note that to be recognized as a path key, the key must start with a `/`, `?`, or `*`.
 
+### Envoy Proxy Configuration
+
+The Cloud Map extracted data conforms to the [data format](nightjar-src/generation-data-schema.yaml), and is used as input to [mustache templates](https://en.wikipedia.org/wiki/Mustache_%28template_system%29), to construct the Envoy Proxy configuration.
+
+By default, Nightjar provides [configuration templates](nightjar-src/templates) that generate a simple Envoy Proxy configuration.  However, you can change these files to suit your needs.
+
+* In a child Docker image, you can add a new template directory.  Add in all the files you want to here.  Any file that ends in `.mustache` will be converted using the Cloud Map extracted data; everything else is used as-is.  Note that sub-directories are currently not supported for mustache template support.
+* Set the environment variable `ENVOY_TEMPLATE_DIR` to point to the new template directory.
+* The default boot configuration file used to start up Envoy is named `envoy-config.yaml`.  If you want to change this to a different file name, set the `ENVOY_CONFIGURATION_FILE` to the file name (without the directory).
+
+### Runtime Execution
+
 Additionally, you can tweak the operation of Nightjar with these options:
 
-* Environment variable `ENVOY_CONFIGURATION_TEMPLATE`: (defaults to [envoy.yaml.mustache](nightjar-src/envoy.yaml.mustache)) the template file, which accepts input in a [specific format](nightjar-src/generation-data-schema.yaml), used to construct the Envoy configuration.  This file can be replaced with a custom file to adjust the generated configuration to suit your needs.
 * Environment variable `REFRESH_TIME`: (defaults to 10) the number of seconds between polling for updates in the configuration. 
 * Environment variable `EXIT_ON_GENERATION_FAILURE`: (defaults to 0)  If this value is *anything* other than `0`, then the container will stop if an error occurs while generating the envoy proxy static configuration file.
 * Environment variable `FAILURE_SLEEP`: (defaults to 300) if the generation failed, the process will wait this many seconds before stopping the container.  This allows an operator time to inspect the container for problems.
 * Environment variable `ENVOY_LOG_LEVEL`: (no default) Sets the Envoy proxy logging level.
-* Environment variable `ENVOY_ADMIN_PORT`: (defaults to 9901) the Envoy proxy administration port.
 * Environment variable `DEBUG_CONTAINER`: (no default) set this to `1` to start the container as a shell, to help in debugging the container.
+
+There are several others, if you're really interested.  See the [script](nightjar-src/run-loop.sh) for details.
 
 
 ## Example of Nightjar with a Service

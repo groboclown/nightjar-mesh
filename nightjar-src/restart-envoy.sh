@@ -1,19 +1,15 @@
 #!/bin/sh
 
-if [ ! -z "$ENVOY_LOG_LEVEL" ] ; then
-  ENVOY_CMD="envoy --log-level $ENVOY_LOG_LEVEL"
-else
-  ENVOY_CMD="envoy"
-fi
-
 config_file="$1"
 
-if [ -f /tmp/envoy.pid ] ; then
-  echo "Stopping envoy."
-  /bin/kill -term $( cat /tmp/envoy.pid )
-  # Should properly wait for envoy to stop, but instead we just wait a bit.
-  sleep 1
+# If envoy is not running AND we have a configuration file, start it.
+if [ -f "${config_file}" ] ; then
+  envoy_pid=
+  if [ -f "${ENVOY_PID_FILE}" ] ; then
+    envoy_pid=$( cat "${ENVOY_PID_FILE}" )
+  fi
+  kill -0 ${envoy_pid} >/dev/null 2>&1
+  if [ $? -ne 0 ] ; then
+    envoy --log-level ${ENVOY_LOG_LEVEL} -c "${config_file}"
+  fi
 fi
-echo "Starting envoy."
-$ENVOY_CMD -c "$config_file" &
-echo $! > /tmp/envoy.pid

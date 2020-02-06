@@ -9,6 +9,14 @@ required:
   - has_clusters
   - clusters
 properties:
+  network_name:
+    description: Name of the network.  Generally, the Cloud Map Network Id.
+    type: string
+
+  service_member:
+    description: Name of the service member.  Generally, the service name plus the color.
+    type: string
+
   admin_port:
     description: Envoy administration listening port.
     type: int

@@ -8,7 +8,7 @@ RUN echo "start" \
 COPY / /nightjar-root
 
 RUN echo "start" \
-  && chmod +x /nightjar-root/shell-tests/*.sh \
-  && echo "end"
+    && chmod +x /nightjar-root/shell-tests/*.sh \
+    && echo "end"
 
 CMD ["/bin/bash", "/nightjar-root/shell-tests/run-tests.sh"]

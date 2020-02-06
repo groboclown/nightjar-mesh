@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 
-from typing import List, Sequence, Tuple, Dict, Optional, Union, Any
+from typing import List, Tuple, Dict, Optional, Union, Any
 import os
 import sys
 import datetime
@@ -461,10 +461,13 @@ class EnvoyConfig:
     def __init__(
             self,
             listeners: List[EnvoyListener], clusters: List[EnvoyCluster],
+            network_name: str, service_member: str,
             admin_port: int
     ) -> None:
         self.listeners = listeners
         self.clusters = clusters
+        self.network_name = network_name
+        self.service_member = service_member
         self.admin_port = admin_port
 
     def get_context(self) -> Dict[str, Any]:
@@ -472,6 +475,8 @@ class EnvoyConfig:
             _fatal('No listeners; cannot be a proxy.')
         cluster_endpoint_count = sum([c.endpoint_count() for c in self.clusters])
         return {
+            'network_name': self.network_name,
+            'service_member': self.service_member,
             'admin_port': self.admin_port,
             'listeners': [lt.get_context() for lt in self.listeners],
             'has_clusters': cluster_endpoint_count > 0,
@@ -498,15 +503,22 @@ def collate_ports_and_clusters(
     output_listeners: List[EnvoyListener] = []
     output_clusters: List[EnvoyCluster] = []
     is_local_route = False
+    service_member = 'gateway'
+    network_name = os.environ.get('NETWORK_NAME', None)
 
     if local:
         is_local_route = True
         local.load_service(refresh_cache)
         if local.service_color:
+            service_member = '{0}-{1}'.format(
+                local.service_color.group_service_name,
+                local.service_color.group_color_name,
+            )
             in_namespaces = False
             for namespace in namespaces:
                 if namespace.namespace_id == local.service_color.namespace_id:
                     in_namespaces = True
+                    network_name = network_name or namespace.namespace_id
                     break
             if not in_namespaces:
                 namespaces.extend(DiscoveryServiceNamespace.load_namespaces({
@@ -555,7 +567,7 @@ def collate_ports_and_clusters(
         listener = EnvoyListener(namespace.namespace_port, envoy_routes)
         output_listeners.append(listener)
 
-    return EnvoyConfig(output_listeners, output_clusters, admin_port)
+    return EnvoyConfig(output_listeners, output_clusters, network_name or service_member, service_member, admin_port)
 
 
 # ---------------------------------------------------------------------------
@@ -658,17 +670,15 @@ def _fatal(msg: str, **args: Any) -> None:
 
 
 # ---------------------------------------------------------------------------
-def main(exec_name: str, _args: Sequence[str]) -> int:
-    template_filename = os.path.join(os.path.dirname(exec_name), 'envoy.yaml.mustache')
+def main() -> str:
     env = EnvSetup.from_env()
     namespaces = env.get_loaded_namespaces()
     envoy_config = collate_ports_and_clusters(
         env.admin_port, namespaces, env.local_service, True
     )
-    context = envoy_config.get_context()
-    print(json.dumps(context))
-    return 0
+    return json.dumps(envoy_config.get_context())
 
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv[0], sys.argv[1:]))
+    main_stdout = main()
+    print(main_stdout)

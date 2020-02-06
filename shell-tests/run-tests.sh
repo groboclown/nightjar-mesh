@@ -1,5 +1,14 @@
 #!/bin/bash
 
+if [ $UID -ne 0 ]; then
+  echo "It doesn't look like you're running this from a Docker container."
+  echo "Continuing has a chance to corrupt your system.  So this is quitting early."
+  echo "==========================================="
+  echo "Total: 1 Failed"
+  exit 1
+fi
+
+
 export TEST_DIR=$( dirname "$0" )
 export ROOT_DIR="${TEST_DIR}/.."
 export SRC_DIR="${ROOT_DIR}/nightjar-src"

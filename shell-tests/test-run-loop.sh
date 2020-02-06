@@ -24,7 +24,7 @@ export MOCK_EXIT_CODE3=0
 export MAX_COUNT=2
 export REFRESH_TIME=1
 export FAILURE_SLEEP=1
-timeout 10 /bin/sh /tmp/${TESTFILE}/run-loop.sh
+timeout 10 /bin/sh -x /tmp/${TESTFILE}/run-loop.sh
 ec=$?
 if [ ${ec} -ne 0 ]; then
   echo "non-zero exit code: ${ec}" >> ${ERROR_DIR}/${TESTFILE}-1.txt

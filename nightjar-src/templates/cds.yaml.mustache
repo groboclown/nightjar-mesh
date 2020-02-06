@@ -1,0 +1,25 @@
+version_info: "0"
+resources:
+{{#clusters}}
+- name: {{name}}
+  connect_timeout: 300s
+  # The Service Discovery instance registration stores IPv4 addresses.
+  type: static
+  dns_lookup_family: V4_ONLY
+  lb_policy: round_robin
+  {{#uses_http2}}
+  # Enabling http2_protocol_options means forcing connections to the cluster as http/2 requests.
+  http2_protocol_options: {}
+  {{/uses_http2}}
+  load_assignment:
+    cluster_name: {{name}}
+    endpoints:
+      - lb_endpoints:
+        {{#endpoints}}
+        - endpoint:
+            address:
+              socket_address:
+                address: "{{ipv4}}"
+                port_value: {{port}}
+        {{/endpoints}}
+{{/clusters}}
