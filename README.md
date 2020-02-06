@@ -2,25 +2,34 @@
 
 An AWS ECS Control Mesh with Envoy Proxy
 
-*That's a fancy way to say that Nightjar monitors AWS Elastic Cloud Services for changes, and sends updates to a local Envoy Proxy to change the outbound traffic routes.*
+*That's a fancy way to say that Nightjar monitors AWS Elastic Cloud Services for changes, and sends updates to a local Envoy Proxy to update the traffic routes.*
 
 
 ## About
 
-[Nightjar](https://en.wikipedia.org/wiki/Nightjar) is a **Control Mesh** for Envoy Proxy, designed to run as a Docker sidecar within Amazon Web Services (AWS) Elastic Cloud Services (ECS).
+[Nightjar](https://en.wikipedia.org/wiki/Nightjar) is a **Control Mesh** for [Envoy Proxy](https://envoyproxy.github.io/envoy/), designed to run within the Amazon Web Services (AWS) ecosystem.  It uses the AWS Cloud Map to configure how the Envoy **data mesh** operates within the Elastic Cloud Services (ECS).
 
-AWS provides their [App Mesh](https://aws.amazon.com/app-mesh/) tooling, but it involves many limitations that some deployments cannot work around, or should not work around.  Nightjar acts as a low-level intermediary between the AWS API and the Envoy Proxy to make deployments in EC2 or Fargate possible, with little fuss.  It even works without `awsvpc` networks, and takes advantage of ephemeral ports!
+![2 services communicating through nightjar-mesh + Envoy Proxy](2-service-traffic.svg)
 
-Nightjar periodically loads the AWS configuration, and sends updates to [Envoy Proxy](https://envoyproxy.github.io/envoy/) to change the host and port for a dynamic list of weighted path mappings.  This works for both inbound traffic into the mesh (a "gateway" service) and for services running inside the mesh ("egress proxy").  Within the mesh, the envoy proxies send the data directly to the other service containers.
+Nightjar loads the service configuration defined in AWS Cloud Map and updates the Envoy Proxy configuration.  It then periodically scans AWS for updates and changes Envoy as the network changes.  Nightjar works both for network traffic entering the data mesh and for traffic within the mesh.
+
+![Traffic flow within a network-mesh, deploying a blue-green mix of service #2](network-mesh.svg)
+
+AWS provides their [App Mesh](https://aws.amazon.com/app-mesh/) tooling, but it involves many limitations that some deployments cannot work around, or should not work around.  Nightjar acts as a low-level intermediary between the AWS API and the Envoy Proxy to make deployments in EC2 or Fargate possible, with little fuss.  It even works without `awsvpc` networks, and takes advantage of ephemeral ports.
 
 
 ## Some Notes on Terminology
 
-This document uses the word "mesh" to describe services that can talk to each other as peers.  This avoids confusing the term "cluster", which AWS uses to describe the computing resources where ECS tasks run.  Nightjar uses the phrase "namespace", because it splits the different meshes based on AWS Cloud Map namespaces.
+For the purposes of this document, the phrase **network mesh** refers to the set of services that communicate with each other through private channels.  Normally this is called a "cluster", but that word is avoided here because of the many different AWS services that have their own meaning of the word (i.e. an ECS cluster, which is very different).  It's possible to run multiple network meshes that communicate with each other, but these should communicate only through public routes. 
+ 
+Envoy manages the **data mesh**, which refers to the control of the flow of network traffic between the services within the network mesh.  The Envoy Proxy documentation describes all the goodness that the tool provides.  Nightjar gives you the flexibility to adjust the Envoy configuration to suit exactly your needs.
+
+The **control mesh** manages the configuration of the data mesh.  Normal documentation on control meshes with Envoy Proxy refer to a dynamic configuration of Envoy wih another service managing it.  For Nightjar, the configuration is currently done through a static configuration file, though eventually this should be replaced with a proper service to provide uninterrupted traffic flow.  
+
+**Nightjar** refers to the control mesh tool, while **nightjar-mesh** refers to the Nightjar docker sidecar, the network topology, and the AWS resources used in the construction of the mesh.
+
 
 ## How It Works
-
-**This describes the current Beta version, which is not a control mesh per se, but acts very similar to one.**
 
 You configure the Nightjar container to run inside an [ECS Task Definition](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html), along with a single service container.  The Nightjar container runs the Envoy proxy, and is considered a "sidecar" container here.  The service must be configured to send all traffic to other services in the mesh to the Nightjar container.  Inbound traffic to the service comes from the Nightjar containers running in the other services. 
 
@@ -31,7 +40,14 @@ You configure the Nightjar container with two sets of properties:
 
 To setup the services, you need to register your tasks using AWS Cloud Map (aka Service Discovery) using SVR registration.  This makes available to Nightjar the service members and how to connect to them.
 
-The beta version is written in Python, and constructs the Envoy Proxy configuration as a static yaml file using data created in the python file, and transformed from a mustache style template file, which can be changed out at runtime.  This makes it possible to change the static generation to include extra Envoy features that don't come out of the box.
+
+## Future Direction
+
+The current version is written in Python and shell scripts.  It constructs the Envoy Proxy configuration by creating an input data file (json) and processing that through a mustache template file.  This makes it possible to change the static generation to include extra Envoy features that don't come out of the box.
+
+The general concept behind this (well defined data input into a user-controlled template file) gives the end user the right level of control over the proxy configuration.
+
+Future direction will change the Envoy configuration to instead be a simple, dynamic configuration.  Then the processing will connect to the Envoy administration port to dynamically change the configuration.  This will allow the configuration changes to not interrupt the network traffic.
 
 
 ## Using Nightjar
@@ -55,7 +71,7 @@ The `SERVICE_MEMBER` must reference a [Cloud Map service](https://docs.aws.amazo
 
 Additionally, you can tweak the operation of Nightjar with these options:
 
-* Environment variable `ENVOY_CONFIGURATION_TEMPLATE`: (defaults to [envoy.yaml.mustache](nightjar/envoy.yaml.mustache)) the template file, which accepts input in a [specific format](nightjar/generation-data-schema.yaml), used to construct the Envoy configuration.  This file can be replaced with a custom file to adjust the generated configuration to suit your needs.
+* Environment variable `ENVOY_CONFIGURATION_TEMPLATE`: (defaults to [envoy.yaml.mustache](nightjar-src/envoy.yaml.mustache)) the template file, which accepts input in a [specific format](nightjar-src/generation-data-schema.yaml), used to construct the Envoy configuration.  This file can be replaced with a custom file to adjust the generated configuration to suit your needs.
 * Environment variable `REFRESH_TIME`: (defaults to 10) the number of seconds between polling for updates in the configuration. 
 * Environment variable `EXIT_ON_GENERATION_FAILURE`: (defaults to 0)  If this value is *anything* other than `0`, then the container will stop if an error occurs while generating the envoy proxy static configuration file.
 * Environment variable `FAILURE_SLEEP`: (defaults to 300) if the generation failed, the process will wait this many seconds before stopping the container.  This allows an operator time to inspect the container for problems.
