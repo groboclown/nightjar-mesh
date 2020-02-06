@@ -1,19 +1,19 @@
 # nightjar-mesh
 
-An AWS ECS Control Mesh with Envoy Proxy
+An AWS ECS Control Plane with Envoy Proxy
 
 *That's a fancy way to say that Nightjar monitors AWS Elastic Cloud Services for changes, and sends updates to a local Envoy Proxy to update the traffic routes.*
 
 
 ## About
 
-[Nightjar](https://en.wikipedia.org/wiki/Nightjar) is a **Control Mesh** for [Envoy Proxy](https://envoyproxy.github.io/envoy/), designed to run within the Amazon Web Services (AWS) ecosystem.  It uses the AWS Cloud Map to configure how the Envoy **data mesh** operates within the Elastic Cloud Services (ECS).
+[Nightjar](https://en.wikipedia.org/wiki/Nightjar) is a **Control Plane** for [Envoy Proxy](https://envoyproxy.github.io/envoy/), designed to run within the Amazon Web Services (AWS) ecosystem.  It uses the AWS Cloud Map to configure how the Envoy **data plane** operates within the Elastic Cloud Services (ECS).
 
-![2 services communicating through nightjar-mesh + Envoy Proxy](2-service-traffic.svg)
+![2 services communicating through nightjar + Envoy Proxy](2-service-traffic.svg)
 
-Nightjar loads the service configuration defined in AWS Cloud Map and updates the Envoy Proxy configuration.  It then periodically scans AWS for updates and changes Envoy as the network changes.  Nightjar works both for network traffic entering the data mesh and for traffic within the mesh.
+Nightjar loads the service configuration defined in AWS Cloud Map and updates the Envoy Proxy configuration.  It then periodically scans AWS for updates and changes Envoy as the network changes.  Nightjar works both for network traffic entering the data plane and for traffic within the plane.
 
-![Traffic flow within a network-mesh, deploying a blue-green mix of service #2](network-mesh.svg)
+![Traffic flow within a service mesh, deploying a blue-green mix of service #2](nightjar-service-mesh.svg)
 
 AWS provides their [App Mesh](https://aws.amazon.com/app-mesh/) tooling, but it involves many limitations that some deployments cannot work around, or should not work around.  Nightjar acts as a low-level intermediary between the AWS API and the Envoy Proxy to make deployments in EC2 or Fargate possible, with little fuss.  It even works without `awsvpc` networks, and takes advantage of ephemeral ports.
 
@@ -22,21 +22,21 @@ AWS provides their [App Mesh](https://aws.amazon.com/app-mesh/) tooling, but it 
 
 For the purposes of this document, the phrase **service mesh** refers to the set of services that communicate with each other through private channels.  Normally this is called a "cluster", but that word is avoided here because of the many different AWS services that have their own meaning of the word (i.e. an ECS cluster, which is very different).  It's possible to run multiple service meshes that communicate with each other, but these should communicate only through public routes. 
  
-Envoy manages the **data mesh**, which refers to the control of the flow of network traffic between the services within the service mesh.  The Envoy Proxy documentation describes all the goodness that the tool provides.  Nightjar gives you the flexibility to adjust the Envoy configuration to suit exactly your needs.
+Envoy manages the **data plane**, which refers to the control of the flow of network traffic between the services within the service mesh.  The Envoy Proxy documentation describes all the goodness that the tool provides.  Nightjar gives you the flexibility to adjust the Envoy configuration to suit exactly your needs.
 
-The **control mesh** manages the configuration of the data mesh.  Normal documentation on control meshes with Envoy Proxy refer to a dynamic configuration of Envoy wih another service managing it.  For Nightjar, the configuration is currently done through a static configuration file, though eventually this should be replaced with a proper service to provide uninterrupted traffic flow.  
+The **control plane** manages the configuration of the data plane.  Normal documentation on control planes with Envoy Proxy refer to a dynamic configuration of Envoy wih another service managing it.  For Nightjar, the configuration is currently done through a static configuration file, though eventually this should be replaced with a proper service to provide uninterrupted traffic flow.  
 
-**Nightjar** refers to the control mesh tool, while **nightjar-mesh** refers to the Nightjar docker sidecar, the network topology, and the AWS resources used in the construction of the mesh.
+**Nightjar** refers to the control plane tool, while **nightjar-mesh** refers to the Nightjar docker sidecar, the network topology, and the AWS resources used in the construction of the mesh.
 
 
 ## How It Works
 
-You configure the Nightjar container to run inside an [ECS Task Definition](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html), along with a single service container.  The Nightjar container runs the Envoy proxy, and is considered a "sidecar" container here.  The service must be configured to send all traffic to other services in the mesh to the Nightjar container.  Inbound traffic to the service comes from the Nightjar containers running in the other services. 
+You configure the Nightjar container to run inside an [ECS Task Definition](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html), along with a single service container.  The Nightjar container runs the Envoy proxy, and is considered a "sidecar" container here.  The service must be configured to send all traffic to other services in the service mesh to the Nightjar container.  Inbound traffic to the service comes from the Nightjar containers running in the other services. 
 
 You configure the Nightjar container with two sets of properties:
 
-* The local service name.  This tells Nightjar to not handle traffic sent to this local container.  It also indirectly tells Nightjar which mesh it belongs to.
-* The other cluster names.  If you split your network into multiple clusters, then each of the other clusters is defined by name and can direct traffic directly within the other networks.  This is completely optional; if you prefer to have the other clusters have a separate mesh, then you need to have the services connect directly to the other meshs' gateway proxies.
+* The local service name.  This tells Nightjar to not handle traffic sent to this local container.  It also indirectly tells Nightjar which service mesh it belongs to.
+* The other cluster names.  If you split your network into multiple clusters, then each of the other clusters is defined by name and can direct traffic directly within the other networks.  This is completely optional; if you prefer to have the other clusters have a separate service mesh, then you need to have the services connect directly to the other mesh's gateway proxies.
 
 To setup the services, you need to register your tasks using AWS Cloud Map (aka Service Discovery) using SVR registration.  This makes available to Nightjar the service members and how to connect to them.
 
@@ -56,7 +56,7 @@ Using Nightjar involves registering your services with AWS Cloud Map, adding a s
 
 Nightjar itself takes these environment variables to configure its operation:
 
-* `SERVICE_MEMBER` (required, no default) the AWS Cloud Map service ID (not the ARN) of the service to which this Nightjar sidecar belongs to.  It will be in the form `svg-randomlettersandnumbers`; see the example below for how to set this value easily from a CFT.  Set this to `-gateway-` to have Nightjar run in "gateway" mode, where it does not run as a sidecar to another service container, but instead as a gateway proxy into the mesh.
+* `SERVICE_MEMBER` (required, no default) the AWS Cloud Map service ID (not the ARN) of the service to which this Nightjar sidecar belongs to.  It will be in the form `svg-randomlettersandnumbers`; see the example below for how to set this value easily from a CFT.  Set this to `-gateway-` to have Nightjar run in "gateway" mode, where it does not run as a sidecar to another service container, but instead as a gateway proxy into the service mesh.
 * `SERVICE_PORT` (defaults to 8080) the port number that the envoy proxy will listen for requests that are sent to other services within the `SERVICE_MEMBER` namespace.
 * `NAMESPACE_x` where *x* is some number between 0 and 99.  This defines a AWS Cloud Map service namespace other than the `SERVICE_MEMBER` namespace, which Nightjar will forward requests.
 * `NAMESPACE_x_PORT` the listening port number that the Envoy proxy will forward requests into the corresponding `NAMESPACE_x` service namespace.  Services send a request to the Nightjar container on this port number to connect to the other namespace.
@@ -67,7 +67,7 @@ The `SERVICE_MEMBER` must reference a [Cloud Map service](https://docs.aws.amazo
 * `SERVICE` - the name of the service.
 * `COLOR` - the deployment "color" (usually blue or green).
 * `AWS_INSTANCE_IPV4` and `AWS_INSTANCE_PORT` - these keys are required by AWS, but the value doesn't matter for the purposes of Nightjar.
-* For each path prefix that the service handles, register that path as the key, and the relative weight that this service instance should be assigned to that prefix.  For example, if the "blue" deployment has just been released and you want to lightly load it before switching over, give its paths a number significantly lower than the "green" deployment.  If the path is explicitly only used within the mesh, and should never be accessible from outside this mesh, then prepend a question mark ('?') to the start of the key.  Note that to be recognized as a path key, the key must start with a `/`, `?`, or `*`.
+* For each path prefix that the service handles, register that path as the key, and the relative weight that this service instance should be assigned to that prefix.  For example, if the "blue" deployment has just been released and you want to lightly load it before switching over, give its paths a number significantly lower than the "green" deployment.  If the path is explicitly only used within the service mesh, and should never be accessible from outside this mesh, then prepend a question mark ('?') to the start of the key.  Note that to be recognized as a path key, the key must start with a `/`, `?`, or `*`.
 
 Additionally, you can tweak the operation of Nightjar with these options:
 
@@ -82,7 +82,7 @@ Additionally, you can tweak the operation of Nightjar with these options:
 
 ## Example of Nightjar with a Service
 
-Control meshes are not easy insert into your network topology.  However, Nightjar attempts to make the configuration as minimal as possible to make the configuration simple and easy to debug.
+Control planes are not easy insert into your network topology.  However, Nightjar attempts to make the configuration as minimal as possible to make the configuration simple and easy to debug.
 
 ### AWS Account
 
@@ -119,7 +119,7 @@ Parameters:
 
 ### Add In Our Service
 
-Let's add in a single service to the stack, called `tuna`.  Note that having a single service means that we don't need a mesh, but this shows all the resources necessary before we add in the mesh.  And it keeps our example simple.
+Let's add in a single service to the stack, called `tuna`.  Note that having a single service means that we don't need a whole service mesh, but this shows all the resources necessary before we add in the "meshiness".  And it keeps our example simple.
 
 Note that this prepares us for blue/green deployments, by labeling this service's resources with "blue".  To add in a canary test of a service, a copy of the "blue" resources is made with a different color name for only that one service.
 
@@ -249,7 +249,7 @@ On a side note, using ephemeral ports means that you must have a large number of
 
 ### Add in Service Discovery
 
-Nightjar uses AWS Cloud Map for storing the configuration information and location of all the services and their container instances.  Below is the additional and changed resources to the growing CFT.  While we're here, we'll name the mesh `yummy`, because tuna can be yummy (YMMV). 
+Nightjar uses AWS Cloud Map for storing the configuration information and location of all the services and their container instances.  Below is the additional and changed resources to the growing CFT.  While we're here, we'll name the network `yummy`, because tuna can be yummy (YMMV). 
 
 ```yaml
 Resources:
@@ -398,7 +398,7 @@ With all that boilerplate out of the way, adding in Nightjar to the template is 
               Value: !Ref "TunaBlueServiceDiscoveryRecord"
   
             # The port number that the envoy proxy will listen to for connections
-            # *from* the sidecar service *to* the mesh.
+            # *from* the sidecar service *to* the service mesh.
             - Name: SERVICE_PORT
               Value: 8090
           PortMappings:
@@ -419,7 +419,7 @@ With all that boilerplate out of the way, adding in Nightjar to the template is 
           
 ```
 
-In this example, the Nightjar Envoy Proxy will listen to port 8090 for connections from the Tuna service to the the rest of the mesh.  Because the Nightjar container is named `nightjar`, and the Tuna service includes a link to `nightjar`, the Tuna service should call to `http://nightjar:8090` plus the other service's path to connect to it.
+In this example, the Nightjar Envoy Proxy will listen to port 8090 for connections from the Tuna service to the the rest of the service mesh.  Because the Nightjar container is named `nightjar`, and the Tuna service includes a link to `nightjar`, the Tuna service should call to `http://nightjar:8090` plus the other service's path to connect to it.
 
 
 ### Adding Another Service
@@ -427,9 +427,9 @@ In this example, the Nightjar Envoy Proxy will listen to port 8090 for connectio
 If we want to add another service to the mesh, it's mostly cut-n-paste of the above.  The one thing to note is that *the tuna service setup does not change.*  Nightjar picks up the new service from the namespace and adds in the weighted paths.  This can be done even without stopping the Tuna service.
 
 
-### Adding a Mesh Gateway
+### Adding a Service Mesh Gateway
 
-You could use a standard Application Load Balancer for every service, but that means you don't gain the great network shaping that Envoy gives us.  Instead, we want to take advantage of the envoy goodness, but that means introducing a gateway service that all outside traffic uses to access the mesh, and that includes a load balancer.
+You could use a standard Application Load Balancer for every service, but that means you don't gain the great network shaping that Envoy gives us.  Instead, we want to take advantage of the envoy goodness, but that means introducing a gateway service that all outside traffic uses to access the service mesh, and that includes a load balancer.
 
 Nightjar produces this with just a few tweaks.  You'll want to set the nightjar container as the only container in the gateway, and configure it as a gateway.
 
@@ -568,7 +568,7 @@ Nightjar produces this with just a few tweaks.  You'll want to set the nightjar 
 
 ```
 
-If you have paths you want Nightjar to not make available in the gateways (they are "private" within the mesh), then, in the `service-settings` service registration instance, prefix the path with a question mark:
+If you have paths you want Nightjar to not make available in the gateways (they are "private" within the service mesh), then, in the `service-settings` service registration instance, prefix the path with a question mark:
 
 ```yaml
   TunaBlueReferenceInstance:
