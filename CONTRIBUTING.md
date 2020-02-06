@@ -9,7 +9,7 @@ Nightjar strives to:
 * Keep the number of containers small.  If possible, run the Nightjar tools inside the Envoy proxy container.
 * Keep the Nightjar footprint small.  It should attempt to keep memory and CPU usage down.  If possible, also keep the docker image size small.
 * Be compatible with docker containers running in bridge network mode.
-* Keep the Envoy configuration transparent.  If Envoy moves to being a proper control mesh, and talks to the dynamic configuration capabilities of Envy, then the configuration should continue to be generated based on user-modifiable data input that matches the Envoy API.
+* Keep the Envoy configuration transparent.  If Nightjar moves to being a proper control mesh, and talks to the dynamic configuration capabilities of Envy, then the configuration should continue to be generated based on user-modifiable data input that matches the Envoy API.
 * Document all the configurable aspects.
 * Keep the documentation clear and complete.
 

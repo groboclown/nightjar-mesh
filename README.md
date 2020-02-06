@@ -319,8 +319,8 @@ With all that boilerplate out of the way, adding in Nightjar to the template is 
 
         
         # These settings are required for SRV records, but for this
-        # record, the values are never used.  So we set these to valid
-        # values that are harmless.
+        # meta-data record, the values are never used.  So we set these to
+        # valid values that are harmless.
         AWS_INSTANCE_IPV4: 127.0.0.1
         AWS_INSTANCE_PORT: 1234
 
@@ -347,7 +347,7 @@ With all that boilerplate out of the way, adding in Nightjar to the template is 
             - ContainerPort: 3000
               Protocol: "tcp"
           
-          # New!
+          # New!  Allow the service to use nightjar as an egress proxy.
           Link:
             - nightjar
 
@@ -472,7 +472,7 @@ Nightjar produces this with just a few tweaks.  You'll want to set the nightjar 
             # the namespace information.
             - Name: NAMESPACE_1
               Value: !Ref YummyNamespace
-            # This is the port that the load balancer is forwarding to.
+            # This is the port that the load balancer is forwarding to on this container.
             - Name: NAMESPACE_1_PORT
               Value: "2000"
   
@@ -571,3 +571,5 @@ If you have paths you want Nightjar to not make available in the gateways (they 
         # private path; the gateway does not forward these.
         "?/albacore": "100"
 ```
+
+A question mark was chosen because that character has special meaning for URIs - it can't be part of a path (it's the query separator).  Nightjar will remove the leading question mark when constructing the Envoy route configuration.

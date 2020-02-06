@@ -1,4 +1,9 @@
 ---
+# Default envoy configuration file.
+# You can modify this to taste.
+
+# See generation-data-schema.yaml for details on the
+#   data that is passed in.
 
 static_resources:
   listeners:
@@ -24,6 +29,7 @@ static_resources:
                 domains:
                 - "*"
                 routes:
+                # Static health check path, so something is always available when Envoy is up.
                 - match:
                     path: {{healthcheck_path}}
                   direct_response:
@@ -61,7 +67,7 @@ static_resources:
     {{#clusters}}
     - name: {{name}}
       connect_timeout: 300s
-      # The Service Discovery registration connects through IP addresses.
+      # The Service Discovery instance registration stores IPv4 addresses.
       type: static
       dns_lookup_family: V4_ONLY
       lb_policy: round_robin

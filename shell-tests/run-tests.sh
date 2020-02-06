@@ -21,9 +21,11 @@ echo ""
 echo "Failed Tests"
 echo "==========================================="
 for f in ${ERROR_DIR}/* ; do
-    echo "> $( basename $f .txt ):"
-    cat $f
+  if [ -f "${f}" ]; then
+    echo "> $( basename ${f} .txt ):"
+    cat ${f}
     echo "----------------------------"
+  fi
 done
 error_count=$( ls -1 ${ERROR_DIR} | wc -l )
 echo "==========================================="

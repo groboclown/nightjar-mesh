@@ -17,8 +17,9 @@ test -f "${ARGS_FILE1}" && rm "${ARGS_FILE1}"
 test -f "${PID_FILE1}" && rm "${PID_FILE1}"
 export MOCK_EXIT_CODE1=0
 export SUCCESS_FILE3=/tmp/${TESTFILE}/1-ran3.txt
-touch /tmp/envoy-config.yaml
+export MOCK_DATA3="no-data"
 echo "0" > "${SUCCESS_FILE3}"
+echo "${MOCK_DATA3}" > /tmp/envoy-config.yaml
 export MOCK_EXIT_CODE3=0
 export MAX_COUNT=2
 export REFRESH_TIME=1
@@ -28,4 +29,9 @@ ec=$?
 if [ ${ec} -ne 0 ]; then
   echo "non-zero exit code: ${ec}" >> ${ERROR_DIR}/${TESTFILE}-1.txt
 fi
-echo "finish checking results" >> ${ERROR_DIR}/${TESTFILE}-1.txt
+if [ "2" != "$( cat ${SUCCESS_FILE3} )" ]; then
+  echo "incorrect loops run: $( cat ${SUCCESS_FILE4} )" >> ${ERROR_DIR}/${TESTFILE}-1.txt
+fi
+if [ -f /tmp/new-envoy.yaml ]; then
+  echo "did not clean up generated file" >> ${ERROR_DIR}/${TESTFILE}-1.txt
+fi
