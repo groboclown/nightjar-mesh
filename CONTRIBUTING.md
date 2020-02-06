@@ -2,45 +2,46 @@
 
 First, you need to agree to submit your code under the [license](LICENSE).
 
-## Principals
+## Principles
 
+Nightjar strives to:
+
+* Keep the number of containers small.  If possible, run the Nightjar tools inside the Envoy proxy container.
+* Keep the Nightjar footprint small.  It should attempt to keep memory and CPU usage down.  If possible, also keep the docker image size small.
+* Be compatible with docker containers running in bridge network mode.
+* Keep the Envoy configuration transparent.  If Envoy moves to being a proper control mesh, and talks to the dynamic configuration capabilities of Envy, then the configuration should continue to be generated based on user-modifiable data input that matches the Envoy API.
+* Document all the configurable aspects.
+* Keep the documentation clear and complete.
 
 
 ## Style Guidelines
 
-## Pass All Tests
+For Python, conform to the PEP8 style where possible.  Also, use mypy-conformant typing.
 
-For the Python code, the code must:
+Shell scripts and yaml files use 2 spaces for indenting, while Python uses 4 spaces.
 
-* Pass unit test.
-    * `cd nightjar && python3 -m coverage run --source . -m unittest discover`
+Keep the functionality in the right place.  Where possible, have tools that do one thing, and keep track of what they did to give end-users insight into what the tools did.
+
+
+## Pass All Criteria
+
+The code must:
+
+* Pass Python unit tests.
+    * `cd nightjar-src && python3 -m coverage run --source . -m unittest discover`
 * And code coverage must not go down.
-    * `cd nightjar && python3 -m coverage report -m`
+    * `cd nightjar-src && python3 -m coverage report -m generate_template_input_data.py generate_envoy_configuration.py`
+    * `python3 -m coverage json && jq '.files."generate_template_input_data.py".summary.percent_covered' < coverage.json`
+    * `python3 -m coverage json && jq '.files."generate_envoy_configuration.py".summary.percent_covered' < coverage.json`
 * Pass mypy checks.
-    * `cd nightjar && mypy --warn-redundant-casts --ignore-missing-imports --warn-unused-ignores generate-envoy-proxy.py`
-    * This requires installing the `test-requirements.txt` locally.
+    * `cd nightjar-src && mypy --warn-redundant-casts --ignore-missing-imports --warn-unused-ignores generate_template_input_data.py generate_envoy_configuration.py`
+* Pass shell script tests.
+    * `docker build -t my/nightjar-test -f Dockerfile.shell-test . && docker run -it --rm my/nightjar-test`
+* The docker image constructs without failures.
+    * `docker build -t my/nightjar .`
 
-To help out with this, I recommend setting up a virtual environment locally:
+You will need to install the required Python modules to run the Python tests.  See the development environment section below to help get them installed.
 
-```bash
-$ cd /my/path/to/nightjar-mesh
-$ python3 -m venv venv
-$ . venv/bin/activate
-$ python3 -m pip install --upgrade pip
-$ python3 -m pip install -r nightjar/requirements.txt
-$ python3 -m pip install -r nightjar/test-requirements.txt
-```
-
-For Windows users, it's a bit different.
-
-```powershell
-PS > cd \my\path\to\nightjar-mesh
-PS > python -m venv venv
-PS > venv\Scripts\Activate.ps1
-PS > python -m pip install --upgrade pip
-PS > python -m pip install -r nightjar/requirements.txt
-PS > python -m pip install -r nightjar/test-requirements.txt
-```
 
 ## Submission
 
@@ -64,5 +65,29 @@ $ git merge --squash my-great-improvement
 $ git push origin descriptive-name-of-change
 ```
 
-Now you can submit a PR to the main project.
+Your GitHub project is now ready for you to submit a PR.
 
+
+## Development Environment
+
+Here's the easy way to get your development environment in a place to get working.
+
+```bash
+$ cd /my/path/to/nightjar-mesh
+$ python3 -m venv venv
+$ . venv/bin/activate
+$ python3 -m pip install --upgrade pip
+$ python3 -m pip install -r nightjar/requirements.txt
+$ python3 -m pip install -r nightjar/test-requirements.txt
+```
+
+For Windows users, it's a bit different.
+
+```powershell
+PS > cd \my\path\to\nightjar-mesh
+PS > python -m venv venv
+PS > venv\Scripts\Activate.ps1
+PS > python -m pip install --upgrade pip
+PS > python -m pip install -r nightjar/requirements.txt
+PS > python -m pip install -r nightjar/test-requirements.txt
+```

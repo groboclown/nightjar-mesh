@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Dict, List, Any
 import boto3
 import botocore.stub
-import generate_envoy_proxy as generator
+import generate_template_input_data as generator
 
 
 class TestDiscoveryServiceInstance(unittest.TestCase):

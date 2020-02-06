@@ -1,15 +1,22 @@
 
+.git/
 .idea/
 dist/
 docs/
 examples/
-test*.py
-test-requirements.txt
+.dockerignore
+.gitignore
+Dockerfile*
+*.md
 
-__pycache__/
+*/__pycache__/
 *.py[cod]
 *$py.class
-.venv/
-.coverage/
-.mypy_cache/
+*/coverage.json
+*/.coverage
+*/.coverage/
+*/.mypy_cache/
 venv/
+*/venv/
+.venv/
+*/.venv/

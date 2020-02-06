@@ -7,7 +7,7 @@ import sys
 import datetime
 import boto3
 from botocore.exceptions import ClientError
-import pystache
+import json
 
 
 MAX_NAMESPACE_COUNT = 99
@@ -659,8 +659,6 @@ def _fatal(msg: str, **args: Any) -> None:
 
 # ---------------------------------------------------------------------------
 def main(exec_name: str, _args: Sequence[str]) -> int:
-    # When the "mustach" Alpine package comes out of test, this file will
-    # remove the dependency on pystache, and instead just generate the json data file.
     template_filename = os.path.join(os.path.dirname(exec_name), 'envoy.yaml.mustache')
     env = EnvSetup.from_env()
     namespaces = env.get_loaded_namespaces()
@@ -668,10 +666,7 @@ def main(exec_name: str, _args: Sequence[str]) -> int:
         env.admin_port, namespaces, env.local_service, True
     )
     context = envoy_config.get_context()
-    pystache.defaults.TAG_ESCAPE = lambda u: u.replace('"', '\\"')
-    with open(template_filename, 'r') as f:
-        template = f.read()
-    print(pystache.render(template, context))
+    print(json.dumps(context))
     return 0
 
 

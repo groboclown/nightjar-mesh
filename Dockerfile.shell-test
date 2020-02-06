@@ -1,0 +1,14 @@
+FROM alpine:latest
+
+RUN echo "start" \
+  && apk upgrade --update \
+  && apk add --update bash python3 \
+  && echo "end"
+
+COPY / /nightjar-root
+
+RUN echo "start" \
+  && chmod +x /nightjar-root/shell-tests/*.sh \
+  && echo "end"
+
+CMD ["/bin/bash", "/nightjar-root/shell-tests/run-tests.sh"]
