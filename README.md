@@ -24,7 +24,7 @@ For the purposes of this document, the phrase **service mesh** refers to the set
  
 Envoy manages the **data plane**, which refers to the control of the flow of network traffic between the services within the service mesh.  The Envoy Proxy documentation describes all the goodness that the tool provides.  Nightjar gives you the flexibility to adjust the Envoy configuration to suit exactly your needs.
 
-The **control plane** manages the configuration of the data plane.  Normal documentation on control planes with Envoy Proxy refer to a dynamic configuration of Envoy wih another service managing it.  For Nightjar, the configuration is currently done through a static configuration file, though eventually this should be replaced with a proper service to provide uninterrupted traffic flow.  
+The **control plane** manages the configuration of the data plane.  Normal documentation on control planes with Envoy Proxy refer to a dynamic configuration of Envoy with another service managing it.  Instead, Nightjar generates configuration files which Envoy loads when they are refreshed.  This means the Nightjar tooling just needs to be in-memory when necessary, and not consume another container.
 
 **Nightjar** refers to the control plane tool, while **nightjar-mesh** refers to the Nightjar docker sidecar, the network topology, and the AWS resources used in the construction of the mesh.
 
@@ -92,7 +92,7 @@ There are several others, if you're really interested.  See the [script](nightja
 
 ## Words of Warning
 
-For large clusters, you may find yourself running into the `ListNamespaces` throttling limit.  If this happens, you may want to make the `REFRESH_TIME` environment variable larger. 
+For large clusters, you may find yourself running into the AWS `ServiceDiscovery::ListNamespaces` throttling limit.  If this happens, you may want to make the `REFRESH_TIME` environment variable larger. 
 
 ## Example of Nightjar with a Service
 
