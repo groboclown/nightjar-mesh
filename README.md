@@ -20,9 +20,9 @@ AWS provides their [App Mesh](https://aws.amazon.com/app-mesh/) tooling, but it 
 
 ## Some Notes on Terminology
 
-For the purposes of this document, the phrase **network mesh** refers to the set of services that communicate with each other through private channels.  Normally this is called a "cluster", but that word is avoided here because of the many different AWS services that have their own meaning of the word (i.e. an ECS cluster, which is very different).  It's possible to run multiple network meshes that communicate with each other, but these should communicate only through public routes. 
+For the purposes of this document, the phrase **service mesh** refers to the set of services that communicate with each other through private channels.  Normally this is called a "cluster", but that word is avoided here because of the many different AWS services that have their own meaning of the word (i.e. an ECS cluster, which is very different).  It's possible to run multiple service meshes that communicate with each other, but these should communicate only through public routes. 
  
-Envoy manages the **data mesh**, which refers to the control of the flow of network traffic between the services within the network mesh.  The Envoy Proxy documentation describes all the goodness that the tool provides.  Nightjar gives you the flexibility to adjust the Envoy configuration to suit exactly your needs.
+Envoy manages the **data mesh**, which refers to the control of the flow of network traffic between the services within the service mesh.  The Envoy Proxy documentation describes all the goodness that the tool provides.  Nightjar gives you the flexibility to adjust the Envoy configuration to suit exactly your needs.
 
 The **control mesh** manages the configuration of the data mesh.  Normal documentation on control meshes with Envoy Proxy refer to a dynamic configuration of Envoy wih another service managing it.  For Nightjar, the configuration is currently done through a static configuration file, though eventually this should be replaced with a proper service to provide uninterrupted traffic flow.  
 
