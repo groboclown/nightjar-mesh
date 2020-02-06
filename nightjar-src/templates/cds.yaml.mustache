@@ -1,7 +1,8 @@
 version_info: "0"
 resources:
 {{#clusters}}
-- name: {{name}}
+- "@type": type.googleapis.com/envoy.api.v2.Cluster
+  name: {{name}}
   connect_timeout: 300s
   # The Service Discovery instance registration stores IPv4 addresses.
   type: static

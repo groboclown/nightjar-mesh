@@ -503,8 +503,8 @@ def collate_ports_and_clusters(
     output_listeners: List[EnvoyListener] = []
     output_clusters: List[EnvoyCluster] = []
     is_local_route = False
-    service_member = 'gateway'
-    network_name = os.environ.get('NETWORK_NAME', None)
+    service_member: Optional[str] = None
+    network_name: Optional[str] = os.environ.get('NETWORK_NAME', None)
 
     if local:
         is_local_route = True
@@ -567,7 +567,12 @@ def collate_ports_and_clusters(
         listener = EnvoyListener(namespace.namespace_port, envoy_routes)
         output_listeners.append(listener)
 
-    return EnvoyConfig(output_listeners, output_clusters, network_name or service_member, service_member, admin_port)
+    return EnvoyConfig(
+        output_listeners, output_clusters,
+        network_name or service_member or 'gateway',
+        service_member or 'gateway',
+        admin_port
+    )
 
 
 # ---------------------------------------------------------------------------

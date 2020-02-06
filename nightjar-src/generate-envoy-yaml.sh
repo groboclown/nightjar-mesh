@@ -14,7 +14,7 @@ if [ $? -ne 0 ] ; then
 fi
 
 echo "Generating the envoy configuration files."
-for i in "${indir}/*" ; do
+for i in "${indir}/"* ; do
   if [ -e "$i" ]; then
     case "${i}" in
       *.mustache)

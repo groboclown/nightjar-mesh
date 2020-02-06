@@ -1,7 +1,8 @@
 version_info: "0"
 resources:
 {{#listeners}}
-- address:
+- "@type": type.googleapis.com/envoy.api.v2.Listener
+  address:
     socket_address:
       address: "0.0.0.0"
       port_value: {{mesh_port}}
@@ -16,6 +17,7 @@ resources:
         - name: envoy.router
           typed_config: {}
         route_config:
+          "@type": type.googleapis.com/envoy.api.v2.RouteConfiguration
           name: local_route
           virtual_hosts:
           - name: backend
@@ -36,20 +38,20 @@ resources:
             {{#routes}}
             - match:
                 prefix: {{route_path}}
-                route:
-                {{#has_one_cluster}}
+              route:
+              {{#has_one_cluster}}
                 {{#clusters}}
-                    cluster: {{cluster_name}}
+                cluster: {{cluster_name}}
                 {{/clusters}}
-                {{/has_one_cluster}}
-                {{#has_many_clusters}}
-                    weighted_clusters:
-                      total_weight: {{total_cluster_weight}}
-                      clusters:
-                      {{#clusters}}
-                        - name: {{cluster_name}}
-                          weight: {{route_weight}}
-                      {{/clusters}}
-                {{/has_many_clusters}}
+              {{/has_one_cluster}}
+              {{#has_many_clusters}}
+                weighted_clusters:
+                  total_weight: {{total_cluster_weight}}
+                  clusters:
+                  {{#clusters}}
+                    - name: {{cluster_name}}
+                      weight: {{route_weight}}
+                  {{/clusters}}
+              {{/has_many_clusters}}
             {{/routes}}
 {{/listeners}}

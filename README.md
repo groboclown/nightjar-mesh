@@ -81,7 +81,7 @@ By default, Nightjar provides [configuration templates](nightjar-src/templates) 
 
 Additionally, you can tweak the operation of Nightjar with these options:
 
-* Environment variable `REFRESH_TIME`: (defaults to 10) the number of seconds between polling for updates in the configuration. 
+* Environment variable `REFRESH_TIME`: (defaults to 30) the number of seconds between polling for updates in the configuration. 
 * Environment variable `EXIT_ON_GENERATION_FAILURE`: (defaults to 0)  If this value is *anything* other than `0`, then the container will stop if an error occurs while generating the envoy proxy static configuration file.
 * Environment variable `FAILURE_SLEEP`: (defaults to 300) if the generation failed, the process will wait this many seconds before stopping the container.  This allows an operator time to inspect the container for problems.
 * Environment variable `ENVOY_LOG_LEVEL`: (no default) Sets the Envoy proxy logging level.
@@ -89,6 +89,10 @@ Additionally, you can tweak the operation of Nightjar with these options:
 
 There are several others, if you're really interested.  See the [script](nightjar-src/run-loop.sh) for details.
 
+
+## Words of Warning
+
+For large clusters, you may find yourself running into the `ListNamespaces` throttling limit.  If this happens, you may want to make the `REFRESH_TIME` environment variable larger. 
 
 ## Example of Nightjar with a Service
 
@@ -336,14 +340,15 @@ With all that boilerplate out of the way, adding in Nightjar to the template is 
         # If your service uses HTTP2, then set this attribute and value.
         HTTP2: enabled
         
-        # List of all the URI path prefixes that receive traffic.
-        # The relative weight to assign this service/color for this path.
+        # List of all the URI path prefixes that receive traffic as the
+        # keys, and the value is the relative weight to assign this
+        # service/color for this path.
         "/tuna": "100"
         
-        # Note that the paths weights above are not fixed.  You can adjust
-        # these values through the Cloud Map UI or through the AWS cli.
+        # Note that the paths weights above can be changed outside this file,
+        # through the Cloud Map UI or through the AWS cli.
 
-        
+
         # These settings are required for SRV records, but for this
         # meta-data record, the values are never used.  So we set these to
         # valid values that are harmless.
@@ -394,15 +399,7 @@ With all that boilerplate out of the way, adding in Nightjar to the template is 
             # The AWS region, so Nightjar can ask for the right resources.
             - Name: AWS_REGION
               Value: !Ref "AWS::Region"
-  
-            # The nightjar-running Envoy proxy's logging level.
-            - Name: ENVOY_LOG_LEVEL
-              Value: info
-  
-            # The Envoy proxy administration port.  Defaults to 9901
-            - Name: ENVOY_ADMIN_PORT
-              Value: 9901
-      
+
             # Which service record that defines the service in which Nightjar runs.
             - Name: SERVICE_MEMBER
               Value: !Ref "TunaBlueServiceDiscoveryRecord"
@@ -412,13 +409,15 @@ With all that boilerplate out of the way, adding in Nightjar to the template is 
             - Name: SERVICE_PORT
               Value: 8090
           PortMappings:
-            # The ENVOY_ADMIN_PORT above
-            - ContainerPort: 9901
-              Protocol: tcp
-    
             # The SERVICE_PORT above
             - ContainerPort: 8090
               Protocol: tcp
+
+            # You can optionally also make the Envoy admin port
+            # available.  This defaults to 9901, but can be set with
+            # the ENVOY_ADMIN_PORT environment variable.
+            # - ContainerPort: 9901
+            #   Protocol: tcp    
           HealthCheck:
             Command:
               - "CMD-SHELL"
@@ -426,10 +425,10 @@ With all that boilerplate out of the way, adding in Nightjar to the template is 
             Interval: 5
             Timeout: 2
             Retries: 3
-          
+
 ```
 
-In this example, the Nightjar Envoy Proxy will listen to port 8090 for connections from the Tuna service to the the rest of the service mesh.  Because the Nightjar container is named `nightjar`, and the Tuna service includes a link to `nightjar`, the Tuna service should call to `http://nightjar:8090` plus the other service's path to connect to it.
+In this example, the Nightjar Envoy Proxy will listen to port 8090 for connections from the Tuna service to the the rest of the service mesh.  Because the Nightjar container is named `nightjar`, and the Tuna service includes a link to `nightjar`, the Tuna service should call to `http://nightjar:8090` plus the other service's path to connect to it.  For example, if the normal call to a dependent service is `http://marlin:3000/nicknames`, then the tuna service would call out to `http://nightjar:8090/nicknames`.
 
 
 ### Adding Another Service

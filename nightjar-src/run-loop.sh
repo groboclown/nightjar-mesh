@@ -9,15 +9,19 @@
 
 cd $( dirname $0 )
 
-REFRESH_TIME=${REFRESH_TIME:=10}
+# Global across scripts
+export ENVOY_PID_FILE=${ENVOY_PID_FILE:=/tmp/envoy.pid}
+export ENVOY_LOG_LEVEL=${ENVOY_LOG_LEVEL:=info}
+export TMP_DIR=${TMP_DIR:=/tmp}
+export ENVOY_BASE_ID=${ENVOY_BASE_ID:=0}
+
+# Local to this file
+REFRESH_TIME=${REFRESH_TIME:=30}
 FAILURE_SLEEP=${FAILURE_SLEEP:=300}
 EXIT_ON_GENERATION_FAILURE=${EXIT_ON_GENERATION_FAILURE:=0}
 ENVOY_TEMPLATE_DIR=${ENVOY_TEMPLATE_DIR:=./templates}
 ENVOY_CONFIGURATION_FILE=${ENVOY_CONFIGURATION_TEMPLATE:=envoy-config.yaml}
-ENVOY_PID_FILE=${ENVOY_PID_FILE:=/tmp/envoy.pid}
 TRIGGER_STOP_FILE=${TRIGGER_STOP_FILE:=/tmp/stop.txt}
-ENVOY_LOG_LEVEL=${ENVOY_LOG_LEVEL:=info}
-TMP_DIR=${TMP_DIR:=/tmp}
 
 test -f "${TRIGGER_STOP_FILE}" && rm "${TRIGGER_STOP_FILE}"
 mkdir -p "${TMP_DIR}/active-envoy-config"
