@@ -13,6 +13,7 @@ export PATH="/tmp/${TESTFILE}/bin:${PATH}"
 cd /tmp/${TESTFILE}
 
 # TEST 1 - Envoy not already running.
+ERROR_FILE=${ERROR_DIR}/${TESTFILE}-1.txt
 export SUCCESS_FILE1=/tmp/${TESTFILE}/1-ran1.txt
 export ARGS_FILE1=/tmp/${TESTFILE}/1-args1.txt
 export PID_FILE1=/tmp/${TESTFILE}/1-pid1.txt
@@ -31,21 +32,22 @@ test -f /tmp/envoy.pid && rm /tmp/envoy.pid
 /bin/sh /tmp/${TESTFILE}/restart-envoy.sh config-file-name
 ec=$?
 if [ ${ec} -ne 0 ]; then
-  echo "non-zero exit code: ${ec}" >> ${ERROR_DIR}/${TESTFILE}-1.txt
+  echo "non-zero exit code: ${ec}" >> ${ERROR_FILE}
 fi
 if [ ! -f "${SUCCESS_FILE1}" -o "ran" != "$( cat ${SUCCESS_FILE1} )" ] ; then
-  echo "did not run envoy" >> ${ERROR_DIR}/${TESTFILE}-1.txt
+  echo "did not run envoy" >> ${ERROR_FILE}
 fi
 if [ ! -f "${ARGS_FILE1}" -o "-c config-file-name" != "$( cat ${ARGS_FILE1} )" ] ; then
-  echo "incorrect invocation arguments to envoy" >> ${ERROR_DIR}/${TESTFILE}-1.txt
+  echo "incorrect invocation arguments to envoy" >> ${ERROR_FILE}
 fi
 if [ -f "${SUCCESS_FILE2}" ] ; then
-  echo "incorrectly tried to kill envoy" >> ${ERROR_DIR}/${TESTFILE}-1.txt
+  echo "incorrectly tried to kill envoy" >> ${ERROR_FILE}
 fi
 
 
 
 # TEST 2 - Envoy already running.
+ERROR_FILE=${ERROR_DIR}/${TESTFILE}-2.txt
 export SUCCESS_FILE1=/tmp/${TESTFILE}/2-ran1.txt
 export ARGS_FILE1=/tmp/${TESTFILE}/2-args1.txt
 export PID_FILE1=/tmp/${TESTFILE}/2-pid1.txt
@@ -64,22 +66,22 @@ echo "envoy-pid-here" > /tmp/envoy.pid
 /bin/sh /tmp/${TESTFILE}/restart-envoy.sh config-file-name
 ec=$?
 if [ ${ec} -ne 0 ]; then
-  echo "non-zero exit code: ${ec}" >> ${ERROR_DIR}/${TESTFILE}-2.txt
+  echo "non-zero exit code: ${ec}" >> ${ERROR_FILE}
 fi
 if [ ! -f "${SUCCESS_FILE1}" -o "ran" != "$( cat ${SUCCESS_FILE1} )" ] ; then
-  echo "did not run envoy" >> ${ERROR_DIR}/${TESTFILE}-2.txt
+  echo "did not run envoy" >> ${ERROR_FILE}
 fi
 if [ ! -f "${ARGS_FILE1}" -o "-c config-file-name" != "$( cat ${ARGS_FILE1} )" ] ; then
-  echo "incorrect invocation arguments to envoy" >> ${ERROR_DIR}/${TESTFILE}-2.txt
+  echo "incorrect invocation arguments to envoy" >> ${ERROR_FILE}
 fi
 if [ ! -f "${SUCCESS_FILE2}" -o "ran" != "$( cat ${SUCCESS_FILE2} )" ] ; then
-  echo "did not run kill command" >> ${ERROR_DIR}/${TESTFILE}-2.txt
+  echo "did not run kill command" >> ${ERROR_FILE}
 fi
 if [ ! -f "${ARGS_FILE2}" -o "-term envoy-pid-here" != "$( cat ${ARGS_FILE2} )" ] ; then
-  echo "incorrect invocation arguments to kill envoy" >> ${ERROR_DIR}/${TESTFILE}-2.txt
-  echo "---------- start [" >> ${ERROR_DIR}/${TESTFILE}-2.txt
-  cat ${ARGS_FILE2} >> ${ERROR_DIR}/${TESTFILE}-2.txt
-  echo "] end ----------" >> ${ERROR_DIR}/${TESTFILE}-2.txt
+  echo "incorrect invocation arguments to kill envoy" >> ${ERROR_FILE}
+  echo "---------- start [" >> ${ERROR_FILE}
+  cat ${ARGS_FILE2} >> ${ERROR_FILE}
+  echo "] end ----------" >> ${ERROR_FILE}
 fi
 
 # Clean up

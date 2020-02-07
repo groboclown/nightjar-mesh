@@ -248,6 +248,12 @@ class DiscoveryServiceNamespace:
         ret: List['DiscoveryServiceNamespace'] = []
         remaining = set(namespace_ports.keys())
         client = get_servicediscovery_client()
+        # TODO this call can run into the API limit for the account very easily.
+        #   Instead of the current approach, which searches all the namespaces
+        #   for something that matches, this should change to require either
+        #   an arn (which starts with "arn:" and ends with "/(id)")
+        #   or a namespace id.  The "name" is nice, but allowing it puts us into
+        #   this issue with API limits.
         paginator = client.get_paginator('list_namespaces')
         for page in paginator.paginate():
             for raw in dt_list_dict(page, 'Namespaces'):

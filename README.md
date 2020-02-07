@@ -1,9 +1,10 @@
+![Logo](logo.svg)
+
 # nightjar-mesh
 
 An AWS ECS Control Plane with Envoy Proxy
 
 *That's a fancy way to say that Nightjar monitors AWS Elastic Cloud Services for changes, and sends updates to a local Envoy Proxy to update the traffic routes.*
-
 
 ## About
 
