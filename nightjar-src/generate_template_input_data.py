@@ -242,8 +242,8 @@ class DiscoveryServiceNamespace:
 
         # Find namespace IDs.
         # ARNs are in the form 'arn:aws:servicediscovery:(region):(account):namespace/(namespace)'
-        # Namespaces match 'ns-[a-z0-9]{16}', it looks like.
-        # Namespaces, however, can very easily overlap the name, so if the user prepends a namespace id
+        # Namespace IDs match 'ns-[a-z0-9]{16}', it looks like.
+        # Namespace IDs, however, can very easily overlap the name, so if the user prepends a namespace id
         # with 'id:', then we use that as the explicit trigger.
         # Anything that doesn't match these will need to go into the list_namespaces for a long search.
         # That should be avoided, because it adds one additional Cloud Map service call *per loop*,
