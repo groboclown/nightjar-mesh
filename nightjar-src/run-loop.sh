@@ -27,7 +27,10 @@ TRIGGER_STOP_FILE=${TRIGGER_STOP_FILE:=/tmp/stop.txt}
 # a small, random back-off once at the start.  This is a 0-7 second period.
 # Doing this once prevents an eventual evening out, which would happen if
 # we did it in the while loop.
-sleep $(( RANDOM & 7 ))
+# However, this is considered to be too drastic.  It puts a possibly unnecessary
+# and costly (in terms of availability time) addition that should work itself
+# out by the internal throttling logic of the data generation tool.
+# sleep $(( RANDOM & 7 ))
 
 test -f "${TRIGGER_STOP_FILE}" && rm "${TRIGGER_STOP_FILE}"
 mkdir -p "${TMP_DIR}/active-envoy-config"

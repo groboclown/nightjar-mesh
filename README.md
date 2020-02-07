@@ -95,7 +95,7 @@ There are several others, if you're really interested.  See the [script](nightja
 
 For large clusters, you may find yourself running into the AWS `ServiceDiscovery::ListNamespaces` throttling limit.  If this happens, you may want to make the `REFRESH_TIME` environment variable larger. 
 
-The Cloud Map service has [costs associated with its use](https://aws.amazon.com/cloud-map/pricing/).  Each time a service is added into the Cloud Map, you allocate a cost.  Nightjar itself performs queries (2 or more per service-color, 1 or more to find the namespaces, and 1 per namespace) every time it loops; depending on how long the refresh time is, this can become a large number when spread across all the running services.  There is an open ticket to look into trimming down the number of requests.
+The Cloud Map service has [costs associated with its use](https://aws.amazon.com/cloud-map/pricing/).  Each time a service is added into the Cloud Map, you allocate a cost... maybe.  Nightjar itself performs queries (2 or more per service-color, 1 or more to find the namespaces, and 1 per namespace) every time it loops; depending on how long the refresh time is, this can become a large number when spread across all the running services.  There is an open ticket to look into trimming down the number of requests.
 
 
 ## Example of Nightjar with a Service
