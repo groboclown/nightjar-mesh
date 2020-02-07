@@ -1,8 +1,9 @@
 
 import unittest
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import boto3
+from botocore.exceptions import ClientError
 import botocore.stub
 import generate_template_input_data as generator
 
@@ -166,6 +167,37 @@ class TestDiscoveryServiceColorReadData(unittest.TestCase):
             self.assertEqual(len(service_color.instances), 0)
 
 
+class TestDiscoveryServiceNamespaceReadData(unittest.TestCase):
+    def test_throttling_1_retry(self) -> None:
+        """Test behavior when the list_namespaces call is throttled only once."""
+        msd = MockServiceDiscovery()
+        msd.mk_list_namespaces_throttled()
+        msd.mk_namespaces(['a'])
+        with msd:
+            # This should not load the services from AWS yet.
+            namespaces = generator.DiscoveryServiceNamespace.load_namespaces({'a': 100})
+            self.assertEqual(len(namespaces), 1)
+            nsp = namespaces[0]
+            self.assertEqual(len(nsp.services), 0)
+            self.assertEqual(nsp.namespace_id, 'a')
+            self.assertEqual(nsp.namespace_port, 100)
+            self.assertEqual(nsp.namespace_name, "name.a")
+            self.assertEqual(nsp.namespace_arn, "arn:region:account:servicediscovery/a")
+
+    def test_throttling_failed(self) -> None:
+        """Test behavior when the list_namespaces call is throttled forever."""
+        msd = MockServiceDiscovery()
+        for _ in range(generator.MAX_RETRY_COUNT):
+            msd.mk_list_namespaces_throttled()
+        with msd:
+            try:
+                generator.DiscoveryServiceNamespace.load_namespaces({'a': 100})
+                self.fail("Did not raise an error")
+            except ClientError as err:
+                self.assertEqual(err.operation_name, 'ListNamespaces')
+                self.assertEqual(err.response['Error']['Code'], 'RequestLimitExceeded')
+
+
 class MockServiceDiscovery:
     services: List[Dict[str, Any]] = []
 
@@ -201,7 +233,14 @@ class MockServiceDiscovery:
         self.stubber.add_client_error(
             'get_namespace',
             expected_params={'Id': namespace_id},
-            service_error_code='NamespaceNotFound'
+            service_error_code='NamespaceNotFound',
+        )
+
+    def mk_list_namespaces_throttled(self) -> None:
+        self.stubber.add_client_error(
+            'list_namespaces',
+            expected_params={},
+            service_error_code='RequestLimitExceeded',
         )
 
     def mk_service(self, service_id: str, name: str, namespace_id: str) -> None:
@@ -236,12 +275,40 @@ class MockServiceDiscovery:
             service_error_code='ServiceNotFound'
         )
 
-    def mk_instances(self, service_id: str, instance_attributes: Dict[str, Dict[str, str]]) -> None:
-        self.stubber.add_response('list_instances', {
+    def mk_instances(
+            self, service_id: str, instance_attributes: Dict[str, Dict[str, str]], next_token: Optional[str] = None
+    ) -> None:
+        data = {
             'Instances': [
                 {
                     'Id': iid,
                     'Attributes': dict(iat),
                 } for iid, iat in instance_attributes.items()
             ],
-        }, {'ServiceId': service_id})
+        }
+        if next_token:
+            data['NextToken'] = next_token
+        self.stubber.add_response('list_instances', data, {'ServiceId': service_id})
+
+    def mk_namespaces(self, namespace_ids: List[str], next_token: Optional[str] = None) -> None:
+        data = {
+            "Namespaces": [
+                {
+                    "Arn": "arn:region:account:servicediscovery/{0}".format(nid),
+                    "CreateDate": 12345,
+                    "Description": "description for {0}".format(nid),
+                    "Id": nid,
+                    "Name": "name.{0}".format(nid),
+                    "Properties": {
+                        "DnsProperties": {
+                            "HostedZoneId": "zoneid"
+                        }
+                    },
+                    "ServiceCount": -1,  # not needed right now
+                    "Type": "DNS_PRIVATE",
+                } for nid in namespace_ids
+            ]
+        }
+        if next_token:
+            data['NextToken'] = next_token
+        self.stubber.add_response('list_namespaces', data, {})

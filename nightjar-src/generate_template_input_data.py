@@ -1,16 +1,20 @@
 #!/usr/bin/python3
 
 
-from typing import List, Tuple, Dict, Optional, Union, Any
+from typing import List, Tuple, Dict, Optional, Callable, TypeVar, Union, Any
 import os
 import sys
+import time
 import datetime
 import boto3
 from botocore.exceptions import ClientError
+from botocore.config import Config
 import json
 
+T = TypeVar('T')
 
 MAX_NAMESPACE_COUNT = 99
+MAX_RETRY_COUNT = 5
 SERVICE_SETTINGS_INSTANCE_ID = 'service-settings'
 SERVICE_NAME_ATTRIBUTE_KEY = 'SERVICE'
 COLOR_NAME_ATTRIBUTE_KEY = 'COLOR'
@@ -88,6 +92,7 @@ class DiscoveryServiceColor:
         path_weights: Dict[str, int] = {}
         instances: List[DiscoveryServiceInstance] = []
 
+        # API INVOCATIONS: service_color_count * (1 + floor(instance_count / 100))
         client = get_servicediscovery_client()
         paginator = client.get_paginator('list_instances')
         page_iterator = paginator.paginate(ServiceId=self.service_id)
@@ -136,11 +141,6 @@ class DiscoveryServiceColor:
         self.instances = instances
         self.cache_load_time = datetime.datetime.now()
 
-    def load_namespace(self, listen_port: int) -> 'DiscoveryServiceNamespace':
-        client = get_servicediscovery_client()
-        raw = client.get_namespace(Id=self.namespace_id)
-        return DiscoveryServiceNamespace.from_resp(listen_port, raw)
-
     @staticmethod
     def from_resp(resp: Dict[str, Any]) -> 'DiscoveryServiceColor':
         # _note("Fetched discovery service {0}", resp)
@@ -163,6 +163,7 @@ class DiscoveryServiceColor:
 
     @staticmethod
     def from_single_id(service_id: str) -> Optional['DiscoveryServiceColor']:
+        # API INVOCATIONS: service_color_count * 1
         client = get_servicediscovery_client()
         try:
             return DiscoveryServiceColor.from_resp(client.get_service(Id=service_id))
@@ -179,23 +180,13 @@ class DiscoveryServiceNamespace:
             self,
             namespace_port: int,
             namespace_id: str,
-            namespace_arn: str,
-            namespace_type: str,
-            namespace_name: str,
-            hosted_zone_id: Optional[str],
-            http_name: Optional[str],
+            namespace_arn: Optional[str],
+            namespace_name: Optional[str],
     ) -> None:
         self.namespace_id = namespace_id
         self.namespace_port = namespace_port
         self.namespace_arn = namespace_arn
-        self.namespace_type = namespace_type
         self.namespace_name = namespace_name
-
-        # The ID for the Route 53 hosted zone that AWS Cloud Map creates when you create a namespace.
-        self.hosted_zone_id = hosted_zone_id
-
-        # The name of an HTTP namespace.
-        self.http_name = http_name
 
         self.services = []
         self.cache_load_time = None
@@ -203,8 +194,9 @@ class DiscoveryServiceNamespace:
     def load_services(self, refresh_cache: bool) -> None:
         if _skip_reload(self.cache_load_time, refresh_cache):
             return
-        client = get_servicediscovery_client()
 
+        # API INVOCATIONS: namespace_count * (1 + floor(this_namespace_service_color_count / 100))
+        client = get_servicediscovery_client()
         service_paginator = client.get_paginator('list_services')
         service_iter = service_paginator.paginate(
             Filters=[{
@@ -228,19 +220,16 @@ class DiscoveryServiceNamespace:
         namespace_id = dt_str(resp, 'Id')
         namespace_arn = dt_str(resp, 'Arn')
         namespace_name = dt_str(resp, 'Name')
-        namespace_type = dt_str(resp, 'Type')
+        # namespace_type = dt_str(resp, 'Type')
         # skip Description
-        hosted_zone_id = dt_opt_str(resp, 'Properties', 'DnsProperties', 'HostedZoneId')
-        http_name = dt_opt_str(resp, 'Properties', 'HttpProperties', 'HttpName')
+        # hosted_zone_id = dt_opt_str(resp, 'Properties', 'DnsProperties', 'HostedZoneId')
+        # http_name = dt_opt_str(resp, 'Properties', 'HttpProperties', 'HttpName')
         # service_count = dt_int(resp, 'ServiceCount')
         return DiscoveryServiceNamespace(
             namespace_port=port,
             namespace_id=namespace_id,
             namespace_arn=namespace_arn,
-            namespace_type=namespace_type,
             namespace_name=namespace_name,
-            hosted_zone_id=hosted_zone_id,
-            http_name=http_name,
         )
 
     @staticmethod
@@ -248,14 +237,16 @@ class DiscoveryServiceNamespace:
         ret: List['DiscoveryServiceNamespace'] = []
         remaining = set(namespace_ports.keys())
         client = get_servicediscovery_client()
+
         # TODO this call can run into the API limit for the account very easily.
         #   Instead of the current approach, which searches all the namespaces
         #   for something that matches, this should change to require either
         #   an arn (which starts with "arn:" and ends with "/(id)")
         #   or a namespace id.  The "name" is nice, but allowing it puts us into
         #   this issue with API limits.
+        # API INVOCATIONS: 1 + floor(namespace_count / 100)
         paginator = client.get_paginator('list_namespaces')
-        for page in paginator.paginate():
+        for page in perform_client_request(lambda: list(paginator.paginate())):
             for raw in dt_list_dict(page, 'Namespaces'):
                 ns = DiscoveryServiceNamespace.from_resp(-1, raw)
                 if ns.namespace_id in remaining:
@@ -330,7 +321,7 @@ class EnvSetup:
         """Includes the local service, if given."""
         np = dict(self.namespace_ports)
         if self.local_service:
-            self.local_service.load_service(True)
+            self.local_service.load_service(False)
             assert self.local_service.service_color is not None
             np[self.local_service.service_color.namespace_id] = self.local_service.service_member_port
         return DiscoveryServiceNamespace.load_namespaces(self.namespace_ports)
@@ -594,8 +585,30 @@ def get_servicediscovery_client() -> Any:
             region_name=region,
             profile_name=profile,
         )
-        CLIENTS[client_name] = session.client('servicediscovery')
+        CLIENTS[client_name] = session.client('servicediscovery', config=Config(
+            max_pool_connections=1,
+            retries=dict(max_attempts=2)
+        ))
     return CLIENTS[client_name]
+
+
+def perform_client_request(cmd: Callable[..., T], *vargs: Any, **kv_args: Any) -> T:
+    throttle_err = None
+    for retry_count in range(MAX_RETRY_COUNT):
+        # Recommended exponential back-off rate.
+        # https://docs.aws.amazon.com/AWSEC2/latest/APIReference/query-api-troubleshooting.html#api-request-rate
+        # wait for (2^retries * 100) milliseconds
+        # print("Try {0} after {1} seconds".format(retry_count + 1, (2 ** retry_count) / 10))
+        time.sleep((2 ** retry_count) / 10)
+        try:
+            return cmd(*vargs, **kv_args)
+        except ClientError as err:
+            if dt_opt_str(err.response, 'Error', 'Code') == 'RequestLimitExceeded':
+                # print("Throttled response.  Trying again.")
+                throttle_err = err
+                continue
+            raise err
+    raise throttle_err or Exception('throttled requests to ' + str(cmd))
 
 
 def dt_get(d: Dict[str, Any], *keys: Union[str, int]) -> Any:
@@ -617,7 +630,7 @@ def dt_get(d: Dict[str, Any], *keys: Union[str, int]) -> Any:
 
 def dt_opt_get(d: Dict[str, Any], *keys: Union[str, int]) -> Any:
     try:
-        dt_get(d, *keys)
+        return dt_get(d, *keys)
     except ValueError:
         return None
 
@@ -681,15 +694,14 @@ def _fatal(msg: str, **args: Any) -> None:
 
 
 # ---------------------------------------------------------------------------
-def main() -> str:
+def create_envoy_config() -> EnvoyConfig:
     env = EnvSetup.from_env()
     namespaces = env.get_loaded_namespaces()
     envoy_config = collate_ports_and_clusters(
         env.admin_port, namespaces, env.local_service, True
     )
-    return json.dumps(envoy_config.get_context())
+    return envoy_config
 
 
 if __name__ == '__main__':
-    main_stdout = main()
-    print(main_stdout)
+    print(json.dumps(create_envoy_config().get_context()))
