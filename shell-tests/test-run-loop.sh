@@ -9,6 +9,7 @@ cp ${TEST_DIR}/mock-loop-script.sh /tmp/${TESTFILE}/generate-envoy-yaml.sh
 cd /tmp/${TESTFILE}
 
 # TEST 1 - Two passes with no changes to the file.
+ERROR_FILE=${ERROR_DIR}/${TESTFILE}-1.txt
 export SUCCESS_FILE1=/tmp/${TESTFILE}/1-ran1.txt
 export ARGS_FILE1=/tmp/${TESTFILE}/1-args1.txt
 export PID_FILE1=/tmp/${TESTFILE}/1-pid1.txt
@@ -27,8 +28,8 @@ export FAILURE_SLEEP=1
 timeout 10 /bin/sh /tmp/${TESTFILE}/run-loop.sh
 ec=$?
 if [ ${ec} -ne 0 ]; then
-  echo "non-zero exit code: ${ec}" >> ${ERROR_DIR}/${TESTFILE}-1.txt
+  echo "non-zero exit code: ${ec}" >> ${ERROR_FILE}
 fi
 if [ "2" != "$( cat ${SUCCESS_FILE3} )" ]; then
-  echo "incorrect loops run: $( cat ${SUCCESS_FILE4} )" >> ${ERROR_DIR}/${TESTFILE}-1.txt
+  echo "incorrect loops run: $( cat ${SUCCESS_FILE4} )" >> ${ERROR_FILE}
 fi

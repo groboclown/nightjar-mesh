@@ -21,7 +21,7 @@ for i in "${indir}/"* ; do
         filename=$( basename "${i}" .mustache )
         pystache "${i}" "${outdir}/input.json" > "${outdir}/${filename}"
         if [ $? -ne 0 ] ; then
-          echo "Failed to generate envoy configuration file ${filename}."
+          echo "Failed to process envoy configuration file '${i}'."
           exit 1
         fi
       ;;

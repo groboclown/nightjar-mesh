@@ -28,7 +28,7 @@ done
 echo ""
 echo ""
 echo "Failed Tests"
-echo "==========================================="
+echo "============================================================================="
 for f in ${ERROR_DIR}/* ; do
   if [ -f "${f}" ]; then
     echo "> $( basename ${f} .txt ):"
@@ -37,6 +37,6 @@ for f in ${ERROR_DIR}/* ; do
   fi
 done
 error_count=$( ls -1 ${ERROR_DIR} | wc -l )
-echo "==========================================="
+echo "============================================================================="
 echo "Total: ${error_count} Failed"
 exit ${error_count}
