@@ -25,7 +25,6 @@ test -f "${SUCCESS_FILE1}" && rm "${SUCCESS_FILE1}"
 test -f "${ARGS_FILE1}" && rm "${ARGS_FILE1}"
 test -f "${PID_FILE1}" && rm "${PID_FILE1}"
 export MOCK_EXIT_CODE1=0
-export MOCK_DATA1='running mock envoy'
 
 # exec file 2: kill
 #  - non-zero exit code, which means envoy is not running.
@@ -78,7 +77,6 @@ test -f "${SUCCESS_FILE1}" && rm "${SUCCESS_FILE1}"
 test -f "${ARGS_FILE1}" && rm "${ARGS_FILE1}"
 test -f "${PID_FILE1}" && rm "${PID_FILE1}"
 export MOCK_EXIT_CODE1=2
-export MOCK_DATA1='whoops; ran mock envoy'
 
 # exec file 2: kill
 #  - 0 exit code, which means envoy is running.
@@ -125,7 +123,6 @@ test -f "${SUCCESS_FILE1}" && rm "${SUCCESS_FILE1}"
 test -f "${ARGS_FILE1}" && rm "${ARGS_FILE1}"
 test -f "${PID_FILE1}" && rm "${PID_FILE1}"
 export MOCK_EXIT_CODE1=2
-export MOCK_DATA1='whoops; ran mock envoy'
 
 # exec file 2: kill
 #  - should never be run
