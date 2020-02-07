@@ -44,6 +44,7 @@ while [ ! -f "${TRIGGER_STOP_FILE}" ] ; do
       exit 1
     fi
   elif [ -d "${TMP_DIR}/envoy-new-config" ] ; then
+    # This MUST be a move operation; envoy proxy only reloads on moves.
     mv "${TMP_DIR}/envoy-new-config"/* "${TMP_DIR}/active-envoy-config/".
   fi
   /bin/sh ./restart-envoy.sh "${TMP_DIR}/active-envoy-config/${ENVOY_CONFIGURATION_FILE}"

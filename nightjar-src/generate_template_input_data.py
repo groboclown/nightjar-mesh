@@ -6,12 +6,15 @@ import os
 import sys
 import time
 import datetime
+import re
 import boto3
 from botocore.exceptions import ClientError
 from botocore.config import Config
 import json
 
 T = TypeVar('T')
+# ARNs are in the form 'arn:aws:servicediscovery:(region):(account):namespace/(namespace)'
+NAMESPACE_ARN_PATTERN = re.compile(r'^arn:aws:servicediscovery:[^:]+:[^:]+:namespace/(.*)$')
 
 MAX_NAMESPACE_COUNT = 99
 MAX_RETRY_COUNT = 5
@@ -235,32 +238,47 @@ class DiscoveryServiceNamespace:
     @staticmethod
     def load_namespaces(namespace_ports: Dict[str, int]) -> List['DiscoveryServiceNamespace']:
         ret: List['DiscoveryServiceNamespace'] = []
-        remaining = set(namespace_ports.keys())
         client = get_servicediscovery_client()
 
-        # TODO this call can run into the API limit for the account very easily.
-        #   Instead of the current approach, which searches all the namespaces
-        #   for something that matches, this should change to require either
-        #   an arn (which starts with "arn:" and ends with "/(id)")
-        #   or a namespace id.  The "name" is nice, but allowing it puts us into
-        #   this issue with API limits.
-        # API INVOCATIONS: 1 + floor(namespace_count / 100)
-        paginator = client.get_paginator('list_namespaces')
-        for page in perform_client_request(lambda: list(paginator.paginate())):
-            for raw in dt_list_dict(page, 'Namespaces'):
-                ns = DiscoveryServiceNamespace.from_resp(-1, raw)
-                if ns.namespace_id in remaining:
-                    remaining.remove(ns.namespace_id)
-                    ns.namespace_port = namespace_ports[ns.namespace_id]
-                    ret.append(ns)
-                elif ns.namespace_arn in remaining:
-                    remaining.remove(ns.namespace_arn)
-                    ns.namespace_port = namespace_ports[ns.namespace_arn]
-                    ret.append(ns)
-                elif ns.namespace_name in remaining:
-                    remaining.remove(ns.namespace_name)
-                    ns.namespace_port = namespace_ports[ns.namespace_name]
-                    ret.append(ns)
+        # Find namespace IDs.
+        # ARNs are in the form 'arn:aws:servicediscovery:(region):(account):namespace/(namespace)'
+        # Namespaces match 'ns-[a-z0-9]{16}', it looks like.
+        # Namespaces, however, can very easily overlap the name, so if the user prepends a namespace id
+        # with 'id:', then we use that as the explicit trigger.
+        # Anything that doesn't match these will need to go into the list_namespaces for a long search.
+        # That should be avoided, because it adds one additional Cloud Map service call *per loop*,
+        # which can be costly over a month of continual usage.
+
+        remaining_ports: Dict[str, int] = {}
+        for name, port in namespace_ports.items():
+            pname = name.strip()
+            arn_match = NAMESPACE_ARN_PATTERN.match(pname)
+            if arn_match:
+                # it looks like a valid arn... maybe.  Extract the namespace.
+                ret.append(DiscoveryServiceNamespace(port, arn_match.group(1), pname, None))
+            elif pname.startswith('id:'):
+                ret.append(DiscoveryServiceNamespace(port, pname[3:], None, None))
+            else:
+                remaining_ports[name] = port
+
+        if remaining_ports:
+            # API INVOCATIONS: 1 + floor(namespace_count / 100)
+            paginator = client.get_paginator('list_namespaces')
+            for page in perform_client_request(lambda: list(paginator.paginate())):
+                for raw in dt_list_dict(page, 'Namespaces'):
+                    ns = DiscoveryServiceNamespace.from_resp(-1, raw)
+                    if ns.namespace_id in remaining_ports:
+                        del remaining_ports[ns.namespace_id]
+                        ns.namespace_port = namespace_ports[ns.namespace_id]
+                        ret.append(ns)
+                    elif ns.namespace_arn in remaining_ports:
+                        del remaining_ports[ns.namespace_arn]
+                        ns.namespace_port = namespace_ports[ns.namespace_arn]
+                        ret.append(ns)
+                    elif ns.namespace_name in remaining_ports:
+                        del remaining_ports[ns.namespace_name]
+                        ns.namespace_port = namespace_ports[ns.namespace_name]
+                        ret.append(ns)
         return ret
 
 
@@ -603,7 +621,9 @@ def perform_client_request(cmd: Callable[..., T], *vargs: Any, **kv_args: Any) -
         try:
             return cmd(*vargs, **kv_args)
         except ClientError as err:
-            if dt_opt_str(err.response, 'Error', 'Code') == 'RequestLimitExceeded':
+            # See bug #1
+            code = dt_opt_str(err.response, 'Error', 'Code')
+            if code in ('RequestLimitExceeded', 'ThrottlingException',):
                 # print("Throttled response.  Trying again.")
                 throttle_err = err
                 continue
