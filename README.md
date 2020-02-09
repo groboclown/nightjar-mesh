@@ -48,7 +48,7 @@ Note that there are many more configuration possibilities with Nightjar.  It's c
 
 Using Nightjar involves registering your services with AWS Cloud Map, adding a specially named service registration instance to cloud map that describes metadata for your service, and adding the Nightjar sidecar container to your services.
 
-The primary power from Nightjar is the [Cloud Map data extraction tool](nightjar-src/generate_template_input_data.py), which uses your AWS Cloud Map configuration, plus a few environment variables to tell it where to look.  Everything else is window dressing to make it easy to use.
+The primary power from Nightjar is the [Cloud Map data extraction tool](python-src/cloudmap-collector/generate_template_input_data.py), which uses your AWS Cloud Map configuration, plus a few environment variables to tell it where to look.  Everything else is window dressing to make it easy to use.
 
 ### Cloud Map Data Processing
 

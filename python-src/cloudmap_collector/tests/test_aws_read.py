@@ -5,7 +5,7 @@ from typing import Dict, List, Any, Optional
 import boto3
 from botocore.exceptions import ClientError
 import botocore.stub
-import generate_template_input_data as generator
+from .. import generate_template_input_data as generator
 
 
 class TestDiscoveryServiceInstance(unittest.TestCase):

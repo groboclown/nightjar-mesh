@@ -25,6 +25,8 @@ Keep the functionality in the right place.  Where possible, have tools that do o
 
 ## Pass All Criteria
 
+(This needs to change.  The code is undergoing major restructuring to allow for different modes of operation.)
+
 The code must:
 
 * Pass Python unit tests.
