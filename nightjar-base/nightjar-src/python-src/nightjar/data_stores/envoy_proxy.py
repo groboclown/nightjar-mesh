@@ -72,7 +72,7 @@ class EnvoyProxyDataStore:
 
     def get_namespace_envoy_files(self, namespace: str) -> Iterable[Tuple[str, Optional[str]]]:
         """
-        Returns the list of (key, contents) for the dynamic envoy files of the namespace.
+        Returns the list of (purpose, contents) for the dynamic envoy files of the namespace.
         If the bootstrap template requires a key and there is no
         content, then it must be returned with None data.
         """
@@ -83,7 +83,7 @@ class EnvoyProxyDataStore:
 
     def get_service_color_envoy_files(self, service: str, color: str) -> Iterable[Tuple[str, Optional[str]]]:
         """
-        Returns the list of (key, contents) for the dynamic envoy files of the service/color.
+        Returns the list of (purpose, contents) for the dynamic envoy files of the service/color.
         If the bootstrap template requires a key and there is no
         content, then it must be returned with None data.
         """

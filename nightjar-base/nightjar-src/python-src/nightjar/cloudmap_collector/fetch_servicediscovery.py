@@ -48,6 +48,11 @@ AWS_STANDARD_ATTRIBUTES = (
 )
 
 
+def set_refresh_limit(delta: datetime.timedelta) -> None:
+    global REQUIRE_REFRESH_LIMIT
+    REQUIRE_REFRESH_LIMIT = delta
+
+
 # ---------------------------------------------------------------------------
 class DiscoveryServiceInstance:
     def __init__(self, instance_id: str, attributes: Dict[str, str]) -> None:

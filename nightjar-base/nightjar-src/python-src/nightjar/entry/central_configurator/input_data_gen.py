@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 
 """
 Constructs an input data format for each of the namespaces and service/color envoy proxies.
@@ -17,9 +16,6 @@ from nightjar.cloudmap_collector.service_data import (
     EnvoyListener,
 )
 from nightjar.msg import warn
-
-
-# ---------------------------------------------------------------------------
 
 
 def load_namespace_data(namespaces: Iterable[DiscoveryServiceNamespace]) -> Iterable[Tuple[str, EnvoyConfig]]:
@@ -117,8 +113,3 @@ def load_service_color_data(namespaces: Iterable[DiscoveryServiceNamespace]) -> 
                     ), None
                 )
             )
-
-
-def main() -> None:
-    # FIXME implement
-    pass

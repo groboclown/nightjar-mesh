@@ -6,12 +6,12 @@ import os
 import datetime
 import re
 
-from nightjar.cloudmap_collector.fetch_servicediscovery import (
+from ...cloudmap_collector import (
     DiscoveryServiceNamespace,
     DiscoveryServiceColor,
     skip_reload,
 )
-from nightjar.cloudmap_collector.service_data import (
+from ...cloudmap_collector import (
     EnvoyConfig,
     EnvoyRoute,
     EnvoyCluster,
