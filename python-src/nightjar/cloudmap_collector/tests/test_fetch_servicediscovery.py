@@ -1,11 +1,11 @@
 
+from typing import Dict, List, Any, Optional
 import unittest
 from datetime import datetime
-from typing import Dict, List, Any, Optional
 import boto3
-from botocore.exceptions import ClientError
-import botocore.stub
-from .. import generate_template_input_data as generator
+from botocore.exceptions import ClientError  # type: ignore
+import botocore.stub  # type: ignore
+from .. import fetch_servicediscovery as sd
 
 
 class TestDiscoveryServiceInstance(unittest.TestCase):
@@ -15,17 +15,17 @@ class TestDiscoveryServiceInstance(unittest.TestCase):
 
     def test_full_attributes(self) -> None:
         data = {
-            generator.ATTR_AWS_INSTANCE_IPV4: '10.0.5.92',
-            generator.ATTR_EC2_INSTANCE_ID: 'i-1234',
-            generator.ATTR_AWS_INSTANCE_PORT: '9080',
-            generator.ATTR_AWS_INIT_HEALTH_STATUS: 'UNHEALTHY',
-            generator.ATTR_AVAILABILITY_ZONE: 'az-xyz',
-            generator.ATTR_REGION: 'eu-west-2',
-            generator.ATTR_ECS_CLUSTER_NAME: 'my-cluster',
-            generator.ATTR_ECS_SERVICE_NAME: 'svc-abc',
-            generator.ATTR_ECS_TASK_DEFINITION_FAMILY: 'my-family',
+            sd.ATTR_AWS_INSTANCE_IPV4: '10.0.5.92',
+            sd.ATTR_EC2_INSTANCE_ID: 'i-1234',
+            sd.ATTR_AWS_INSTANCE_PORT: '9080',
+            sd.ATTR_AWS_INIT_HEALTH_STATUS: 'UNHEALTHY',
+            sd.ATTR_AVAILABILITY_ZONE: 'az-xyz',
+            sd.ATTR_REGION: 'eu-west-2',
+            sd.ATTR_ECS_CLUSTER_NAME: 'my-cluster',
+            sd.ATTR_ECS_SERVICE_NAME: 'svc-abc',
+            sd.ATTR_ECS_TASK_DEFINITION_FAMILY: 'my-family',
         }
-        instance = generator.DiscoveryServiceInstance('id1', data)
+        instance = sd.DiscoveryServiceInstance('id1', data)
         self.assertEqual(instance.attributes, data)
         self.assertEqual(instance.instance_id, 'id1')
         self.assertEqual(instance.port_str, '9080')
@@ -33,7 +33,7 @@ class TestDiscoveryServiceInstance(unittest.TestCase):
         self.assertEqual(instance.ec2_instance_id, 'i-1234')
 
     def test_empty_attributes(self) -> None:
-        instance = generator.DiscoveryServiceInstance('id2', {})
+        instance = sd.DiscoveryServiceInstance('id2', {})
         self.assertEqual(instance.attributes, {})
         self.assertEqual(instance.instance_id, 'id2')
         self.assertEqual(instance.port_str, '0')
@@ -41,7 +41,7 @@ class TestDiscoveryServiceInstance(unittest.TestCase):
         self.assertEqual(instance.ec2_instance_id, None)
 
 
-class TestDiscoveryServiceColorReadData(unittest.TestCase):
+class TestDiscoveryServiceColor(unittest.TestCase):
     """
     Validate DiscoveryServiceColor correctly reads data from the AWS service discovery
     service APIs, and handles error conditions.
@@ -55,22 +55,22 @@ class TestDiscoveryServiceColorReadData(unittest.TestCase):
         msd.mk_service(service_id='1234', name='a1234', namespace_id='xyz')
         msd.mk_instances(service_id='1234', instance_attributes={
             # The special meta-data instance entry.
-            generator.SERVICE_SETTINGS_INSTANCE_ID: {
+            sd.SERVICE_SETTINGS_INSTANCE_ID: {
                 # Ignored stuff
-                generator.ATTR_AWS_INSTANCE_IPV4: '0.0.0.0',
-                generator.ATTR_EC2_INSTANCE_ID: 'i-1234',
-                generator.ATTR_AWS_INSTANCE_PORT: '8080',
-                generator.ATTR_AWS_INIT_HEALTH_STATUS: 'UNHEALTHY',
-                generator.ATTR_AVAILABILITY_ZONE: 'az-xyz',
-                generator.ATTR_REGION: 'eu-west-2',
-                generator.ATTR_ECS_CLUSTER_NAME: 'my-cluster',
-                generator.ATTR_ECS_SERVICE_NAME: 'svc-abc',
-                generator.ATTR_ECS_TASK_DEFINITION_FAMILY: 'my-family',
+                sd.ATTR_AWS_INSTANCE_IPV4: '0.0.0.0',
+                sd.ATTR_EC2_INSTANCE_ID: 'i-1234',
+                sd.ATTR_AWS_INSTANCE_PORT: '8080',
+                sd.ATTR_AWS_INIT_HEALTH_STATUS: 'UNHEALTHY',
+                sd.ATTR_AVAILABILITY_ZONE: 'az-xyz',
+                sd.ATTR_REGION: 'eu-west-2',
+                sd.ATTR_ECS_CLUSTER_NAME: 'my-cluster',
+                sd.ATTR_ECS_SERVICE_NAME: 'svc-abc',
+                sd.ATTR_ECS_TASK_DEFINITION_FAMILY: 'my-family',
 
                 # Descriptive stuff
-                generator.SERVICE_NAME_ATTRIBUTE_KEY: 'service-A1',
-                generator.COLOR_NAME_ATTRIBUTE_KEY: 'puce',
-                generator.USES_HTTP2_ATTRIBUTE_KEY: 'no',
+                sd.SERVICE_NAME_ATTRIBUTE_KEY: 'service-A1',
+                sd.COLOR_NAME_ATTRIBUTE_KEY: 'puce',
+                sd.USES_HTTP2_ATTRIBUTE_KEY: 'no',
 
                 # Path/weight definitions
                 '/path1': '10',
@@ -83,19 +83,22 @@ class TestDiscoveryServiceColorReadData(unittest.TestCase):
             },
             '1234-5678': {
                 # A custom instance, generated from an ECS task registration
-                generator.ATTR_AWS_INSTANCE_IPV4: '10.0.5.92',
-                generator.ATTR_EC2_INSTANCE_ID: 'i-1234',
-                generator.ATTR_AWS_INSTANCE_PORT: '9080',
-                generator.ATTR_AWS_INIT_HEALTH_STATUS: 'UNHEALTHY',
-                generator.ATTR_AVAILABILITY_ZONE: 'az-xyz',
-                generator.ATTR_REGION: 'eu-west-2',
-                generator.ATTR_ECS_CLUSTER_NAME: 'my-cluster',
-                generator.ATTR_ECS_SERVICE_NAME: 'svc-abc',
-                generator.ATTR_ECS_TASK_DEFINITION_FAMILY: 'my-family',
+                sd.ATTR_AWS_INSTANCE_IPV4: '10.0.5.92',
+                sd.ATTR_EC2_INSTANCE_ID: 'i-1234',
+                sd.ATTR_AWS_INSTANCE_PORT: '9080',
+                sd.ATTR_AWS_INIT_HEALTH_STATUS: 'UNHEALTHY',
+                sd.ATTR_AVAILABILITY_ZONE: 'az-xyz',
+                sd.ATTR_REGION: 'eu-west-2',
+                sd.ATTR_ECS_CLUSTER_NAME: 'my-cluster',
+                sd.ATTR_ECS_SERVICE_NAME: 'svc-abc',
+                sd.ATTR_ECS_TASK_DEFINITION_FAMILY: 'my-family',
             }
         })
         with msd:
-            service_color = generator.DiscoveryServiceColor.from_single_id('1234')
+            service_color = sd.DiscoveryServiceColor.from_single_id('1234')
+            self.assertIsNotNone(service_color)
+            # For mypy
+            assert service_color
 
             # Check loaded values
             self.assertEqual(service_color.namespace_id, 'xyz')
@@ -141,7 +144,7 @@ class TestDiscoveryServiceColorReadData(unittest.TestCase):
         msd = MockServiceDiscovery()
         msd.mk_service_not_found('1234')
         with msd:
-            service_color = generator.DiscoveryServiceColor.from_single_id('1234')
+            service_color = sd.DiscoveryServiceColor.from_single_id('1234')
             self.assertIsNone(service_color)
 
     def test_read_service_disappears_before_load(self) -> None:
@@ -153,8 +156,11 @@ class TestDiscoveryServiceColorReadData(unittest.TestCase):
         msd.mk_service(service_id='1234a', name='a1234b', namespace_id='xyzc')
         msd.mk_instances_service_not_found(service_id='1234a')
         with msd:
-            service_color = generator.DiscoveryServiceColor.from_single_id('1234a')
+            service_color = sd.DiscoveryServiceColor.from_single_id('1234a')
             self.assertIsNotNone(service_color)
+            # for mypy:
+            assert service_color
+
             service_color.load_instances(True)
             self.assertEqual(service_color.namespace_id, 'xyzc')
             self.assertEqual(service_color.service_id, '1234a')
@@ -167,7 +173,7 @@ class TestDiscoveryServiceColorReadData(unittest.TestCase):
             self.assertEqual(len(service_color.instances), 0)
 
 
-class TestDiscoveryServiceNamespaceReadData(unittest.TestCase):
+class TestDiscoveryServiceNamespace(unittest.TestCase):
     def test_throttling_1_retry(self) -> None:
         """Test behavior when the list_namespaces call is throttled only once."""
         msd = MockServiceDiscovery()
@@ -175,7 +181,7 @@ class TestDiscoveryServiceNamespaceReadData(unittest.TestCase):
         msd.mk_namespaces(['a'])
         with msd:
             # This should not load the services from AWS yet.
-            namespaces = generator.DiscoveryServiceNamespace.load_namespaces({'a': 100})
+            namespaces = sd.DiscoveryServiceNamespace.load_namespaces({'a': 100})
             self.assertEqual(len(namespaces), 1)
             nsp = namespaces[0]
             self.assertEqual(len(nsp.services), 0)
@@ -187,19 +193,36 @@ class TestDiscoveryServiceNamespaceReadData(unittest.TestCase):
     def test_throttling_failed(self) -> None:
         """Test behavior when the list_namespaces call is throttled forever."""
         msd = MockServiceDiscovery()
-        for _ in range(generator.MAX_RETRY_COUNT):
+        for _ in range(sd.MAX_RETRY_COUNT):
             msd.mk_list_namespaces_throttled()
         with msd:
             try:
-                generator.DiscoveryServiceNamespace.load_namespaces({'a': 100})
+                sd.DiscoveryServiceNamespace.load_namespaces({'a': 100})
                 self.fail("Did not raise an error")
             except ClientError as err:
                 self.assertEqual(err.operation_name, 'ListNamespaces')
                 self.assertEqual(err.response['Error']['Code'], 'RequestLimitExceeded')
 
+    def test_load_services(self) -> None:
+        msd = MockServiceDiscovery()
+        msd.mk_list_services('ns-1234', 's1', 's2')
+        msd.mk_instances('svc-s1', {})
+        msd.mk_instances('svc-s2', {})
+        with msd:
+            ns = sd.DiscoveryServiceNamespace(None, 'ns-1234', None, None)
+            self.assertEqual(len(ns.services), 0)
+            ns.load_services(True)
+            self.assertEqual(len(ns.services), 2)
+            self.assertEqual(ns.services[0].namespace_id, 'ns-1234')
+            self.assertEqual(ns.services[0].service_id, 'svc-s1')
+            self.assertEqual(ns.services[1].namespace_id, 'ns-1234')
+            self.assertEqual(ns.services[1].service_id, 'svc-s2')
+
 
 class MockServiceDiscovery:
     services: List[Dict[str, Any]] = []
+    client: Any
+    old_client: Any
 
     def __init__(self) -> None:
         self.client = None
@@ -209,16 +232,16 @@ class MockServiceDiscovery:
 
     def __enter__(self) -> None:
         self.client = self._client
-        self.old_client = generator.CLIENTS.get('servicediscovery')
-        generator.CLIENTS['servicediscovery'] = self._client
+        self.old_client = sd.CLIENTS.get('servicediscovery')
+        sd.CLIENTS['servicediscovery'] = self._client
         return self.stubber.__enter__()
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore
         self.client = None
         if self.old_client is None:
-            del generator.CLIENTS['servicediscovery']
+            del sd.CLIENTS['servicediscovery']
         else:
-            generator.CLIENTS['servicediscovery'] = self.old_client
+            sd.CLIENTS['servicediscovery'] = self.old_client
             self.old_client = None
         return self.stubber.__exit__(exc_type, exc_val, exc_tb)
 
@@ -242,6 +265,24 @@ class MockServiceDiscovery:
             expected_params={},
             service_error_code='RequestLimitExceeded',
         )
+
+    def mk_list_services(self, namespace_id: str, *services: str) -> None:
+        self.stubber.add_response('list_services', {'Services': [
+            {
+                'Id': 'svc-' + s,
+                'Arn': 'arn:region:account:servicediscovery/service/' + s,
+                'Name': s,
+                'Description': 'service ' + s,
+                'InstanceCount': 1,
+                'DnsConfig': {
+                    'NamespaceId': namespace_id,
+                    'RoutingPolicy': 'MULTIVALUE',
+                    'DnsRecords': [{'Type': 'SRV', 'TTL': 30}],
+                },
+                'HealthCheckConfig': {'Type': 'HTTP', 'ResourcePath': '/', 'FailureThreshold': 2},
+                'CreateDate': datetime(2020, 1, 1),
+            } for s in services
+        ]}, dict(Filters=[dict(Name='NAMESPACE_ID', Values=[namespace_id], Condition='EQ')]))
 
     def mk_service(self, service_id: str, name: str, namespace_id: str) -> None:
         self.stubber.add_response('get_service', {'Service': {
@@ -278,7 +319,7 @@ class MockServiceDiscovery:
     def mk_instances(
             self, service_id: str, instance_attributes: Dict[str, Dict[str, str]], next_token: Optional[str] = None
     ) -> None:
-        data = {
+        data: Dict[str, Any] = {
             'Instances': [
                 {
                     'Id': iid,
@@ -291,7 +332,7 @@ class MockServiceDiscovery:
         self.stubber.add_response('list_instances', data, {'ServiceId': service_id})
 
     def mk_namespaces(self, namespace_ids: List[str], next_token: Optional[str] = None) -> None:
-        data = {
+        data: Dict[str, Any] = {
             "Namespaces": [
                 {
                     "Arn": "arn:region:account:servicediscovery/{0}".format(nid),

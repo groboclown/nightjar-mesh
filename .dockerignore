@@ -15,7 +15,11 @@ Dockerfile*
 */coverage.json
 */.coverage
 */.coverage/
+*/.coveragerc
+*/htmlcov/
+*/htmlcov/
 */.mypy_cache/
+mypy.ini
 venv/
 */venv/
 .venv/

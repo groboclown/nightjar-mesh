@@ -6,7 +6,7 @@ First, you need to agree to submit your code under the [license](LICENSE).
 
 Nightjar strives to:
 
-* Keep the number of containers small.  If possible, run the Nightjar tools inside the Envoy proxy container.
+* Keep the number of running containers small.  If possible, run the Nightjar tools inside the Envoy proxy container.
 * Keep the Nightjar footprint small.  It should attempt to keep memory and CPU usage down.  If possible, also keep the docker image size small.
 * Be compatible with docker containers running in bridge network mode.
 * Keep the Envoy configuration transparent.  If Nightjar moves to being a proper control mesh, and talks to the dynamic configuration capabilities of Envy, then the configuration should continue to be generated based on user-modifiable data input that matches the Envoy API.
@@ -30,14 +30,15 @@ Keep the functionality in the right place.  Where possible, have tools that do o
 The code must:
 
 * Pass Python unit tests.
-    * `cd nightjar-src && python3 -m coverage run --source . -m unittest discover`
+    * `cd python-src && python3 -m coverage run --source . -m unittest discover`
 * And code coverage must not go down.
-    * `cd nightjar-src && python3 -m coverage report -m generate_template_input_data.py`
-    * `python3 -m coverage json && jq '.files."generate_template_input_data.py".summary.percent_covered' < coverage.json`
+    * `cd python-src && python3 -m coverage report`
+    * Major refactoring can be excluded from this rule.
 * Pass mypy checks.
-    * `cd nightjar-src && mypy --warn-redundant-casts --ignore-missing-imports --warn-unused-ignores generate_template_input_data.py`
+    * `cd python-src && mypy -p nightjar`
 * Pass shell script tests.
     * `docker build -t my/nightjar-test -f Dockerfile.shell-test . && docker run -it --rm my/nightjar-test`
+    * These are moving over to [BATS](https://github.com/bats-core/bats-core)
 * The docker image constructs without failures.
     * `docker build -t my/nightjar .`
 

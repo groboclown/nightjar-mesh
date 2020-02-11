@@ -4,7 +4,7 @@
 description: Input data for the mustache file generation.  The data is constructed in the script, but this file keeps the template reference easy.
 type: object
 required:
-  - admin_port
+  - has_admin_port
   - listeners
   - has_clusters
   - clusters
@@ -17,6 +17,13 @@ properties:
     description: Name of the service member.  Generally, the service name plus the color.
     type: string
 
+  has_admin_port:
+    description: >
+      Set to True if the admin_port value is set.  If not set, then an
+      appropriate placeholder must be used to allow later processing to replace
+      the value.
+    type: bool
+
   admin_port:
     description: Envoy administration listening port.
     type: int
@@ -27,10 +34,17 @@ properties:
     items:
       type: object
       required:
-        - mesh_port
+        - has_mesh_port
         - healthcheck_path
         - routes
       properties:
+        has_mesh_port:
+          description: >
+            Set to True if the mesh_port value is set.  If not set, then an
+            appropriate placeholder must be used to allow later processing to replace
+            the value.  In the case of no mesh_port, there must be at most one
+            listener with no mesh_port.
+          type: bool
         mesh_port:
           description: egress port that the service connects to for sending requests to other members of the mesh.
           type: int

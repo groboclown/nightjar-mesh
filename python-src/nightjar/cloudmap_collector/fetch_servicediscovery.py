@@ -1,22 +1,20 @@
 #!/usr/bin/python3
 
 
-from typing import List, Tuple, Dict, Optional, Callable, TypeVar, Union, Any
+from typing import List, Dict, Optional, Callable, TypeVar, Union, Any
 import os
-import sys
 import time
 import datetime
 import re
 import boto3
-from botocore.exceptions import ClientError
-from botocore.config import Config
-import json
+from botocore.exceptions import ClientError  # type: ignore
+from botocore.config import Config  # type: ignore
+from ..msg import warn
 
 T = TypeVar('T')
 # ARNs are in the form 'arn:aws:servicediscovery:(region):(account):namespace/(namespace)'
 NAMESPACE_ARN_PATTERN = re.compile(r'^arn:aws:servicediscovery:[^:]+:[^:]+:namespace/(.*)$')
 
-MAX_NAMESPACE_COUNT = 99
 MAX_RETRY_COUNT = 5
 SERVICE_SETTINGS_INSTANCE_ID = 'service-settings'
 SERVICE_NAME_ATTRIBUTE_KEY = 'SERVICE'
@@ -25,8 +23,6 @@ USES_HTTP2_ATTRIBUTE_KEY = 'HTTP2'
 USES_HTTP2_AFFIRMATIVE_VALUES = (
     'yes', 'true', 'enabled', 'active', '1', 'http2',
 )
-SERVICE_MEMBER_GATEWAY = '-gateway-'
-DEFAULT_SERVICE_PORT = '8080'
 REQUIRE_REFRESH_LIMIT = datetime.timedelta(minutes=2)
 
 # Service instance well-defined custom attributes
@@ -88,7 +84,7 @@ class DiscoveryServiceColor:
         self.cache_load_time = None
 
     def load_instances(self, refresh_cache: bool) -> None:
-        if _skip_reload(self.cache_load_time, refresh_cache):
+        if skip_reload(self.cache_load_time, refresh_cache):
             return
         group_service_name: Optional[str] = self.group_service_name
         group_color_name: Optional[str] = self.group_color_name
@@ -120,7 +116,7 @@ class DiscoveryServiceColor:
                                 try:
                                     weight = int(value.strip())
                                 except ValueError:
-                                    _warn(
+                                    warn(
                                         "Not integer path weight for service {s}, instance {i}, path {p}, value [{v}]",
                                         s=self.service_id,
                                         i=instance_id,
@@ -135,7 +131,7 @@ class DiscoveryServiceColor:
             # This means that either there was a communication error, or the
             # service was deleted during the query.
             # Clear out the instances and weights, since they can no longer be trusted.
-            _warn('Failed to load instances for service {svc}: {e}', svc=self.service_id, e=e)
+            warn('Failed to load instances for service {svc}: {e}', svc=self.service_id, e=e)
             instances = []
             path_weights = {}
         self.group_service_name = group_service_name
@@ -171,7 +167,7 @@ class DiscoveryServiceColor:
         try:
             return DiscoveryServiceColor.from_resp(client.get_service(Id=service_id))
         except ClientError as e:
-            _warn('Could not find service discovery service with id {svc}: {e}', svc=repr(service_id), e=e)
+            warn('Could not find service discovery service with id {svc}: {e}', svc=repr(service_id), e=e)
             return None
 
 
@@ -181,7 +177,7 @@ class DiscoveryServiceNamespace:
 
     def __init__(
             self,
-            namespace_port: int,
+            namespace_port: Optional[int],
             namespace_id: str,
             namespace_arn: Optional[str],
             namespace_name: Optional[str],
@@ -194,9 +190,10 @@ class DiscoveryServiceNamespace:
         self.services = []
         self.cache_load_time = None
 
+    # TODO move this up a level, and run "list_services" with a list of namespaces, and Condition 'IN'.
     def load_services(self, refresh_cache: bool) -> None:
-        if _skip_reload(self.cache_load_time, refresh_cache):
-            return
+        if skip_reload(self.cache_load_time, refresh_cache):
+            return  # pragma: no cover
 
         # API INVOCATIONS: namespace_count * (1 + floor(this_namespace_service_color_count / 100))
         client = get_servicediscovery_client()
@@ -217,7 +214,7 @@ class DiscoveryServiceNamespace:
         self.cache_load_time = datetime.datetime.now()
 
     @staticmethod
-    def from_resp(port: int, resp: Dict[str, Any]) -> 'DiscoveryServiceNamespace':
+    def from_resp(port: Optional[int], resp: Dict[str, Any]) -> 'DiscoveryServiceNamespace':
         if 'Namespace' in resp:
             resp = dt_dict(resp, 'Namespace')
         namespace_id = dt_str(resp, 'Id')
@@ -236,7 +233,14 @@ class DiscoveryServiceNamespace:
         )
 
     @staticmethod
-    def load_namespaces(namespace_ports: Dict[str, int]) -> List['DiscoveryServiceNamespace']:
+    def load_namespaces(namespace_ports: Dict[str, Optional[int]]) -> List['DiscoveryServiceNamespace']:
+        """
+        Loads the service discovery namespaces requested.
+
+        Namespaces can either be ARNs (prefixed with 'arn:', which is the standard), IDs
+        (which you must explicitly prefix with 'id:'), or the namespace name.
+        """
+
         ret: List['DiscoveryServiceNamespace'] = []
         client = get_servicediscovery_client()
 
@@ -249,7 +253,7 @@ class DiscoveryServiceNamespace:
         # That should be avoided, because it adds one additional Cloud Map service call *per loop*,
         # which can be costly over a month of continual usage.
 
-        remaining_ports: Dict[str, int] = {}
+        remaining_ports: Dict[str, Optional[int]] = {}
         for name, port in namespace_ports.items():
             pname = name.strip()
             arn_match = NAMESPACE_ARN_PATTERN.match(pname)
@@ -283,314 +287,6 @@ class DiscoveryServiceNamespace:
 
 
 # ---------------------------------------------------------------------------
-class LocalServiceSetup:
-    service_color: Optional[DiscoveryServiceColor]
-    cache_load_time: Optional[datetime.datetime]
-
-    def __init__(
-            self,
-            service_member: str,
-            service_member_port: int,
-    ) -> None:
-        self.service_member = service_member
-        self.service_member_port = service_member_port
-        self.service_color = None
-        self.cache_load_time = None
-
-    def load_service(self, refresh_cache: bool) -> None:
-        if _skip_reload(self.cache_load_time, refresh_cache):
-            return
-        self.service_color = DiscoveryServiceColor.from_single_id(self.service_member)
-        self.cache_load_time = datetime.datetime.now()
-
-    @staticmethod
-    def from_env() -> Optional['LocalServiceSetup']:
-        member = os.environ.get('SERVICE_MEMBER', 'NOT_SET').strip()
-        if member == 'NOT_SET':
-            _fatal(
-                'Must set SERVICE_MEMBER environment variable to the AWS Cloud Map (service discovery) service ID.'
-            )
-        if member.lower() == SERVICE_MEMBER_GATEWAY:
-            _note("Using 'gateway' mode for the proxy.")
-            return None
-
-        port_str = os.environ.get('SERVICE_PORT', DEFAULT_SERVICE_PORT)
-        valid_port, member_port = _validate_port(port_str)
-        if not valid_port:
-            _fatal(
-                "Invalid port for service member ({port}) in SERVICE_PORT, cannot use proxy.",
-                port=port_str
-            )
-        return LocalServiceSetup(member, member_port)
-
-
-class EnvSetup:
-    def __init__(
-            self,
-            admin_port: int,
-            local_service: Optional[LocalServiceSetup],
-            namespaces: Dict[str, int],
-    ) -> None:
-        self.admin_port = admin_port
-        self.local_service = local_service
-        self.namespace_ports = dict(namespaces)
-
-    def get_loaded_namespaces(self) -> List[DiscoveryServiceNamespace]:
-        """Includes the local service, if given."""
-        np = dict(self.namespace_ports)
-        if self.local_service:
-            self.local_service.load_service(False)
-            assert self.local_service.service_color is not None
-            np[self.local_service.service_color.namespace_id] = self.local_service.service_member_port
-        return DiscoveryServiceNamespace.load_namespaces(self.namespace_ports)
-
-    @staticmethod
-    def from_env() -> 'EnvSetup':
-        admin_port_str = os.environ.get('ENVOY_ADMIN_PORT', '9901')
-        admin_port_valid, admin_port = _validate_port(admin_port_str)
-        if not admin_port_valid:
-            _fatal(
-                "Must set ENVOY_ADMIN_PORT to a valid port number; found {port}",
-                port=admin_port_str
-            )
-        local_service = LocalServiceSetup.from_env()
-        namespaces: Dict[str, int] = {}
-        for ni in range(0, MAX_NAMESPACE_COUNT + 1):
-            namespace = os.environ.get('NAMESPACE_{0}'.format(ni), '').strip()
-            if namespace:
-                namespace_port_str = os.environ.get('NAMESPACE_{0}_PORT'.format(ni), 'NOT SET')
-                port_valid, port = _validate_port(namespace_port_str)
-                if port_valid:
-                    namespaces[namespace] = port
-                else:
-                    _warn(
-                        'Namespace {index} ({name}) has invalid port value ({port}); skipping it.',
-                        index=ni, name=namespace, port=namespace_port_str,
-                    )
-
-        return EnvSetup(admin_port, local_service, namespaces)
-
-
-# ---------------------------------------------------------------------------
-class EnvoyRoute:
-    """
-    Defines the URL path to cluster matching.
-    """
-    def __init__(self, path_prefix: str, cluster_weights: Dict[str, int], is_local_route: bool) -> None:
-        if path_prefix[0] == '?':
-            self.is_private = True
-            self.path_prefix = path_prefix[1:]
-        else:
-            self.is_private = False
-            self.path_prefix = path_prefix
-        self.cluster_weights = cluster_weights
-        self.total_weight = sum(cluster_weights.values())
-        self.is_local_route = is_local_route
-
-    def get_context(self) -> Optional[Dict[str, Any]]:
-        # skip creation if:
-        #  - this is a proxy to a non-local namespace
-        #  - this is a private path.
-        if not self.is_local_route and self.is_private:
-            return None
-
-        cluster_count = len(self.cluster_weights)
-        if cluster_count <= 0:
-            return None
-
-        return {
-            'route_path': self.path_prefix,
-            'has_one_cluster': cluster_count == 1,
-            'has_many_clusters': cluster_count > 1,
-            'total_cluster_weight': self.total_weight,
-            'clusters': [{
-                'cluster_name': cn,
-                'route_weight': cw,
-            } for cn, cw in self.cluster_weights.items()],
-        }
-
-
-class EnvoyListener:
-    """
-    Defines a port listener in envoy, which corresponds to a namespace.
-    """
-    def __init__(self, port: int, routes: List[EnvoyRoute]) -> None:
-        self.port = port
-        self.routes = list(routes)
-
-    def get_route_contexts(self) -> List[Dict[str, Any]]:
-        ret: List[Dict[str, Any]] = []
-        for route in self.routes:
-            ctx = route.get_context()
-            if ctx:
-                ret.append(ctx)
-        return ret
-
-    def get_context(self) -> Dict[str, Any]:
-        return {
-            'mesh_port': self.port,
-            'routes': self.get_route_contexts(),
-
-            # TODO make this configurable
-            'healthcheck_path': '/ping',
-        }
-
-
-class EnvoyCluster:
-    """
-    Defines a cluster within envoy.  It's already been weighted according to the path.
-    """
-    def __init__(
-            self,
-            cluster_name: str,
-            uses_http2: bool,
-            instances: List[DiscoveryServiceInstance]
-    ) -> None:
-        self.cluster_name = cluster_name
-        self.uses_http2 = uses_http2
-        self.instances = list(instances)
-
-    def endpoint_count(self) -> int:
-        return len(self.instances)
-
-    def get_context(self) -> Dict[str, Any]:
-        instances = self.instances
-        if not instances:
-            _note("No instances known for cluster {c}; creating temporary one.", c=self.cluster_name)
-            instances = [DiscoveryServiceInstance('x', {
-                # We need something here, otherwise the route will say the cluster doesn't exist.
-                ATTR_AWS_INSTANCE_IPV4: '127.0.0.1',
-                ATTR_AWS_INSTANCE_PORT: '99',
-            })]
-        return {
-            'name': self.cluster_name,
-            'uses_http2': self.uses_http2,
-            'endpoints': [{
-                'ipv4': inst.ipv4,
-                'port': inst.port_str,
-            } for inst in instances],
-        }
-
-
-class EnvoyConfig:
-    def __init__(
-            self,
-            listeners: List[EnvoyListener], clusters: List[EnvoyCluster],
-            network_name: str, service_member: str,
-            admin_port: int
-    ) -> None:
-        self.listeners = listeners
-        self.clusters = clusters
-        self.network_name = network_name
-        self.service_member = service_member
-        self.admin_port = admin_port
-
-    def get_context(self) -> Dict[str, Any]:
-        if not self.listeners:
-            _fatal('No listeners; cannot be a proxy.')
-        cluster_endpoint_count = sum([c.endpoint_count() for c in self.clusters])
-        return {
-            'network_name': self.network_name,
-            'service_member': self.service_member,
-            'admin_port': self.admin_port,
-            'listeners': [lt.get_context() for lt in self.listeners],
-            'has_clusters': cluster_endpoint_count > 0,
-            'clusters': [c.get_context() for c in self.clusters],
-        }
-
-
-# ---------------------------------------------------------------------------
-def collate_ports_and_clusters(
-        admin_port: int,
-        namespaces: List[DiscoveryServiceNamespace], local: Optional[LocalServiceSetup],
-        refresh_cache: bool
-) -> EnvoyConfig:
-    """
-    Construct the listener groups, which are per namespace, and the clusters
-    referenced by the listeners.
-
-    The local service color group will redirect everything to that service
-    to within the local container (as long as the paths reference this color).
-
-    In order to support better envoy cluster traffic management, each
-    service/color is its own cluster.
-    """
-    output_listeners: List[EnvoyListener] = []
-    output_clusters: List[EnvoyCluster] = []
-    is_local_route = False
-    service_member: Optional[str] = None
-    network_name: Optional[str] = os.environ.get('NETWORK_NAME', None)
-
-    if local:
-        is_local_route = True
-        local.load_service(refresh_cache)
-        if local.service_color:
-            service_member = '{0}-{1}'.format(
-                local.service_color.group_service_name,
-                local.service_color.group_color_name,
-            )
-            in_namespaces = False
-            for namespace in namespaces:
-                if namespace.namespace_id == local.service_color.namespace_id:
-                    in_namespaces = True
-                    network_name = network_name or namespace.namespace_id
-                    break
-            if not in_namespaces:
-                namespaces.extend(DiscoveryServiceNamespace.load_namespaces({
-                    local.service_color.namespace_id: local.service_member_port
-                }))
-
-    for namespace in namespaces:
-        routes: Dict[str, Dict[str, int]] = {}
-        namespace.load_services(refresh_cache)
-        for service_color in namespace.services:
-            service_color.load_instances(refresh_cache)
-            if (
-                    local
-                    and (
-                        local.service_member == service_color.service_id
-                        or local.service_member == service_color.service_arn
-                    )
-            ):
-                # The local service should never be in the envoy.
-                pass
-            else:
-                if not service_color.instances:
-                    _warn(
-                        "Cluster {s}-{c} has no discovered instances",
-                        s=service_color.group_service_name,
-                        c=service_color.group_color_name
-                    )
-                cluster = EnvoyCluster(
-                    '{0}-{1}'.format(service_color.group_service_name, service_color.group_color_name),
-                    service_color.uses_http2,
-                    service_color.instances
-                )
-                if service_color.path_weights:
-                    output_clusters.append(cluster)
-                    for path, weight in service_color.path_weights.items():
-                        if path not in routes:
-                            routes[path] = {}
-                        routes[path][cluster.cluster_name] = weight
-        envoy_routes: List[EnvoyRoute] = [
-            EnvoyRoute(path, cluster_weights, is_local_route)
-            for path, cluster_weights in routes.items()
-        ]
-        # Even if there are no routes, still add the listener.
-        # During initialization, the dependent containers haven't started yet and may
-        # require this proxy to be running before they start.
-        listener = EnvoyListener(namespace.namespace_port, envoy_routes)
-        output_listeners.append(listener)
-
-    return EnvoyConfig(
-        output_listeners, output_clusters,
-        network_name or service_member or 'gateway',
-        service_member or 'gateway',
-        admin_port
-    )
-
-
-# ---------------------------------------------------------------------------
 CLIENTS: Dict[str, object] = {}
 
 
@@ -600,8 +296,8 @@ def get_servicediscovery_client() -> Any:
         region = os.environ.get('AWS_REGION', None)
         profile = os.environ.get('AWS_PROFILE', None)
         session = boto3.session.Session(
-            region_name=region,
-            profile_name=profile,
+            region_name=region,  # type: ignore
+            profile_name=profile,  # type: ignore
         )
         CLIENTS[client_name] = session.client('servicediscovery', config=Config(
             max_pool_connections=1,
@@ -686,42 +382,7 @@ def dt_dict(d: Dict[str, Any], *keys: Union[str, int]) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-def _skip_reload(cache_load_time: Optional[datetime.datetime], refresh_cache: bool) -> bool:
+def skip_reload(cache_load_time: Optional[datetime.datetime], refresh_cache: bool) -> bool:
     if not cache_load_time or refresh_cache:
         return False
     return datetime.datetime.now() - cache_load_time < REQUIRE_REFRESH_LIMIT
-
-
-def _validate_port(port_str: str) -> Tuple[bool, int]:
-    try:
-        port = int(port_str)
-    except ValueError:
-        port = -1
-    return 0 < port < 65536, port
-
-
-def _note(msg: str, **args: Any) -> None:
-    sys.stderr.write("NOTE: {0}\n".format(msg.format(**args)))
-
-
-def _warn(msg: str, **args: Any) -> None:
-    sys.stderr.write("WARNING: {0}\n".format(msg.format(**args)))
-
-
-def _fatal(msg: str, **args: Any) -> None:
-    # Fatal errors quit right away.
-    raise Exception(msg.format(**args))
-
-
-# ---------------------------------------------------------------------------
-def create_envoy_config() -> EnvoyConfig:
-    env = EnvSetup.from_env()
-    namespaces = env.get_loaded_namespaces()
-    envoy_config = collate_ports_and_clusters(
-        env.admin_port, namespaces, env.local_service, True
-    )
-    return envoy_config
-
-
-if __name__ == '__main__':
-    print(json.dumps(create_envoy_config().get_context()))
