@@ -1,12 +1,9 @@
-FROM envoyproxy/envoy-alpine:v1.13.0
+FROM local/nightjar-base-envoy:latest
 
 # This assumes that the .sh files have the correct Unix line-endings on your system
 # before running.
 
-# This file is broken into chunks to allow faster build times
-# if you modify the source files.
-
-# Expose the default admin port and service port.
+# Expose the default admin port and default service port.
 EXPOSE 9901 8080
 
 ENV ENVOY_ADMIN_PORT 9901
@@ -14,19 +11,4 @@ ENV SERVICE_PORT 8080
 ENV SERVICE_MEMBER NOT_SET
 ENV SERVICE_CONTAINER_NAME NOT_SET
 
-COPY nightjar-src/.python-src/requirements.txt /tmp/requirements.txt
-RUN echo "start" \
-    && apk upgrade \
-    && apk add --update python3 curl unzip \
-    && python3 -m pip install --upgrade pip \
-    && python3 -m pip install -r /tmp/requirements.txt \
-    && rm /tmp/requirements.txt \
-    && mv /etc/envoy/envoy.yaml /etc/envoy/envoy-example.yaml \
-    && echo "end"
-
-COPY nightjar-src/ /nightjar-src/
-COPY entrypoint-nightjar.sh /entrypoint-nightjar.sh
-
-USER 1337
-
-ENTRYPOINT ["/bin/sh", "/entrypoint-nightjar.sh"]
+copy nightjar-src/ /nightjar-src/

@@ -7,7 +7,8 @@ test -d "${outdir}" && rm -r "${outdir}"
 mkdir -p "${outdir}"
 
 echo "Generating the template input data."
-python3 ./generate_template_input_data.py > "${outdir}/input.json"
+export PYTHONPATH=".python-src:${PYTHONPATH}"
+python3 -m nightjar.cloudmap_collector.standalone > "${outdir}/input.json"
 if [ $? -ne 0 ] ; then
   echo "Failed to generate the template input data."
   exit 1

@@ -23,15 +23,6 @@ ENVOY_TEMPLATE_DIR=${ENVOY_TEMPLATE_DIR:=./templates}
 ENVOY_CONFIGURATION_FILE=${ENVOY_CONFIGURATION_TEMPLATE:=envoy-config.yaml}
 TRIGGER_STOP_FILE=${TRIGGER_STOP_FILE:=/tmp/stop.txt}
 
-# Prevent everything calling AWS resources at the same time by introducing
-# a small, random back-off once at the start.  This is a 0-7 second period.
-# Doing this once prevents an eventual evening out, which would happen if
-# we did it in the while loop.
-# However, this is considered to be too drastic.  It puts a possibly unnecessary
-# and costly (in terms of availability time) addition that should work itself
-# out by the internal throttling logic of the data generation tool.
-# sleep $(( RANDOM & 7 ))
-
 test -f "${TRIGGER_STOP_FILE}" && rm "${TRIGGER_STOP_FILE}"
 mkdir -p "${TMP_DIR}/active-envoy-config"
 while [ ! -f "${TRIGGER_STOP_FILE}" ] ; do
@@ -47,6 +38,5 @@ while [ ! -f "${TRIGGER_STOP_FILE}" ] ; do
     # This MUST be a move operation; envoy proxy only reloads on moves.
     mv "${TMP_DIR}/envoy-new-config"/* "${TMP_DIR}/active-envoy-config/".
   fi
-  /bin/sh ./restart-envoy.sh "${TMP_DIR}/active-envoy-config/${ENVOY_CONFIGURATION_FILE}"
   sleep ${REFRESH_TIME}
 done

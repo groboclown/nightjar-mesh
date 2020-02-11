@@ -7,10 +7,10 @@ Constructs an input data format for each of the namespaces and service/color env
 
 from typing import List, Tuple, Dict, Iterable
 
-from .fetch_servicediscovery import (
+from nightjar.cloudmap_collector.fetch_servicediscovery import (
     DiscoveryServiceNamespace,
 )
-from .service_data import (
+from nightjar.cloudmap_collector.service_data import (
     EnvoyConfig,
     EnvoyRoute,
     EnvoyCluster,
@@ -122,7 +122,3 @@ def load_service_color_data(namespaces: Iterable[DiscoveryServiceNamespace]) -> 
 def main() -> None:
     # FIXME implement
     pass
-
-
-if __name__ == '__main__':
-    main()

@@ -8,21 +8,24 @@ This allows running both private service mesh access and public service mesh acc
 
 ## Building
 
-To build this docker image, you need to setup the container directory, so it includes the shared Python source code.
+To build this docker image, you need to create the base image.
 
 ```bash
-./setup-for-docker.sh
+( cd ../nightjar-base && docker build -t local/nightjar-base-envoy -f Dockerfile.envoy . )
 ```
 
-From there, it's a simple matter of creating the container:
+The tag `local/nightjar-base-envoy` is required in order to build the nightjar-standalone image.
+
+Then create the nightjar-standalone image:
 
 ```bash
-docker build -t my/nightjar-standalone envoy-docker/.
+( cd envoy-docker && docker build -t my/nightjar-standalone . )
 ```
 
 To run the automated tests, run:
 
 ```bash
+docker build -t my/nightjar-standalone-tests -f Dockerfile.shell-test . && docker run --rm -it my/nightjar-standalone-tests
 ```
 
 ## API Usage
@@ -34,3 +37,5 @@ This is now a grand total of 1 Cloud Map namespace, 40 Cloud Map services, and 1
 If one nightjar loops over this, it performs 1 service/color lookup to fetch the namespace ID, then 1 lookup per 100 service instances to find all the service/colors in the namespace (for 40 service/colors, that's 1 calls).  Then, for *each service/color*, there is 1 lookup per 100 service instances in that service/color to find all the instances (3 instances + 1 service metadata per service, for 39 services, is 39 calls; nightjar does not route to itself).  So far, this gives us 41 calls.  And this is for just one check.
 
 If nightjar checks twice a minute, that means it checks 2,880 times a day.  That's 118,080 calls per day.  Right now, the fee is $1.00 per 1 million requests, or $0.11 per day, or $43.09 per year.
+
+For some people, this is the price of their web hosting; for others, it's chump change in comparison to the rest of their AWS bill.  It's your call.

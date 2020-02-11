@@ -5,4 +5,4 @@ if [ "$DEBUG_CONTAINER" = 1 ] ; then
 fi
 
 cd /nightjar-src
-exec /bin/sh ./run-loop.sh
+exec /bin/sh ./entrypoint.sh

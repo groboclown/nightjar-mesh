@@ -25,22 +25,20 @@ Keep the functionality in the right place.  Where possible, have tools that do o
 
 ## Pass All Criteria
 
-(This needs to change.  The code is undergoing major restructuring to allow for different modes of operation.)
-
 The code must:
 
 * Pass Python unit tests.
-    * `cd python-src && python3 -m coverage run --source . -m unittest discover`
+    * `cd nightjar-base/nightjar-src/python-src && python3 -m coverage run --source . -m unittest discover`
 * And code coverage must not go down.
-    * `cd python-src && python3 -m coverage report`
+    * `cd nightjar-base/nightjar-src/python-src && python3 -m coverage report`
     * Major refactoring can be excluded from this rule.
 * Pass mypy checks.
-    * `cd python-src && mypy -p nightjar`
+    * `cd nightjar-base/nightjar-src/python-src && mypy -p nightjar`
 * Pass shell script tests.
     * `docker build -t my/nightjar-test -f Dockerfile.shell-test . && docker run -it --rm my/nightjar-test`
     * These are moving over to [BATS](https://github.com/bats-core/bats-core)
-* The docker image constructs without failures.
-    * `docker build -t my/nightjar .`
+* The docker images construct without failures.
+    * `./build-docker-images.sh`
 
 You will need to install the required Python modules to run the Python tests.  See the development environment section below to help get them installed.
 

@@ -5,14 +5,13 @@ from typing import List, Tuple, Dict, Optional, TypeVar
 import os
 import datetime
 import re
-import json
 
-from .fetch_servicediscovery import (
+from nightjar.cloudmap_collector.fetch_servicediscovery import (
     DiscoveryServiceNamespace,
     DiscoveryServiceColor,
     skip_reload,
 )
-from .service_data import (
+from nightjar.cloudmap_collector.service_data import (
     EnvoyConfig,
     EnvoyRoute,
     EnvoyCluster,
@@ -228,7 +227,3 @@ def create_envoy_config() -> EnvoyConfig:
         env.admin_port, namespaces, env.local_service, True
     )
     return envoy_config
-
-
-if __name__ == '__main__':
-    print(json.dumps(create_envoy_config().get_context()))
