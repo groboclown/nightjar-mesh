@@ -1,8 +1,29 @@
 # About
 
-Nightjar containers that are independent of each other.  In this setup, each nightjar container runs a background loop to poll for changes in the AWS Cloud Map configuration, and update the Envoy configuration.
+Nightjar containers that are independent of each other.
 
-This allows running both private service mesh access and public service mesh access together in a single container.
+In this setup, each nightjar container runs a background loop to poll for changes in the AWS Cloud Map configuration, and update the Envoy configuration.
+
+This allows running both private service mesh access and public service mesh access together in a single container.  It also allows for independence and high availability.
+
+## Building
+
+To build this docker image, you need to setup the container directory, so it includes the shared Python source code.
+
+```bash
+./setup-for-docker.sh
+```
+
+From there, it's a simple matter of creating the container:
+
+```bash
+docker build -t my/nightjar-standalone envoy-docker/.
+```
+
+To run the automated tests, run:
+
+```bash
+```
 
 ## API Usage
 
