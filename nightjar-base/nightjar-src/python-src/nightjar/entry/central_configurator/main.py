@@ -1,13 +1,17 @@
 
 from typing import Iterable
 import os
+import sys
 import time
 import traceback
 import sys
+import gc
 from .process import process_templates
 from ...cloudmap_collector import DiscoveryServiceNamespace
 from ...data_stores import AbcDataStoreBackend
 from ...data_stores.s3 import create_s3_data_store
+from ...msg import debug
+from ...mem import report_current_memory_usage
 
 
 MAX_NAMESPACE_COUNT = 99
@@ -18,6 +22,7 @@ def main_loop(
         namespace_names: Iterable[str],
         loop_sleep_time_seconds: int,
         exit_on_failure: bool,
+        one_pass: bool
 ) -> None:
     namespaces = DiscoveryServiceNamespace.load_namespaces(dict([
         (n, None) for n in namespace_names
@@ -25,13 +30,21 @@ def main_loop(
 
     while True:
         try:
+            debug("Starting template processing.")
             process_templates(backend, namespaces)
+            gc.collect()
+            report_current_memory_usage()
+            if one_pass:
+                return
             time.sleep(loop_sleep_time_seconds)
-        except BaseException as err:
+        except KeyboardInterrupt:
+            sys.exit(0)
+        except Exception as err:
             tb = traceback.format_exception(etype=type(err), value=err, tb=err.__traceback__)
             print('\n'.join(tb))
-            if exit_on_failure:
+            if one_pass or exit_on_failure:
                 sys.exit(1)
+            time.sleep(loop_sleep_time_seconds)
 
 
 def main() -> None:
@@ -52,4 +65,5 @@ def main() -> None:
     else:
         raise Exception('Unknown DATASTORE: "{0}"'.format(backend_name))
 
-    main_loop(backend, namespace_names, loop_sleep_time, exit_on_failure)
+    one_pass = len(sys.argv) > 1 and sys.argv[1] == 'one-pass'
+    main_loop(backend, namespace_names, loop_sleep_time, exit_on_failure, one_pass)

@@ -1,5 +1,5 @@
 
-from typing import Iterable, Tuple, Optional
+from typing import Iterable, Optional
 from .abc_backend import (
     AbcDataStoreBackend,
     ServiceColorEntity,
@@ -11,6 +11,8 @@ from .abc_backend import (
 class ManagerReadDataStore:
     """
     API used by tools that need to read the envoy templates used to construct the envoy files.
+
+    TODO should this be replaced with the CollectorDataStore?
     """
     def __init__(self, backend: AbcDataStoreBackend, version: Optional[str] = None) -> None:
         self.__version = version or backend.get_active_version(ACTIVITY_TEMPLATE_DEFINITION)
@@ -58,15 +60,25 @@ class ManagerDataStore:
     """
     API used by tools that need to read and write the envoy templates used to construct the envoy files.
     """
+    __version: Optional[str]
+
     def __init__(self, backend: AbcDataStoreBackend) -> None:
-        self.__version = backend.start_changes(ACTIVITY_TEMPLATE_DEFINITION)
-        self._active = True
+        self.__version = None
         self.backend = backend
 
-    def commit(self) -> None:
-        self._assert_active()
-        self._active = False
-        self.backend.commit_changes(self.__version)
+    def __enter__(self) -> 'ManagerDataStore':
+        assert self.__version is None
+        self.__version = self.backend.start_changes(ACTIVITY_TEMPLATE_DEFINITION)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore
+        if exc_val:
+            # An error happened
+            if self.__version:
+                self.backend.rollback_changes(self.__version)
+        elif self.__version:
+            self.backend.commit_changes(self.__version)
+        self.__version = None
 
     def set_service_color_template(
             self,
@@ -83,7 +95,7 @@ class ManagerDataStore:
         """
         if not service and color:
             raise ValueError('To specify color, the service must also be specified.')
-        self._assert_active()
+        assert self.__version is not None
         self.backend.upload(self.__version, ServiceColorEntity(service, color, purpose, True), contents)
 
     def set_namespace_template(
@@ -91,9 +103,5 @@ class ManagerDataStore:
             namespace: Optional[str],
             purpose: str, contents: str,
     ) -> None:
-        self._assert_active()
+        assert self.__version is not None
         self.backend.upload(self.__version, NamespaceEntity(namespace, purpose, True), contents)
-
-    def _assert_active(self) -> None:
-        if not self._active:
-            raise RuntimeError('Data store has already been committed')

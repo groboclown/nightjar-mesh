@@ -9,12 +9,22 @@ from .abc_backend import (
 
 class EnvoyProxyDataStore:
     """
-    API used by the envoy proxy servers for updating the configuration.  These have
-    limit read-only usage.
+    API used by the envoy proxy servers for updating the envoy proxy configuration.
     """
+    __version: Optional[str]
+
     def __init__(self, backend: AbcDataStoreBackend) -> None:
+        self.__version = None
         self.backend = backend
-        self.__version = backend.get_active_version(ACTIVITY_PROXY_CONFIGURATION)
+
+    def __enter__(self) -> 'EnvoyProxyDataStore':
+        assert self.__version is None
+        self.__version = self.backend.get_active_version(ACTIVITY_PROXY_CONFIGURATION)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore
+        # No special exit requirements
+        self.__version = None
 
     def get_namespace_envoy_bootstrap_template(self, namespace: str) -> str:
         """
@@ -29,6 +39,7 @@ class EnvoyProxyDataStore:
         If the bootstrap file changes while Envoy is running, then the envoy proxy itself will
         need to be restarted.
         """
+        assert self.__version is not None
         # Content files MUST be stored exactly, no default is allowed.
         entities = self.backend.get_namespace_entities(
             self.__version,
@@ -58,6 +69,7 @@ class EnvoyProxyDataStore:
         If the bootstrap file changes while Envoy is running, then the envoy proxy itself will
         need to be restarted.
         """
+        assert self.__version is not None
         # Content files MUST be stored exactly, no default is allowed.
         entities = self.backend.get_service_color_entities(
             self.__version,
@@ -76,6 +88,7 @@ class EnvoyProxyDataStore:
         If the bootstrap template requires a key and there is no
         content, then it must be returned with None data.
         """
+        assert self.__version is not None
         for entity in self.backend.get_namespace_entities(self.__version, namespace=namespace, is_template=False):
             if entity.purpose == ENVOY_BOOTSTRAP_TEMPLATE_PURPOSE:
                 continue
@@ -87,6 +100,7 @@ class EnvoyProxyDataStore:
         If the bootstrap template requires a key and there is no
         content, then it must be returned with None data.
         """
+        assert self.__version is not None
         for entity in self.backend.get_service_color_entities(
                 self.__version, service=service, color=color, is_template=False
         ):

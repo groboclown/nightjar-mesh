@@ -7,6 +7,7 @@ from .abc_backend import (
     NamespaceEntity,
     ACTIVITY_TEMPLATE_DEFINITION,
 )
+from ..msg import debug
 
 
 class CollectorDataStore:
@@ -16,11 +17,20 @@ class CollectorDataStore:
 
     This may be combined with the configuration implementation.  The collector just gathers the files.
     """
-    __slots__ = ('__version', 'backend',)
+    __version: Optional[str]
 
     def __init__(self, backend: AbcDataStoreBackend) -> None:
-        self.__version = backend.get_active_version(ACTIVITY_TEMPLATE_DEFINITION)
+        self.__version = None
         self.backend = backend
+
+    def __enter__(self) -> 'CollectorDataStore':
+        assert self.__version is None
+        self.__version = self.backend.get_active_version(ACTIVITY_TEMPLATE_DEFINITION)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore
+        # No special exit requirements.
+        self.__version = None
 
     def get_service_color_templates(
             self, service_colors: Iterable[Tuple[str, str]]
@@ -30,6 +40,7 @@ class CollectorDataStore:
         templates, including the envoy proxy backend.  For each item, it returns
             (service, color), purpose, contents
         """
+        assert self.__version is not None
         entities = list(self.backend.get_service_color_entities(self.__version, is_template=True))
         for service_color in service_colors:
             purpose_matches: Dict[str, ServiceColorEntity] = {}
@@ -66,7 +77,9 @@ class CollectorDataStore:
         """
         Returns the namespace templates registered in the system.  Each item is the namespace, purpose, contents.
         """
+        assert self.__version is not None
         entities = list(self.backend.get_namespace_entities(self.__version, is_template=True))
+        debug("loaded version {v} entities: {e}", v=self.__version, e=entities)
         for namespace in namespaces:
             purpose_matches: Dict[str, NamespaceEntity] = {}
             for entity in entities:
@@ -74,11 +87,11 @@ class CollectorDataStore:
                 if (
                         # Priority 1: exact match, regardless of existing match
                         entity.namespace == namespace
-                        # Priority 2: default namespace only if there is no exsiting match
+                        # Priority 2: default namespace only if there is no existing match
                         or (not existing and entity.is_default_namespace())
                 ):
                     purpose_matches[entity.purpose] = entity
             if not purpose_matches:
-                raise ValueError('No match for namespace{0}, and there is no default'.format(namespace))
+                raise ValueError('No match for namespace {0}, and there is no default'.format(namespace))
             for value in purpose_matches.values():
                 yield namespace, value.purpose, self.backend.download(self.__version, value)

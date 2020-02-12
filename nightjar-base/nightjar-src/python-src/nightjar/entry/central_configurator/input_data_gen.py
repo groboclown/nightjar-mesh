@@ -53,7 +53,7 @@ def load_namespace_data(namespaces: Iterable[DiscoveryServiceNamespace]) -> Iter
         # During initialization, the dependent containers haven't started yet and may
         # require this proxy to be running before they start.
         listener = EnvoyListener(namespace.namespace_port, envoy_routes)
-        yield 'id:' + namespace.namespace_id, EnvoyConfig([listener], clusters, 'gateway', 'gateway', None)
+        yield namespace.namespace_id, EnvoyConfig([listener], clusters, 'gateway', 'gateway', None)
 
 
 def load_service_color_data(namespaces: Iterable[DiscoveryServiceNamespace]) -> Iterable[Tuple[str, str, EnvoyConfig]]:

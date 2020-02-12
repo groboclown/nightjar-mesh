@@ -9,8 +9,12 @@ import abc
 
 ACTIVITY_PROXY_CONFIGURATION = 'proxy-configuration'
 ACTIVITY_TEMPLATE_DEFINITION = 'template-creation'
+SUPPORTED_ACTIVITIES = (
+    ACTIVITY_PROXY_CONFIGURATION,
+    ACTIVITY_TEMPLATE_DEFINITION,
+)
 
-ENVOY_BOOTSTRAP_TEMPLATE_PURPOSE = 'envoy-bootstrap-template'
+ENVOY_BOOTSTRAP_TEMPLATE_PURPOSE = 'envoy-bootstrap-template.yaml'
 
 
 class NamespaceEntity:
@@ -46,6 +50,13 @@ class NamespaceEntity:
     def __hash__(self) -> int:
         return hash(self.namespace) + hash(self.purpose) + hash(self.is_template)
 
+    def __repr__(self) -> str:
+        return 'NamespaceEntity(namespace={namespace}, purpose={purpose}, is_template={is_template})'.format(
+            namespace=repr(self.namespace),
+            purpose=repr(self.purpose),
+            is_template=repr(self.is_template),
+        )
+
 
 class ServiceColorEntity:
     __slots__ = ('service', 'color', 'purpose', 'is_template',)
@@ -80,6 +91,14 @@ class ServiceColorEntity:
     def __hash__(self) -> int:
         return hash(self.service) + hash(self.color) + hash(self.purpose) + hash(self.is_template)
 
+    def __repr__(self) -> str:
+        return 'ServiceColorEntity(service={service}, color={color}, purpose={purpose}, is_template={is_template})'.format(
+            service=repr(self.service),
+            color=repr(self.color),
+            purpose=repr(self.purpose),
+            is_template=repr(self.is_template),
+        )
+
 
 Entity = Union[ServiceColorEntity, NamespaceEntity]
 
@@ -110,6 +129,10 @@ class AbcDataStoreBackend(abc.ABC):
         that's pulling doesn't get a mix of old and new configurations.  This commit process
         can also clean up old data.
         """
+        raise NotImplementedError()
+
+    def rollback_changes(self, version: str) -> None:
+        """Performed on error, to revert any uploads."""
         raise NotImplementedError()
 
     def download(self, version: str, entity: Entity) -> str:

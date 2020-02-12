@@ -1,5 +1,5 @@
 
-from typing import Iterable, Dict, Tuple, Optional, Any
+from typing import Iterable, Dict, Tuple, List, Set, Optional, Any
 import datetime
 import hashlib
 import io
@@ -11,7 +11,9 @@ from botocore.config import Config  # type: ignore
 from .config import S3EnvConfig
 from ..abc_backend import (
     AbcDataStoreBackend, ServiceColorEntity, NamespaceEntity, Entity,
+    SUPPORTED_ACTIVITIES,
 )
+from ...msg import note, debug
 
 DEFAULT_SERVICE_NAME = '__default__'
 DEFAULT_COLOR_NAME = '__default__'
@@ -50,7 +52,11 @@ class ProcessingVersion:
         keys.sort()
         for key in keys:
             hashing.update(self.uploaded_data[key][1])
-        return hashing.hexdigest()
+        now = datetime.datetime.now(datetime.timezone.utc)
+        return "{a}/{y:04d}{mo:02d}{d:02d}{hr:02d}{mi:02d}{s:02d}-{hs}".format(
+            a=self.activity, hs=hashing.hexdigest(),
+            y=now.year, mo=now.month, d=now.day, hr=now.hour, mi=now.minute, s=now.second,
+        )
 
     def clear(self) -> None:
         self.uploaded_data.clear()
@@ -72,7 +78,7 @@ class S3Backend(AbcDataStoreBackend):
       '(version)/service/(service)/(color)/(template or extracted)/(purpose)'.
     """
     active_versions: Dict[str, ProcessingVersion]
-    client: Optional[Any]  ## type: Optional[mypy_boto3.s3.S3Client]
+    client: Optional[Any]  # mypy_boto3.s3.S3Client
 
     def __init__(self, config: S3EnvConfig) -> None:
         self.config = config
@@ -81,13 +87,10 @@ class S3Backend(AbcDataStoreBackend):
 
     def get_client(self) -> Any:
         if not self.client:
-            region = self.config.aws_region
-            profile = self.config.aws_profile
-            session = boto3.session.Session(
-                region_name=region,
-                profile_name=profile,  # type: ignore
-            )
-            self.client = session.client('s3', config=Config(
+            self.client = boto3.session.Session(
+                region_name=self.config.aws_region,
+                profile_name=self.config.aws_profile,  # type: ignore
+            ).client('s3', config=Config(
                 max_pool_connections=1,
                 retries=dict(max_attempts=2)
             ))
@@ -97,10 +100,11 @@ class S3Backend(AbcDataStoreBackend):
     # Read Actions
 
     def get_active_version(self, activity: str) -> str:
-        version_path_prefix = 'version/{0}/'.format(activity)
+        if activity not in SUPPORTED_ACTIVITIES:
+            raise ValueError('invalid activity {0}; valid values are {1}'.format(activity, SUPPORTED_ACTIVITIES))
         most_recent: Optional[datetime.datetime] = None
         active_key: str = 'first'
-        for key, last_modified in self._list_entries(version_path_prefix):
+        for key, last_modified in self._get_versions(activity):
             if not most_recent or last_modified > most_recent:
                 active_key = key
                 most_recent = last_modified
@@ -124,10 +128,18 @@ class S3Backend(AbcDataStoreBackend):
                 # We can only add purpose if namespace and is_template are also specified.
                 if purpose:
                     prefix += '/' + purpose
-        for path, when in self._list_entries(prefix):
-            match = NAMESPACE_PATH_RE.match(path)
+        debug(
+            "Searching for namespace entities ({n}, {p}, {t}) with prefix {x}/",
+            n=namespace, p=purpose, t=is_template, x=prefix
+        )
+        for path, when in self._list_entries(prefix + '/'):
+            # Because the match does not require matching everything at the start, this uses "search".
+            match = NAMESPACE_PATH_RE.search(path)
             if match:
-                m_namespace = match.group(1)
+                m_namespace: Optional[str] = match.group(1)
+                if m_namespace == DEFAULT_NAMESPACE_NAME:
+                    m_namespace = None
+                # We're searching, so if namespace is None, then we want all the namespace templates.
                 if namespace is None or namespace == m_namespace:
                     m_activity = match.group(2)
                     m_is_template = m_activity == 'template'
@@ -135,6 +147,8 @@ class S3Backend(AbcDataStoreBackend):
                         m_purpose = match.group(3)
                         if purpose is None or purpose == m_purpose:
                             yield NamespaceEntity(m_namespace, m_purpose, m_is_template)
+            else:
+                debug("no match for object {p}", p=path)
 
     def get_service_color_entities(
             self, version: str, service: Optional[str] = None, color: Optional[str] = None,
@@ -154,11 +168,16 @@ class S3Backend(AbcDataStoreBackend):
                     if purpose:
                         prefix += '/' + purpose
         for path, when in self._list_entries(prefix):
-            match = SERVICE_COLOR_PATH_RE.match(path)
+            # Because the match does not require matching everything at the start, this uses "search".
+            match = SERVICE_COLOR_PATH_RE.search(path)
             if match:
-                m_service = match.group(1)
+                m_service: Optional[str] = match.group(1)
+                if m_service == DEFAULT_SERVICE_NAME:
+                    m_service = None
                 if service is None or service == m_service:
-                    m_color = match.group(2)
+                    m_color: Optional[str] = match.group(2)
+                    if m_color == DEFAULT_COLOR_NAME:
+                        m_color = None
                     if color is None or color == m_color:
                         m_activity = match.group(3)
                         m_is_template = m_activity == 'template'
@@ -171,6 +190,8 @@ class S3Backend(AbcDataStoreBackend):
     # Write Actions
 
     def start_changes(self, activity: str) -> str:
+        if activity not in SUPPORTED_ACTIVITIES:
+            raise ValueError('invalid activity {0}; valid values are {1}'.format(activity, SUPPORTED_ACTIVITIES))
         version = ProcessingVersion(activity)
         self.active_versions[version.name] = version
         return version.name
@@ -188,21 +209,36 @@ class S3Backend(AbcDataStoreBackend):
         # compute the checksum.  This can mean lots of extra memory usage, though,
         # so this isn't great.
         final_version = activity_version.get_final_version_name()
-        for entity, data in activity_version.uploaded_data.values():
-            path = get_entity_path(final_version, entity)
-            self._upload(path, data)
-        self._upload(
-            'version/{0}/{1}'.format(activity_version.activity, final_version),
-            final_version.encode('utf-8')
-        )
+        uploaded_paths = []
+        try:
+            for entity, data in activity_version.uploaded_data.values():
+                path = get_entity_path(final_version, entity)
+                self._upload(path, data)
+                uploaded_paths.append(path)
+            self._upload(
+                'version/{0}'.format(final_version),
+                final_version.encode('utf-8')
+            )
+        except Exception as err:
+            self._delete(uploaded_paths)
+            raise
+
         # Clean up our memory before moving on.
         activity_version.clear()
 
         if self.config.purge_old_versions:
-            # TODO clean up old version data.
-            # This should remove any version older than (some old date), but always leave
-            # the previously active version around, in case anything is actively pulling from it.
-            raise NotImplementedError()
+            self._clean_old_versions(
+                activity_version.activity,
+                self.config.purge_older_than_days,
+                {final_version, previously_active_version},
+            )
+
+    def rollback_changes(self, version: str) -> None:
+        """Performed on error, to revert any uploads."""
+        # Because uploads are delayed until commit, this does nothing with
+        # s3 store.
+        if version in self.active_versions:
+            del self.active_versions[version]
 
     def upload(self, version: str, entity: Entity, contents: str) -> None:
         activity_version = self.active_versions[version]
@@ -211,18 +247,46 @@ class S3Backend(AbcDataStoreBackend):
     # -----------------------------------------------------------------------
     # Support
 
+    def _get_versions(self, activity: str) -> Iterable[Tuple[str, datetime.datetime]]:
+        for key, when in self._list_entries('version/{0}/'.format(activity)):
+            if '/' in key:
+                key = key[key.rindex('/') + 1:]
+                if key:
+                    yield activity + '/' + key, when
+
+    def _clean_old_versions(
+            self, activity: str,
+            purge_older_than_days: int,
+            do_not_remove_versions: Set[str],
+    ) -> None:
+        # This should remove any version older than (some old date), but always leave
+        # the previously active version around, in case anything is actively pulling from it.
+        # That is, delete all versions before date except for previously_active_version and
+        # final_version.
+        older_than = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=purge_older_than_days)
+        for version, when in self._get_versions(activity):
+            if version not in do_not_remove_versions and when < older_than:
+                note('Removing old activity {a} version {v}', a=activity, v=version)
+                to_delete = [d[0] for d in self._list_entries(version + '/')]
+                # version string includes the activity...
+                to_delete.append('version/{0}'.format(version))
+                self._delete(to_delete)
+
     def _list_entries(self, path: str) -> Iterable[Tuple[str, datetime.datetime]]:
         while path[0] == '/':
             path = path[1:]
+        full_path = self.config.base_path + '/' + path
+        debug("Listing entries under {p}", p=full_path)
         paginator = self.get_client().get_paginator('list_objects_v2')
         response_iterator = paginator.paginate(
             Bucket=self.config.bucket,
-            Delimiter='/',
             EncodingType='url',
-            Prefix=self.config.base_path + '/' + path,
+            Prefix=full_path,
             FetchOwner=False,
         )
         for page in response_iterator:
+            if 'Contents' not in page:
+                continue
             for info in page['Contents']:
                 key = info.get('Key', '')
                 modified = info.get('LastModified', None)
@@ -231,35 +295,39 @@ class S3Backend(AbcDataStoreBackend):
 
     def _upload(self, path: str, contents: bytes) -> None:
         assert len(contents) < MAX_CONTENT_SIZE
+        # Shouldn't be necessary due to the construction of the path argument... this is defensive coding.
         while path[0] == '/':
             path = path[1:]
+        full_path = self.config.base_path + '/' + path
+        print("Uploading {0}".format(full_path))
         inp = io.BytesIO(contents)
-        self.get_client().upload_fileobj(inp, self.config.bucket, self.config.base_path + '/' + path)
+        self.get_client().upload_fileobj(inp, self.config.bucket, full_path)
 
     def _download(self, path: str) -> str:
+        # Shouldn't be necessary due to the construction of the path argument... this is defensive coding.
         while path[0] == '/':
             path = path[1:]
         out = io.BytesIO()
         self.get_client().download_fileobj(self.config.bucket, self.config.base_path + '/' + path, out)
         return out.getvalue().decode('utf-8')
 
-    # def delete(self, paths: Sequence[str]) -> Sequence[str]:
-    #     if len(paths) <= 0:
-    #         return []
-    #     if len(paths) > 1000:
-    #         raise Exception("Cannot handle > 1000 paths right now.")
-    #     resp = self.get_client().delete_objects(
-    #         Bucket=self.config.bucket,
-    #         Delete={
-    #             'Objects': [{'Key': self.config.base_path + '/' + p} for p in paths]
-    #         }
-    #     )
-    #     ret: List[str] = []
-    #     for value in resp.get('Deleted', []):
-    #         k = value.get('Key')
-    #         if k:
-    #             ret.append(k)
-    #     return ret
+    def _delete(self, paths: List[str]) -> None:
+        if len(paths) <= 0:
+            return
+        if len(paths) > 1000:
+            raise Exception("Cannot handle > 1000 paths right now.")
+        keys = []
+        for path in paths:
+            if path[0] == '/':
+                keys.append(path)
+            else:
+                keys.append(self.config.base_path + '/' + path)
+        self.get_client().delete_objects(
+            Bucket=self.config.bucket,
+            Delete={
+                'Objects': [{'Key': p} for p in keys]
+            }
+        )
 
 
 def get_entity_path(version: str, entity: Entity) -> str:

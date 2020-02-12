@@ -21,18 +21,24 @@ class S3EnvConfig:
     __purge_older_than_days: int = 30
     __loaded = False
 
-    def load(self, environ: Optional[Dict[str, str]] = None) -> None:
+    def load(self, environ: Optional[Dict[str, str]] = None) -> 'S3EnvConfig':
         if self.__loaded:
-            return
+            return self
         if not environ:
             environ = dict(os.environ)
         self.__bucket = environ.get(ENV_BUCKET, None)
         self.__base_path = environ.get(ENV_BASE_PATH, DEFAULT_BASE_PATH)
+        while self.__base_path[-1] == '/':
+            self.__base_path = self.__base_path[:-1]
+        # S3 indicates that the base path must not start with a '/'
+        while self.__base_path[0] == '/':
+            self.__base_path = self.__base_path[1:]
         self.__region = environ.get(AWS_REGION, None)
         self.__profile = environ.get(AWS_PROFILE, None)
         self.__purge_old_versions = environ.get(PURGE_OLD_VERSIONS, 'true').strip().lower() in TRUE_VALUES
         self.__purge_older_than_days = int(environ.get(PURGE_BEFORE_DAYS, '30'))
         self.__loaded = True
+        return self
 
     @property
     def bucket(self) -> str:

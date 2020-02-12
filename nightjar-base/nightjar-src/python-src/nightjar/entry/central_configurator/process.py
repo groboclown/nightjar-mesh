@@ -5,8 +5,7 @@ from .input_data_gen import (
     load_service_color_data,
 )
 from .content_gen import (
-    generate_namespace_content,
-    generate_service_color_content,
+    generate_content,
 )
 
 from ...cloudmap_collector import (
@@ -15,7 +14,8 @@ from ...cloudmap_collector import (
 from ...data_stores import (
     AbcDataStoreBackend,
     CollectorDataStore,
-    ConfigurationDataStore,
+    ConfigurationReaderDataStore,
+    ConfigurationWriterDataStore,
 )
 
 
@@ -32,10 +32,7 @@ def process_templates(
     namespace_data = load_namespace_data(namespaces)
     service_color_data = load_service_color_data(namespaces)
 
-    collector = CollectorDataStore(backend)
-    configuration = ConfigurationDataStore(backend)
-
-    generate_namespace_content(collector, configuration, namespace_data)
-    generate_service_color_content(collector, configuration, service_color_data)
-
-    configuration.commit()
+    with CollectorDataStore(backend) as collector:
+        with ConfigurationReaderDataStore(backend) as config_reader:
+            with ConfigurationWriterDataStore(backend) as config_writer:
+                generate_content(collector, config_reader, config_writer, namespace_data, service_color_data)
