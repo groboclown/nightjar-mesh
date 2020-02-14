@@ -56,9 +56,14 @@ def load_namespace_data(namespaces: Iterable[DiscoveryServiceNamespace]) -> Iter
         yield namespace.namespace_id, EnvoyConfig([listener], clusters, 'gateway', 'gateway', None)
 
 
-def load_service_color_data(namespaces: Iterable[DiscoveryServiceNamespace]) -> Iterable[Tuple[str, str, EnvoyConfig]]:
+def load_service_color_data(
+        namespaces: Iterable[DiscoveryServiceNamespace]
+) -> Iterable[Tuple[str, str, str, str, EnvoyConfig]]:
     """
     Generate the per-service/color configuration data.
+
+    Each item returned contains:
+        namespace_id, service_id, service, color, config
     """
     for namespace in namespaces:
         namespace.load_services(False)
@@ -104,6 +109,8 @@ def load_service_color_data(namespaces: Iterable[DiscoveryServiceNamespace]) -> 
                 continue
             listener = EnvoyListener(namespace.namespace_port, envoy_routes)
             yield (
+                local_service_color.namespace_id,
+                local_service_color.service_id,
                 local_service_color.group_service_name,
                 local_service_color.group_color_name,
                 EnvoyConfig(

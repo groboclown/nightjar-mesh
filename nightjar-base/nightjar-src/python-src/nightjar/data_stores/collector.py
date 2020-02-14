@@ -1,13 +1,59 @@
 
-from typing import Iterable, Tuple, Dict, Optional
+from typing import Iterable, Tuple, Dict, Optional, Any
 
 from .abc_backend import (
     AbcDataStoreBackend,
-    ServiceColorEntity,
-    NamespaceEntity,
+    NamespaceTemplateEntity,
+    ServiceColorTemplateEntity,
     ACTIVITY_TEMPLATE_DEFINITION,
 )
 from ..msg import debug
+
+
+class MatchedNamespaceTemplate:
+    __slots__ = ('namespace_id', 'is_public', 'purpose', 'source',)
+
+    def __init__(self, namespace_id: str, is_public: bool, source: NamespaceTemplateEntity) -> None:
+        self.namespace_id = namespace_id
+        self.purpose = source.purpose
+        self.is_public = is_public
+        self.source = source
+
+
+class MatchedServiceColorTemplate:
+    __slots__ = ('namespace_id', 'service_id', 'service', 'color', 'purpose', 'source',)
+
+    def __init__(
+            self, namespace_id: str, service_id: str, service: str, color: str,
+            source: ServiceColorTemplateEntity
+    ) -> None:
+        self.namespace_id = namespace_id
+        self.service_id = service_id
+        self.service = service
+        self.color = color
+        self.purpose = source.purpose
+        self.source = source
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, MatchedServiceColorTemplate):
+            return False
+        return (
+            self.namespace_id == other.namespace_id
+            and self.service_id == other.service_id
+            and self.service == other.service
+            and self.color == other.color
+            and self.purpose == other.purpose
+            and self.source == other.source
+        )
+
+    def __ne__(self, other: Any) -> bool:
+        return not self.__eq__(other)
+
+    def __hash__(self) -> int:
+        return (
+                hash(self.namespace_id) + hash(self.service_id) + hash(self.service) +
+                hash(self.color) + hash(self.purpose) + hash(self.source)
+        )
 
 
 class CollectorDataStore:
@@ -32,66 +78,125 @@ class CollectorDataStore:
         # No special exit requirements.
         self.__version = None
 
-    def get_service_color_templates(
-            self, service_colors: Iterable[Tuple[str, str]]
-    ) -> Iterable[Tuple[Tuple[str, str], str, str]]:
-        """
-        Returns the service color templates registered in the system.  This is all the
-        templates, including the envoy proxy backend.  For each item, it returns
-            (service, color), purpose, contents
-        """
-        assert self.__version is not None
-        entities = list(self.backend.get_service_color_entities(self.__version, is_template=True))
-        for service_color in service_colors:
-            purpose_matches: Dict[str, ServiceColorEntity] = {}
-            for entity in entities:
-                existing = purpose_matches.get(entity.purpose)
-                if (
-                        # Priority 1: exact match.  Doesn't matter about the current value.
-                        (entity.service == service_color[0] and entity.color == service_color[1])
-                        # Priority 2: no existing match with service name match and default color.
-                        or (not existing and entity.service == service_color[0] and entity.is_default_color())
-                        # Priority 3: service name match and default color and current service is default.
-                        or (
-                            existing
-                            and existing.is_default_service()
-                            and entity.service == service_color[0]
-                            and entity.is_default_color()
-                        )
-                        # Priority 4: no existing match and default match
-                        or (not existing and entity.is_default_service() and entity.is_default_color())
-                ):
-                    purpose_matches[entity.purpose] = entity
-            if not purpose_matches:
-                raise ValueError(
-                    'No match for service {0}, color {1}, and there is no default'.format(
-                        service_color[0], service_color[1]
-                    )
-                )
-            for value in purpose_matches.values():
-                yield service_color, value.purpose, self.backend.download(self.__version, value)
-
     def get_namespace_templates(
-            self, namespaces: Iterable[str]
-    ) -> Iterable[Tuple[str, str, str]]:
+            self, namespaces: Iterable[Tuple[str, bool]]
+    ) -> Iterable[Tuple[MatchedNamespaceTemplate, str]]:
         """
-        Returns the namespace templates registered in the system.  Each item is the namespace, purpose, contents.
+        namespaces: list of the tuple (namespace_id, is_public).
+
+        Returns the namespace templates registered in the system and the contents.
         """
         assert self.__version is not None
-        entities = list(self.backend.get_namespace_entities(self.__version, is_template=True))
+        entities = list(self.backend.get_namespace_template_entities(self.__version))
         debug("loaded version {v} entities: {e}", v=self.__version, e=entities)
-        for namespace in namespaces:
-            purpose_matches: Dict[str, NamespaceEntity] = {}
+        for namespace, is_public in namespaces:
+            purpose_matches: Dict[str, NamespaceTemplateEntity] = {}
             for entity in entities:
                 existing = purpose_matches.get(entity.purpose)
                 if (
                         # Priority 1: exact match, regardless of existing match
-                        entity.namespace == namespace
-                        # Priority 2: default namespace only if there is no existing match
-                        or (not existing and entity.is_default_namespace())
+                        (entity.namespace == namespace and entity.is_public == is_public)
+
+                        # Priority 2: namespace match, is_public isn't.
+                        or (not existing and entity.namespace == namespace and entity.is_default_public())
+                        or (
+                            existing and existing.is_default_namespace()
+                            and entity.namespace == namespace
+                            and entity.is_default_public()
+                        )
+
+                        # Priority 3: namespace default, is_public match.
+                        or (
+                            not existing and entity.is_default_namespace() and entity.is_public == is_public
+                        )
+                        or (
+                            existing and existing.is_default_namespace() and existing.is_default_public()
+                            and entity.is_default_namespace() and entity.is_public == is_public
+                        )
+
+                        # Priority 4: defaults only if there is no existing match
+                        or (not existing and entity.is_default_namespace() and entity.is_default_public())
                 ):
                     purpose_matches[entity.purpose] = entity
             if not purpose_matches:
                 raise ValueError('No match for namespace {0}, and there is no default'.format(namespace))
             for value in purpose_matches.values():
-                yield namespace, value.purpose, self.backend.download(self.__version, value)
+                yield (
+                    MatchedNamespaceTemplate(namespace, is_public, value),
+                    self.backend.download(self.__version, value)
+                )
+
+    def get_service_color_templates(
+            self, namespace_service_colors: Iterable[Tuple[str, str, str, str]]
+    ) -> Iterable[Tuple[MatchedServiceColorTemplate, str]]:
+        """
+        Each input is of the form namespace, service_id, service, color.
+
+        Returns the service color templates registered in the system.  This is all the
+        templates, including the envoy proxy backend.  For each item, it returns
+            MatchedServiceColorTemplate, contents
+        """
+        assert self.__version is not None
+        entities = list(self.backend.get_service_color_template_entities(self.__version))
+        for namespace, service_id, service, color in namespace_service_colors:
+            purpose_matches: Dict[str, Tuple[ServiceColorTemplateEntity, int]] = {}
+            for entity in entities:
+                existing, existing_match_level = purpose_matches.get(entity.purpose, (None, 100))
+
+                if entity.namespace == namespace and entity.service == service and entity.color == color:
+                    # Match level 1: exact match on everything.  Doesn't matter about the current value.
+                    purpose_matches[entity.purpose] = (entity, 1)
+
+                elif (
+                    existing_match_level > 2 and
+                    entity.namespace == namespace and entity.service == service and entity.is_default_color()
+                ):
+                    # Priority 2: namespace match, service match, default color
+                    purpose_matches[entity.purpose] = (entity, 2)
+
+                elif (
+                    existing_match_level > 3 and
+                    entity.namespace == namespace and entity.is_default_service() and entity.is_default_color()
+                ):
+                    # Priority 3: namespace match, default service and color.
+                    purpose_matches[entity.purpose] = (entity, 3)
+
+                elif (
+                    existing_match_level > 4 and
+                    entity.is_default_namespace() and entity.service == service and entity.color == color
+                ):
+                    # Priority 4: service and color match, default namespace
+                    purpose_matches[entity.purpose] = (entity, 4)
+
+                elif (
+                    existing_match_level > 5 and
+                    entity.is_default_namespace() and entity.service == service and entity.is_default_color()
+                ):
+                    # Priority 5: service matches, namespace and color are default.
+                    purpose_matches[entity.purpose] = (entity, 5)
+
+                elif (
+                    existing_match_level > 6 and
+                    entity.is_default_namespace() and entity.is_default_service() and entity.color == color
+                ):
+                    # Priority 6: service and namespace are default, color is match.
+                    purpose_matches[entity.purpose] = (entity, 6)
+
+                elif (
+                    existing_match_level > 99 and
+                    entity.is_default_namespace() and entity.is_default_service() and entity.is_default_color()
+                ):
+                    # Final priority: default everything.
+                    purpose_matches[entity.purpose] = (entity, 99)
+
+            if not purpose_matches:
+                raise ValueError(
+                    'No match for namespace {0} service {1}, color {2}, and there is no default'.format(
+                        namespace, service, color
+                    )
+                )
+            for value, _ in purpose_matches.values():
+                yield (
+                    MatchedServiceColorTemplate(namespace, service_id, service, color, value),
+                    self.backend.download(self.__version, value),
+                )

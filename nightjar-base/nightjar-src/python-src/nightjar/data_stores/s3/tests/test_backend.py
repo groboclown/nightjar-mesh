@@ -5,8 +5,11 @@ import datetime
 import boto3
 import io
 import botocore.stub  # type: ignore
+from .. import paths
 from ..backend import (
-    S3Backend, ServiceColorEntity, NamespaceEntity, get_entity_path,
+    S3Backend,
+    GatewayConfigEntity,
+    ServiceColorTemplateEntity,
 )
 from ..config import (
     S3EnvConfig, ENV_BUCKET, ENV_BASE_PATH, AWS_REGION,
@@ -27,6 +30,7 @@ class S3BackendTest(unittest.TestCase):
 
     def test_get_active_version__none(self) -> None:
         s3 = MockS3()
+        # TODO use paths to generate the path.
         s3.mk_list_entries('s3bucket', 'p/a2/version/act/', [])
         with s3:
             bk = S3Backend(S3EnvConfig().load({ENV_BUCKET: 's3bucket', ENV_BASE_PATH: 'p/a2'}))
@@ -36,100 +40,42 @@ class S3BackendTest(unittest.TestCase):
 
     def test_get_active_version__one(self) -> None:
         s3 = MockS3()
+        # TODO use paths to generate the path.
         s3.mk_list_entries('s3bucket', 'p/a2/version/act/', [('a1', 100,)])
         with s3:
             bk = S3Backend(S3EnvConfig().load({ENV_BUCKET: 's3bucket', ENV_BASE_PATH: 'p/a2'}))
             bk.client = s3.client
             version = bk.get_active_version('act')
-            self.assertEqual(version, 'act/a1')
+            self.assertEqual(version, 'a1')
 
     def test_get_active_version__several(self) -> None:
         s3 = MockS3()
+        # TODO use paths to generate the path.
         s3.mk_list_entries('s3bucket', 'p/a2/version/act/', [('a1', 100,), ('a2', 120,), ('a3', 5), ('a4', 10)])
         with s3:
             bk = S3Backend(S3EnvConfig().load({ENV_BUCKET: 's3bucket', ENV_BASE_PATH: 'p/a2'}))
             bk.client = s3.client
             version = bk.get_active_version('act')
-            self.assertEqual(version, 'act/a3')
-
-    def test_mk_path_service_color(self) -> None:
-        # Default service and color, template
-        self.assertEqual(
-            get_entity_path('abc', ServiceColorEntity(None, None, 'p1.yaml', True)),
-            'abc/service/__default__/__default__/template/p1.yaml',
-        )
-
-        # Default service and color, not template
-        self.assertEqual(
-            get_entity_path('1234', ServiceColorEntity(None, None, 'p2', False)),
-            '1234/service/__default__/__default__/extracted/p2',
-        )
-
-        # Default color, template
-        self.assertEqual(
-            get_entity_path('qwerty', ServiceColorEntity('block', None, 'p3.txt', True)),
-            'qwerty/service/block/__default__/template/p3.txt',
-        )
-
-        # Default color, not template
-        self.assertEqual(
-            get_entity_path('1234', ServiceColorEntity('chain', None, 'p2', False)),
-            '1234/service/chain/__default__/extracted/p2',
-        )
-
-        # template
-        self.assertEqual(
-            get_entity_path('qwerty', ServiceColorEntity('foo', 'bar', 'p4.json', True)),
-            'qwerty/service/foo/bar/template/p4.json',
-        )
-
-        # not template
-        self.assertEqual(
-            get_entity_path('1234', ServiceColorEntity('tuna', 'melt', 'p5', False)),
-            '1234/service/tuna/melt/extracted/p5',
-        )
-
-    def test_mk_path_namespace(self) -> None:
-        # Default namespace, template
-        self.assertEqual(
-            get_entity_path('abc', NamespaceEntity(None, 'p1.yaml', True)),
-            'abc/namespace/__default__/template/p1.yaml',
-        )
-
-        # Default service and color, not template
-        self.assertEqual(
-            get_entity_path('1234', NamespaceEntity(None, 'p2', False)),
-            '1234/namespace/__default__/extracted/p2',
-        )
-
-        # template
-        self.assertEqual(
-            get_entity_path('qwerty', NamespaceEntity('foo', 'p4.json', True)),
-            'qwerty/namespace/foo/template/p4.json',
-        )
-
-        # not template
-        self.assertEqual(
-            get_entity_path('1234', NamespaceEntity('melt', 'p5', False)),
-            '1234/namespace/melt/extracted/p5',
-        )
+            self.assertEqual(version, 'a3')
 
     def test_download_service_color(self) -> None:
         s3 = MockS3()
-        s3.mk_download('s3bucket', 'p/a3/v1a/service/s1/c1/template/p1', 'cc1')
+        # TODO use paths to generate the path.
+        s3.mk_download('s3bucket', 'p/a3/v1a/service/n1/s1/c1/p1', 'cc1')
         with s3:
             bk = S3Backend(S3EnvConfig().load({ENV_BUCKET: 's3bucket', ENV_BASE_PATH: 'p/a3'}))
             bk.client = s3.client
-            content = bk.download('v1a', ServiceColorEntity('s1', 'c1', 'p1', True))
+            content = bk.download('v1a', ServiceColorTemplateEntity('n1', 's1', 'c1', 'p1'))
             self.assertEqual(content, 'cc1')
 
-    def test_download_namespace(self) -> None:
+    def test_download_gateway(self) -> None:
         s3 = MockS3()
-        s3.mk_download('s3bucket', 'p/a4/1b/namespace/n1/extracted/p1.txt', 'cc1')
+        # TODO use paths to generate the path.
+        s3.mk_download('s3bucket', 'p/a4/1b/gateway/n1/public/p1.txt', 'cc1')
         with s3:
             bk = S3Backend(S3EnvConfig().load({ENV_BUCKET: 's3bucket', ENV_BASE_PATH: 'p/a4'}))
             bk.client = s3.client
-            content = bk.download('1b', NamespaceEntity('n1', 'p1.txt', False))
+            content = bk.download('1b', GatewayConfigEntity('n1', True, 'p1.txt'))
             self.assertEqual(content, 'cc1')
 
 

@@ -11,8 +11,12 @@ def main() -> None:
     admin_port = os.environ['ADMIN_PORT'].strip()
     listener_port = os.environ['LISTENER_PORT'].strip()
     namespace = os.environ.get('GATEWAY_NAMESPACE')
-    service = os.environ.get('SERVICE')
-    color = os.environ.get('COLOR')
+    service_id = os.environ.get('SERVICE_ID')
+    protection = os.environ.get('PUBLIC', 'NO')
+    if protection.strip().lower() in ('yes', 'active', 'public', 'on', 'enable', 'enabled', '1'):
+        is_public = True
+    else:
+        is_public = False
 
     backend_name = os.environ['DATASTORE'].strip().lower()
     if backend_name == 's3':
@@ -21,17 +25,17 @@ def main() -> None:
         raise Exception('Unknown DATASTORE: "{0}"'.format(backend_name))
 
     if namespace:
-        if service or color:
+        if service_id:
             raise ValueError('Must specify GATEWAY_NAMESPACE or (SERVICE and COLOR), not both.')
         process_namespace(
-            namespace.strip(),
-            backend, admin_port, listener_port, envoy_bootstrap_file, out_dir
+            namespace.strip(),is_public,
+            backend, admin_port, listener_port, out_dir,
         )
-    elif service and color:
+    elif service_id:
         # above if shows that namespace not given, so don't need to check.
         process_service_color(
-            service.strip(), color.strip(),
-            backend, admin_port, listener_port, envoy_bootstrap_file, out_dir
+            service_id.strip(),
+            backend, admin_port, listener_port, out_dir
         )
     else:
         raise ValueError('Must specify one of GATEWAY_NAMESPACE or (SERVICE and COLOR).')

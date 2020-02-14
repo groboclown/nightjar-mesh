@@ -9,15 +9,22 @@ import boto3
 from botocore.config import Config  # type: ignore
 
 from .config import S3EnvConfig
+from . import paths
+from .. import ConfigEntity
 from ..abc_backend import (
-    AbcDataStoreBackend, ServiceColorEntity, NamespaceEntity, Entity,
+    AbcDataStoreBackend,
+    Entity,
     SUPPORTED_ACTIVITIES,
+    ACTIVITY_TEMPLATE_DEFINITION,
+    ACTIVITY_PROXY_CONFIGURATION,
+    ServiceIdConfigEntity,
+    ServiceColorTemplateEntity,
+    GatewayConfigEntity,
+    NamespaceTemplateEntity,
+    TemplateEntity
 )
 from ...msg import note, debug
 
-DEFAULT_SERVICE_NAME = '__default__'
-DEFAULT_COLOR_NAME = '__default__'
-DEFAULT_NAMESPACE_NAME = '__default__'
 MAX_CONTENT_SIZE = 4 * 1024 * 1024  # 4 MB
 
 # Matches namespace, activity, purpose
@@ -32,19 +39,20 @@ SERVICE_COLOR_PATH_RE = re.compile(r'/service/([^/]+)/([^/]+)/([^/]+)/(.*)$')
 class ProcessingVersion:
     count = 0
     uploaded_data: Dict[str, Tuple[Entity, bytes]]
-    __slots__ = ('name', 'activity', 'uploaded_data')
+    __slots__ = ('name', 'activity', 'uploaded_data', 'config')
 
-    def __init__(self, activity: str) -> None:
+    def __init__(self, config: S3EnvConfig, activity: str) -> None:
         # This isn't thread safe, but additionally this shouldn't be run in multiple threads.
         self.name = '{0}-{1}'.format(activity, ProcessingVersion.count)
         self.activity = activity
+        self.config = config
         ProcessingVersion.count += 1
         self.uploaded_data = {}
 
     def add_entity(self, entity: Entity, contents: str) -> None:
         data = contents.encode('utf-8')
         assert len(data) < MAX_CONTENT_SIZE
-        self.uploaded_data[get_entity_path('', entity)] = (entity, data)
+        self.uploaded_data[paths.get_entity_path(self.config, self.name, entity)] = (entity, data)
 
     def get_final_version_name(self) -> str:
         hashing = hashlib.md5()
@@ -53,8 +61,8 @@ class ProcessingVersion:
         for key in keys:
             hashing.update(self.uploaded_data[key][1])
         now = datetime.datetime.now(datetime.timezone.utc)
-        return "{a}/{y:04d}{mo:02d}{d:02d}{hr:02d}{mi:02d}{s:02d}-{hs}".format(
-            a=self.activity, hs=hashing.hexdigest(),
+        return "{y:04d}{mo:02d}{d:02d}{hr:02d}{mi:02d}{s:02d}-{hs}".format(
+            hs=hashing.hexdigest(),
             y=now.year, mo=now.month, d=now.day, hr=now.hour, mi=now.minute, s=now.second,
         )
 
@@ -77,6 +85,7 @@ class S3Backend(AbcDataStoreBackend):
     - service/color entities: the files are stored under the path
       '(version)/service/(service)/(color)/(template or extracted)/(purpose)'.
     """
+
     active_versions: Dict[str, ProcessingVersion]
     client: Optional[Any]  # mypy_boto3.s3.S3Client
 
@@ -103,88 +112,104 @@ class S3Backend(AbcDataStoreBackend):
         if activity not in SUPPORTED_ACTIVITIES:
             raise ValueError('invalid activity {0}; valid values are {1}'.format(activity, SUPPORTED_ACTIVITIES))
         most_recent: Optional[datetime.datetime] = None
-        active_key: str = 'first'
-        for key, last_modified in self._get_versions(activity):
+        active_version: str = activity + '-first'
+        for version, last_modified in self._get_versions(activity):
             if not most_recent or last_modified > most_recent:
-                active_key = key
+                active_version = version
                 most_recent = last_modified
-        return active_key
+        return active_version
+
+    def get_template_entities(self, version: str) -> Iterable[TemplateEntity]:
+        for key, _ in self._list_entries(paths.get_activity_prefix(self.config, version, ACTIVITY_TEMPLATE_DEFINITION)):
+            entity = paths.parse_template_path(self.config, version, key)
+            if entity:
+                yield entity
+
+    def get_config_entities(self, version: str) -> Iterable[ConfigEntity]:
+        for key, _ in self._list_entries(paths.get_activity_prefix(self.config, version, ACTIVITY_PROXY_CONFIGURATION)):
+            entity = paths.parse_config_path(self.config, version, key)
+            if entity:
+                yield entity
+
+    def get_namespace_template_entities(
+            self, version: str, namespace: Optional[str] = None,
+            is_public: Optional[bool] = None,
+            purpose: Optional[str] = None
+    ) -> Iterable[NamespaceTemplateEntity]:
+        for key, _ in self._list_entries(paths.get_namespace_template_prefix(self.config, version)):
+            ns = paths.parse_namespace_template_path(self.config, version, key)
+            if not ns:
+                continue
+            if (
+                    (namespace is None or namespace == ns.namespace)
+                    and (is_public is None or is_public == ns.is_public)
+                    and (purpose is None or purpose == ns.purpose)
+            ):
+                yield ns
+
+    def get_gateway_config_entities(
+            self, version: str, namespace: Optional[str] = None,
+            is_public: Optional[bool] = None, purpose: Optional[str] = None
+    ) -> Iterable[GatewayConfigEntity]:
+        for key, _ in self._list_entries(paths.get_gateway_config_prefix(self.config, version)):
+            gc = paths.parse_gateway_config_path(self. config, version, key)
+            if not gc:
+                continue
+            if (
+                    (namespace is None or namespace == gc.namespace_id)
+                    and (is_public is None or is_public == gc.is_public)
+                    and (purpose is None or purpose == gc.purpose)
+            ):
+                yield gc
+
+    def get_service_color_template_entities(
+            self,
+            version: str,
+            namespace: Optional[str] = None,
+            service: Optional[str] = None,
+            color: Optional[str] = None,
+            purpose: Optional[str] = None,
+    ) -> Iterable[ServiceColorTemplateEntity]:
+        for key, _ in self._list_entries(paths.get_service_color_template_prefix(self.config, version)):
+            sc = paths.parse_service_color_template_path(self.config, version, key)
+            if not sc:
+                continue
+            if (
+                    (namespace is None or namespace == sc.namespace)
+                    and (service is None or service == sc.service)
+                    and (color is None or color == sc.color)
+                    and (purpose is None or purpose == sc.purpose)
+            ):
+                yield sc
+
+    def get_service_id_config_entities(
+            self,
+            version: str,
+            namespace_id: Optional[str] = None,
+            service_id: Optional[str] = None,
+            service: Optional[str] = None,
+            color: Optional[str] = None,
+            purpose: Optional[str] = None,
+    ) -> Iterable[ServiceIdConfigEntity]:
+        for key, _ in self._list_entries(paths.get_service_id_config_prefix(self.config, version)):
+            sc = paths.parse_service_id_config_path(self.config, version, key)
+            if not sc:
+                debug('Skipped item {s}', s=key)
+                continue
+            if (
+                    (namespace_id is None or namespace_id == sc.namespace_id)
+                    and (service_id is None or service_id == sc.service_id)
+                    and (service is None or service == sc.service)
+                    and (color is None or color == sc.color)
+                    and (purpose is None or purpose == sc.purpose)
+            ):
+                yield sc
+            else:
+                debug('Not match: {s}', s=sc)
 
     def download(self, version: str, entity: Entity) -> str:
-        path = get_entity_path(version, entity)
+        path = paths.get_entity_path(self.config, version, entity)
         return self._download(path)
-
-    def get_namespace_entities(
-            self, version: str, namespace: Optional[str] = None, purpose: Optional[str] = None,
-            is_template: Optional[bool] = None
-    ) -> Iterable[NamespaceEntity]:
-        prefix = '{0}/namespace'.format(version)
-        if namespace:
-            # We can add the namespace to our search qualification.
-            prefix += '/' + namespace
-            if is_template is not None:
-                # We can only add is-template if namespace is also specified.
-                prefix += '/' + ('template' if is_template else 'extracted')
-                # We can only add purpose if namespace and is_template are also specified.
-                if purpose:
-                    prefix += '/' + purpose
-        debug(
-            "Searching for namespace entities ({n}, {p}, {t}) with prefix {x}/",
-            n=namespace, p=purpose, t=is_template, x=prefix
-        )
-        for path, when in self._list_entries(prefix + '/'):
-            # Because the match does not require matching everything at the start, this uses "search".
-            match = NAMESPACE_PATH_RE.search(path)
-            if match:
-                m_namespace: Optional[str] = match.group(1)
-                if m_namespace == DEFAULT_NAMESPACE_NAME:
-                    m_namespace = None
-                # We're searching, so if namespace is None, then we want all the namespace templates.
-                if namespace is None or namespace == m_namespace:
-                    m_activity = match.group(2)
-                    m_is_template = m_activity == 'template'
-                    if is_template is None or is_template == m_is_template:
-                        m_purpose = match.group(3)
-                        if purpose is None or purpose == m_purpose:
-                            yield NamespaceEntity(m_namespace, m_purpose, m_is_template)
-            else:
-                debug("no match for object {p}", p=path)
-
-    def get_service_color_entities(
-            self, version: str, service: Optional[str] = None, color: Optional[str] = None,
-            purpose: Optional[str] = None, is_template: Optional[bool] = None
-    ) -> Iterable[ServiceColorEntity]:
-        prefix = '{0}/service'.format(version)
-        if service:
-            # We can add the service to our search qualification.
-            prefix += '/' + service
-            if color is not None:
-                # We can only add the color if service is also specified.
-                prefix += '/' + color
-                if is_template is not None:
-                    # We can only add is-template if service and color are also specified.
-                    prefix += '/' + ('template' if is_template else 'extracted')
-                    # We can only add purpose if service, color, and is_template are also specified.
-                    if purpose:
-                        prefix += '/' + purpose
-        for path, when in self._list_entries(prefix):
-            # Because the match does not require matching everything at the start, this uses "search".
-            match = SERVICE_COLOR_PATH_RE.search(path)
-            if match:
-                m_service: Optional[str] = match.group(1)
-                if m_service == DEFAULT_SERVICE_NAME:
-                    m_service = None
-                if service is None or service == m_service:
-                    m_color: Optional[str] = match.group(2)
-                    if m_color == DEFAULT_COLOR_NAME:
-                        m_color = None
-                    if color is None or color == m_color:
-                        m_activity = match.group(3)
-                        m_is_template = m_activity == 'template'
-                        if is_template is None or is_template == m_is_template:
-                            m_purpose = match.group(4)
-                            if purpose is None or purpose == m_purpose:
-                                yield ServiceColorEntity(m_service, m_color, m_purpose, m_is_template)
 
     # -----------------------------------------------------------------------
     # Write Actions
@@ -192,7 +217,7 @@ class S3Backend(AbcDataStoreBackend):
     def start_changes(self, activity: str) -> str:
         if activity not in SUPPORTED_ACTIVITIES:
             raise ValueError('invalid activity {0}; valid values are {1}'.format(activity, SUPPORTED_ACTIVITIES))
-        version = ProcessingVersion(activity)
+        version = ProcessingVersion(self.config, activity)
         self.active_versions[version.name] = version
         return version.name
 
@@ -212,14 +237,14 @@ class S3Backend(AbcDataStoreBackend):
         uploaded_paths = []
         try:
             for entity, data in activity_version.uploaded_data.values():
-                path = get_entity_path(final_version, entity)
+                path = paths.get_entity_path(self.config, final_version, entity)
                 self._upload(path, data)
                 uploaded_paths.append(path)
             self._upload(
-                'version/{0}'.format(final_version),
+                paths.get_version_reference_path(self.config, activity_version.activity, final_version),
                 final_version.encode('utf-8')
             )
-        except Exception as err:
+        except Exception:
             self._delete(uploaded_paths)
             raise
 
@@ -248,11 +273,10 @@ class S3Backend(AbcDataStoreBackend):
     # Support
 
     def _get_versions(self, activity: str) -> Iterable[Tuple[str, datetime.datetime]]:
-        for key, when in self._list_entries('version/{0}/'.format(activity)):
-            if '/' in key:
-                key = key[key.rindex('/') + 1:]
-                if key:
-                    yield activity + '/' + key, when
+        for key, when in self._list_entries(paths.get_version_reference_prefix(self.config, activity)):
+            version = paths.parse_version_reference_path(self.config, activity, key)
+            if version:
+                yield version, when
 
     def _clean_old_versions(
             self, activity: str,
@@ -267,21 +291,21 @@ class S3Backend(AbcDataStoreBackend):
         for version, when in self._get_versions(activity):
             if version not in do_not_remove_versions and when < older_than:
                 note('Removing old activity {a} version {v}', a=activity, v=version)
-                to_delete = [d[0] for d in self._list_entries(version + '/')]
-                # version string includes the activity...
-                to_delete.append('version/{0}'.format(version))
+                to_delete = [
+                    d[0]
+                    for d in self._list_entries(paths.get_activity_prefix(self.config, version, activity))
+                ]
+                # don't forget the reference to this version!
+                to_delete.append(paths.get_version_reference_path(self.config, activity, version))
                 self._delete(to_delete)
 
     def _list_entries(self, path: str) -> Iterable[Tuple[str, datetime.datetime]]:
-        while path[0] == '/':
-            path = path[1:]
-        full_path = self.config.base_path + '/' + path
-        debug("Listing entries under {p}", p=full_path)
+        debug("Listing entries under {p}", p=path)
         paginator = self.get_client().get_paginator('list_objects_v2')
         response_iterator = paginator.paginate(
             Bucket=self.config.bucket,
             EncodingType='url',
-            Prefix=full_path,
+            Prefix=path,
             FetchOwner=False,
         )
         for page in response_iterator:
@@ -298,48 +322,26 @@ class S3Backend(AbcDataStoreBackend):
         # Shouldn't be necessary due to the construction of the path argument... this is defensive coding.
         while path[0] == '/':
             path = path[1:]
-        full_path = self.config.base_path + '/' + path
-        print("Uploading {0}".format(full_path))
+        print("Uploading {0}".format(path))
         inp = io.BytesIO(contents)
-        self.get_client().upload_fileobj(inp, self.config.bucket, full_path)
+        self.get_client().upload_fileobj(inp, self.config.bucket, path)
 
     def _download(self, path: str) -> str:
         # Shouldn't be necessary due to the construction of the path argument... this is defensive coding.
         while path[0] == '/':
             path = path[1:]
         out = io.BytesIO()
-        self.get_client().download_fileobj(self.config.bucket, self.config.base_path + '/' + path, out)
+        self.get_client().download_fileobj(self.config.bucket, path, out)
         return out.getvalue().decode('utf-8')
 
-    def _delete(self, paths: List[str]) -> None:
-        if len(paths) <= 0:
+    def _delete(self, keys: List[str]) -> None:
+        if len(keys) <= 0:
             return
-        if len(paths) > 1000:
+        if len(keys) > 1000:
             raise Exception("Cannot handle > 1000 paths right now.")
-        keys = []
-        for path in paths:
-            if path[0] == '/':
-                keys.append(path)
-            else:
-                keys.append(self.config.base_path + '/' + path)
         self.get_client().delete_objects(
             Bucket=self.config.bucket,
             Delete={
                 'Objects': [{'Key': p} for p in keys]
             }
         )
-
-
-def get_entity_path(version: str, entity: Entity) -> str:
-    if isinstance(entity, ServiceColorEntity):
-        return '{0}/service/{1}/{2}/{3}/{4}'.format(
-            version, entity.service or DEFAULT_SERVICE_NAME, entity.color or DEFAULT_COLOR_NAME,
-            'template' if entity.is_template else 'extracted',
-            entity.purpose
-        )
-    assert isinstance(entity, NamespaceEntity)
-    return '{0}/namespace/{1}/{2}/{3}'.format(
-        version, entity.namespace or DEFAULT_NAMESPACE_NAME,
-        'template' if entity.is_template else 'extracted',
-        entity.purpose
-    )

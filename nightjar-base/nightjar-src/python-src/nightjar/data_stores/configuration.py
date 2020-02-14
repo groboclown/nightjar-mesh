@@ -2,9 +2,9 @@
 from typing import Iterable, Optional
 from .abc_backend import (
     AbcDataStoreBackend,
-    Entity,
-    NamespaceEntity,
-    ServiceColorEntity,
+    ConfigEntity,
+    GatewayConfigEntity,
+    ServiceIdConfigEntity,
     ACTIVITY_PROXY_CONFIGURATION,
 )
 
@@ -29,19 +29,24 @@ class ConfigurationReaderDataStore:
         # Because this is read-only access, there is no special rollback or commit behavior.
         self.__version = None
 
-    def list_service_color_entities(self) -> Iterable[ServiceColorEntity]:
+    def list_config_entities(self) -> Iterable[ConfigEntity]:
+        """Find all the configuration (non-tempalate) entities for the currently active version."""
+        assert self.__version is not None
+        return self.backend.get_config_entities(self.__version)
+
+    def list_service_id_config_entities(self) -> Iterable[ServiceIdConfigEntity]:
         """Find all service/color content (non-template) entities for the currently active version."""
         assert self.__version is not None
-        return self.backend.get_service_color_entities(self.__version, None, None, None, False)
+        return self.backend.get_service_id_config_entities(self.__version)
 
-    def list_namespace_entities(self) -> Iterable[NamespaceEntity]:
+    def list_gateway_config_entities(self) -> Iterable[GatewayConfigEntity]:
         """
         Find all the namespace content (non-template) entities for the currently active version.
         """
         assert self.__version is not None
-        return self.backend.get_namespace_entities(self.__version, None, None, False)
+        return self.backend.get_gateway_config_entities(self.__version)
 
-    def download_entity_content(self, entity: Entity) -> Optional[str]:
+    def download_entity_content(self, entity: ConfigEntity) -> Optional[str]:
         assert self.__version is not None
         return self.backend.download(self.__version, entity)
 
@@ -82,32 +87,31 @@ class ConfigurationWriterDataStore:
         self.backend.rollback_changes(self.__version)
         self.__version = None
 
-    def set_service_color_purpose_contents(self, service: str, color: str, purpose: str, contents: str) -> None:
+    def set_service_id_config_contents(
+            self, _namespace_id: str, service_id: str, service: str, color: str, purpose: str, contents: str
+    ) -> None:
         """
         The service/color purpose's file contents.
 
-        This is a non-template file, used directly by the
-        envoy proxy servers.  Because this is exact, the service and color cannot be None (only templates
-        can use that).
+        This is a configured file, used directly by the envoy proxy servers.
         """
         assert self.__version is not None
-        self.backend.upload(self.__version, ServiceColorEntity(service, color, purpose, False), contents)
+        self.backend.upload(
+            self.__version, ServiceIdConfigEntity(_namespace_id, service_id, service, color, purpose), contents
+        )
 
-    def set_namespace_purpose_contents(self, namespace: str, purpose: str, contents: str) -> None:
+    def set_gateway_config_contents(self, namespace_id: str, is_public: bool, purpose: str, contents: str) -> None:
         """
         The namespace's purpose's file contents.
 
-        This is a non-template file, used directly by the
-        envoy proxy servers.  Because this is exact, the service and color cannot be None (only templates
-        can use that).
+        This is a configured file, used directly by the envoy proxy servers.
         """
         assert self.__version is not None
-        self.backend.upload(self.__version, NamespaceEntity(namespace, purpose, False), contents)
+        self.backend.upload(self.__version, GatewayConfigEntity(namespace_id, is_public, purpose), contents)
 
-    def set_entity_contents(self, entity: Entity, contents: str) -> None:
+    def set_entity_contents(self, entity: ConfigEntity, contents: str) -> None:
         """
         Set an entity's file contents.  The entity must not be a template.
         """
-        assert entity.is_template is False
         assert self.__version is not None
         self.backend.upload(self.__version, entity, contents)

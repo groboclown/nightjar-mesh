@@ -1,0 +1,198 @@
+
+"""
+Manage the reading and writing of local files.
+"""
+
+from typing import Iterable, Tuple, Dict, Optional, Any
+import os
+import json
+from ...data_stores import (
+    GatewayConfigEntity,
+    ServiceIdConfigEntity,
+    TemplateEntity,
+    NamespaceTemplateEntity,
+    as_namespace_template_entity,
+    ServiceColorTemplateEntity,
+    as_service_color_template_entity,
+)
+from ...msg import warn
+
+TEMPLATE_DESCRIPTION_FILENAME = 'templates.json'
+CONFIG_DESCRIPTION_FILENAME = 'configured.json'
+
+
+def find_templates(src_dir: str) -> Iterable[Tuple[TemplateEntity, str]]:
+    """
+    Searches the source directory for child directories that contain the template description file.
+    """
+    if not os.path.isdir(src_dir):
+        warn("Not a directory: {s}", s=src_dir)
+        return []
+    for name in os.listdir(src_dir):
+        if name.startswith('.'):
+            continue
+        dir_name = os.path.join(src_dir, name)
+        if not os.path.isdir(dir_name):
+            continue
+        description_filename = os.path.join(dir_name, TEMPLATE_DESCRIPTION_FILENAME)
+        if not os.path.isfile(description_filename):
+            continue
+        base_entity = read_template_description(description_filename)
+        if not base_entity:
+            warn('Invalid template description file: {f}', f=description_filename)
+            continue
+        for res in collect_template_files(base_entity, dir_name):
+            yield res
+
+
+def collect_template_files(base_entity: TemplateEntity, directory: str) -> Iterable[Tuple[TemplateEntity, str]]:
+    ns = as_namespace_template_entity(base_entity)
+    sc = as_service_color_template_entity(base_entity)
+    assert ns or sc
+    for name in os.listdir(directory):
+        if name.startswith('.') or name == TEMPLATE_DESCRIPTION_FILENAME:
+            continue
+        filename = os.path.join(directory, name)
+        if not os.path.isfile(filename):
+            continue
+        with open(filename, 'r') as f:
+            contents = f.read()
+        if ns:
+            yield NamespaceTemplateEntity(ns.namespace, ns.is_public, name), contents
+        if sc:
+            yield ServiceColorTemplateEntity(sc.namespace, sc.service, sc.color, name), contents
+
+
+def write_namespace_template_entity(base_dir: str, entity: NamespaceTemplateEntity, contents: str) -> None:
+    sub_dir_name = 'namespace-{n}-{p}'.format(
+        n=entity.namespace or 'default',
+        p=get_protection_part_name(entity.is_public)
+    )
+    out_dir = os.path.join(base_dir, sub_dir_name)
+    os.makedirs(out_dir, exist_ok=True)
+    description_file = os.path.join(out_dir, CONFIG_DESCRIPTION_FILENAME)
+    if not os.path.exists(description_file):
+        with open(description_file, 'w') as f:
+            json.dump({
+                "type": "namespace",
+                "namespace": entity.namespace,
+                "is_public": entity.is_public,
+            }, f)
+    content_file = os.path.join(out_dir, entity.purpose)
+    with open(content_file, 'w') as f:
+        f.write(contents)
+
+
+def write_gateway_config_entity(base_dir: str, entity: GatewayConfigEntity, contents: str) -> None:
+    sub_dir_name = 'gateway-{n}-{p}'.format(n=entity.namespace_id, p=get_protection_part_name(entity.is_public))
+    out_dir = os.path.join(base_dir, sub_dir_name)
+    os.makedirs(out_dir, exist_ok=True)
+    description_file = os.path.join(out_dir, CONFIG_DESCRIPTION_FILENAME)
+    if not os.path.exists(description_file):
+        with open(description_file, 'w') as f:
+            json.dump({
+                "type": "gateway",
+                "namespace_id": entity.namespace_id,
+                "is_public": entity.is_public,
+            }, f)
+    content_file = os.path.join(out_dir, entity.purpose)
+    with open(content_file, 'w') as f:
+        f.write(contents)
+
+
+def write_service_id_config_entity(base_dir: str, entity: ServiceIdConfigEntity, contents: str) -> None:
+    sub_dir_name = 'service_id-{n}-{sid}-{s}-{c}'.format(
+        n=entity.namespace_id, sid=entity.service_id,
+        s=entity.service, c=entity.color,
+    )
+    out_dir = os.path.join(base_dir, sub_dir_name)
+    os.makedirs(out_dir, exist_ok=True)
+    description_file = os.path.join(out_dir, CONFIG_DESCRIPTION_FILENAME)
+    if not os.path.exists(description_file):
+        with open(description_file, 'w') as f:
+            json.dump({
+                "type": "service-id",
+                "namespace_id": entity.namespace_id,
+                "service_id": entity.service_id,
+                "service": entity.service,
+                "color": entity.color,
+            }, f)
+    content_file = os.path.join(out_dir, entity.purpose)
+    with open(content_file, 'w') as f:
+        f.write(contents)
+
+
+def write_service_color_template_entity(base_dir: str, entity: ServiceColorTemplateEntity, contents: str) -> None:
+    sub_dir_name = 'service-{n}-{s}-{c}'.format(
+        n=entity.namespace or 'default',
+        s=entity.service or 'default', c=entity.color or 'default',
+    )
+    out_dir = os.path.join(base_dir, sub_dir_name)
+    os.makedirs(out_dir, exist_ok=True)
+    description_file = os.path.join(out_dir, CONFIG_DESCRIPTION_FILENAME)
+    if not os.path.exists(description_file):
+        with open(description_file, 'w') as f:
+            json.dump({
+                "type": "service-color",
+                "namespace": entity.namespace,
+                "service": entity.service,
+                "color": entity.color,
+            }, f)
+    content_file = os.path.join(out_dir, entity.purpose)
+    with open(content_file, 'w') as f:
+        f.write(contents)
+
+
+def read_template_description(filename: str) -> Optional[TemplateEntity]:
+    """
+    Reads the template description file, and returns None if it isn't valid, or a template entity
+    (with the purpose left blank) if it is.
+    """
+    with open(filename, 'r') as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        warn('template descriptor must be a JSon formatted dictionary: {f}', f=filename)
+        return None
+
+    template_type = data.get('type')
+    namespace = data.get('namespace', data.get('namespace-id', data.get('namespace_id', None)))
+    is_public = parse_protection(data)
+    service = data.get('service', None)
+    color = data.get('color', None)
+    if template_type in ('namespace', 'gateway'):
+        return NamespaceTemplateEntity(namespace, is_public, '')
+    elif template_type in ('service', 'service-color', 'service_color', 'service/color'):
+        return ServiceColorTemplateEntity(namespace, service, color, '')
+    else:
+        warn('Unsupported template type: {t}', t=template_type)
+        return None
+
+
+def parse_protection(data: Dict[str, Any]) -> Optional[bool]:
+    protection = data.get('protection', None)
+    is_public = data.get('is-public', data.get('is_public', None))
+    if protection is None and is_public is None:
+        return None
+    if protection == 'default' or is_public == 'default':
+        return None
+    if protection == 'public':
+        return True
+    if protection == 'private':
+        return False
+    if is_public is True:
+        return True
+    if is_public is False:
+        return False
+    if protection is not None:
+        warn('Unknown value for `protection`: {p}', p=protection)
+    if is_public is not None:
+        warn('Unknown value for `is-public`: {p}', p=is_public)
+    return None
+
+
+def get_protection_part_name(is_public: Optional[bool]) -> str:
+    if is_public is True:
+        return 'public'
+    if is_public is False:
+        return 'private'
+    return 'default'

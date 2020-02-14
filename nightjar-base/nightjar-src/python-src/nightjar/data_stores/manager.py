@@ -2,61 +2,87 @@
 from typing import Iterable, Optional
 from .abc_backend import (
     AbcDataStoreBackend,
-    ServiceColorEntity,
-    NamespaceEntity,
+    ConfigEntity,
+    TemplateEntity,
+    NamespaceTemplateEntity,
+    as_namespace_template_entity,
+    ServiceColorTemplateEntity,
+    as_service_color_template_entity,
+    GatewayConfigEntity,
+    ServiceIdConfigEntity,
     ACTIVITY_TEMPLATE_DEFINITION,
+    ACTIVITY_PROXY_CONFIGURATION,
 )
 
 
 class ManagerReadDataStore:
     """
     API used by tools that need to read the envoy templates used to construct the envoy files.
-
-    TODO should this be replaced with the CollectorDataStore?
     """
-    def __init__(self, backend: AbcDataStoreBackend, version: Optional[str] = None) -> None:
-        self.__version = version or backend.get_active_version(ACTIVITY_TEMPLATE_DEFINITION)
+    __template_version: Optional[str]
+    __config_version: Optional[str]
+
+    def __init__(
+            self,
+            backend: AbcDataStoreBackend,
+            template_version: Optional[str] = None,
+            config_version: Optional[str] = None,
+    ) -> None:
+        self.__template_version = template_version
+        self.__fixed_template_version = template_version is not None
+        self.__config_version = config_version
+        self.__fixed_config_version = config_version is not None
         self.backend = backend
 
-    def get_service_color_template(
-            self,
-            service: Optional[str], color: Optional[str],
-            purpose: str,
-    ) -> Optional[str]:
-        for entity in self.backend.get_service_color_entities(
-                version=self.__version,
-                service=service,
-                color=color,
-                purpose=purpose,
-                is_template=True
+    # For consistency in the API, this also has an enter/exit.
+    def __enter__(self) -> 'ManagerReadDataStore':
+        if (
+                (not self.__fixed_config_version and self.__config_version)
+                or (not self.__fixed_template_version and self.__template_version)
         ):
-            return self.backend.download(version=self.__version, entity=entity)
-        # Not found
-        return None
+            raise RuntimeError("Already running inside a context.")
+        if not self.__fixed_template_version:
+            self.__template_version = self.backend.get_active_version(ACTIVITY_TEMPLATE_DEFINITION)
+        if not self.__fixed_config_version:
+            self.__config_version = self.backend.get_active_version(ACTIVITY_PROXY_CONFIGURATION)
+        return self
 
-    def get_namespace_template(
-            self,
-            namespace: Optional[str],
-            purpose: str,
-    ) -> Optional[str]:
-        for entity in self.backend.get_namespace_entities(
-                version=self.__version,
-                namespace=namespace,
-                purpose=purpose,
-                is_template=True
-        ):
-            return self.backend.download(version=self.__version, entity=entity)
-        # Not found
-        return None
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore
+        if not self.__fixed_template_version:
+            self.__template_version = None
+        if not self.__fixed_config_version:
+            self.__config_version = None
 
-    def get_service_color_templates(self) -> Iterable[ServiceColorEntity]:
-        return self.backend.get_service_color_entities(version=self.__version, is_template=True)
+    def get_template(self, entity: TemplateEntity) -> Optional[str]:
+        assert self.__template_version
+        return self.backend.download(version=self.__template_version, entity=entity)
 
-    def get_namespace_templates(self) -> Iterable[NamespaceEntity]:
-        return self.backend.get_namespace_entities(version=self.__version, is_template=True)
+    def get_generated_file(self, entity: ConfigEntity) -> Optional[str]:
+        assert self.__config_version
+        return self.backend.download(version=self.__config_version, entity=entity)
+
+    def get_service_color_templates(self) -> Iterable[ServiceColorTemplateEntity]:
+        assert self.__template_version
+        return self.backend.get_service_color_template_entities(version=self.__template_version)
+
+    def get_namespace_templates(self) -> Iterable[NamespaceTemplateEntity]:
+        assert self.__template_version
+        return self.backend.get_namespace_template_entities(version=self.__template_version)
+
+    def get_generated_files(self) -> Iterable[ConfigEntity]:
+        assert self.__config_version
+        return self.backend.get_config_entities(version=self.__config_version)
+
+    def get_service_id_generated_files(self) -> Iterable[ServiceIdConfigEntity]:
+        assert self.__config_version
+        return self.backend.get_service_id_config_entities(version=self.__config_version)
+
+    def get_gateway_generated_files(self) -> Iterable[GatewayConfigEntity]:
+        assert self.__config_version
+        return self.backend.get_gateway_config_entities(version=self.__config_version)
 
 
-class ManagerDataStore:
+class ManagerWriteDataStore:
     """
     API used by tools that need to read and write the envoy templates used to construct the envoy files.
     """
@@ -66,7 +92,7 @@ class ManagerDataStore:
         self.__version = None
         self.backend = backend
 
-    def __enter__(self) -> 'ManagerDataStore':
+    def __enter__(self) -> 'ManagerWriteDataStore':
         assert self.__version is None
         self.__version = self.backend.start_changes(ACTIVITY_TEMPLATE_DEFINITION)
         return self
@@ -80,9 +106,18 @@ class ManagerDataStore:
             self.backend.commit_changes(self.__version)
         self.__version = None
 
+    def set_template(self, entity: TemplateEntity, contents: str) -> None:
+        ns = as_namespace_template_entity(entity)
+        if ns:
+            self.set_namespace_template(ns.namespace, ns.is_public, ns.purpose, contents)
+            return
+        sc = as_service_color_template_entity(entity)
+        assert sc
+        self.set_service_color_template(sc.namespace, sc.service, sc.color, sc.purpose, contents)
+
     def set_service_color_template(
             self,
-            service: Optional[str], color: Optional[str],
+            namespace_id: Optional[str], service: Optional[str], color: Optional[str],
             purpose: str, contents: str,
     ) -> None:
         """
@@ -96,12 +131,21 @@ class ManagerDataStore:
         if not service and color:
             raise ValueError('To specify color, the service must also be specified.')
         assert self.__version is not None
-        self.backend.upload(self.__version, ServiceColorEntity(service, color, purpose, True), contents)
+        self.backend.upload(
+            self.__version,
+            ServiceColorTemplateEntity(namespace_id, service, color, purpose),
+            contents
+        )
 
     def set_namespace_template(
             self,
             namespace: Optional[str],
+            is_public: Optional[bool],
             purpose: str, contents: str,
     ) -> None:
         assert self.__version is not None
-        self.backend.upload(self.__version, NamespaceEntity(namespace, purpose, True), contents)
+        self.backend.upload(
+            self.__version,
+            NamespaceTemplateEntity(namespace, is_public, purpose),
+            contents
+        )
