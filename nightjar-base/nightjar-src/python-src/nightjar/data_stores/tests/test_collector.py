@@ -11,8 +11,8 @@ from ..abc_backend import (
 class TestCollectorDataStore(unittest.TestCase):
     def test_init(self) -> None:
         mock = MockBackend()
-        collector.CollectorDataStore(mock)
-        self.assertEqual(mock.active_versions, set(ACTIVITY_TEMPLATE_DEFINITION))
+        with collector.CollectorDataStore(mock):
+            self.assertEqual(mock.active_versions, {ACTIVITY_TEMPLATE_DEFINITION})
 
     def test_get_service_color_templates_with_defaults(self) -> None:
         mock = MockBackend()
@@ -30,40 +30,41 @@ class TestCollectorDataStore(unittest.TestCase):
         y4 = ServiceColorTemplateEntity('n', 's2', 'c3', 'p2')
         mock.service_color_entities[y4] = 'y4'
 
-        # Exact match
-        ret1 = list(cds.get_service_color_templates([('n', 'si1', 's1', 'c1')]))
-        self.assertEqual(
-            ret1,
-            [
-                collector.MatchedServiceColorTemplate('n', 'si1', 's1', 'c1', x2),
-            ]
-        )
+        with cds:
+            # Exact match
+            ret1 = list(cds.get_service_color_templates([('n', 'si1', 's1', 'c1')]))
+            self.assertEqual(
+                ret1,
+                [
+                    (collector.MatchedServiceColorTemplate('n', 'si1', 's1', 'c1', x2), 'x2'),
+                ]
+            )
 
-        # Partial match
-        ret2 = list(cds.get_service_color_templates([('n', 'si2', 's1', 'c2')]))
-        self.assertEqual(
-            ret2,
-            [
-                collector.MatchedServiceColorTemplate('n', 'si2', 's1', 'c2', x1),
-            ]
-        )
+            # Partial match
+            ret2 = list(cds.get_service_color_templates([('n', 'si2', 's1', 'c2')]))
+            self.assertEqual(
+                ret2,
+                [
+                    (collector.MatchedServiceColorTemplate('n', 'si2', 's1', 'c2', x1), 'x1'),
+                ]
+            )
 
-        # Default/default match
-        ret3 = list(cds.get_service_color_templates([('n', 'si3', 'x1', 'c2')]))
-        self.assertEqual(
-            ret3,
-            [
-                collector.MatchedServiceColorTemplate('n', 'si3', 'x1', 'c2', x0),
-            ]
-        )
+            # Default/default match
+            ret3 = list(cds.get_service_color_templates([('n', 'si3', 'x1', 'c2')]))
+            self.assertEqual(
+                ret3,
+                [
+                    (collector.MatchedServiceColorTemplate('n', 'si3', 'x1', 'c2', x0), 'x0'),
+                ]
+            )
 
-        # Multiple purpose matches
-        ret4 = set(cds.get_service_color_templates([('n', 'si4', 's2', 'c3')]))
-        self.assertEqual(
-            ret4,
-            {
-                collector.MatchedServiceColorTemplate('n', 'si4', 's2', 'c3', x0),
-                collector.MatchedServiceColorTemplate('n', 'si4', 's2', 'c3', y3),
-                collector.MatchedServiceColorTemplate('n', 'si4', 's2', 'c3', y4),
-            }
-        )
+            # Multiple purpose matches
+            ret4 = set(cds.get_service_color_templates([('n', 'si4', 's2', 'c3')]))
+            self.assertEqual(
+                ret4,
+                {
+                    (collector.MatchedServiceColorTemplate('n', 'si4', 's2', 'c3', x0), 'x0'),
+                    (collector.MatchedServiceColorTemplate('n', 'si4', 's2', 'c3', y3), 'y3'),
+                    (collector.MatchedServiceColorTemplate('n', 'si4', 's2', 'c3', y4), 'y4'),
+                }
+            )

@@ -14,6 +14,7 @@ from ..backend import (
 from ..config import (
     S3EnvConfig, ENV_BUCKET, ENV_BASE_PATH, AWS_REGION,
 )
+from ...abc_backend import ACTIVITY_PROXY_CONFIGURATION, ACTIVITY_TEMPLATE_DEFINITION
 
 
 class S3BackendTest(unittest.TestCase):
@@ -30,53 +31,59 @@ class S3BackendTest(unittest.TestCase):
 
     def test_get_active_version__none(self) -> None:
         s3 = MockS3()
-        # TODO use paths to generate the path.
-        s3.mk_list_entries('s3bucket', 'p/a2/version/act/', [])
+        config = S3EnvConfig().load({ENV_BUCKET: 's3bucket', ENV_BASE_PATH: 'p/a2'})
+        s3.mk_list_entries('s3bucket', paths.get_version_reference_prefix(config, ACTIVITY_PROXY_CONFIGURATION), [])
         with s3:
-            bk = S3Backend(S3EnvConfig().load({ENV_BUCKET: 's3bucket', ENV_BASE_PATH: 'p/a2'}))
+            bk = S3Backend(config)
             bk.client = s3.client
-            version = bk.get_active_version('act')
-            self.assertEqual(version, 'first')
+            version = bk.get_active_version(ACTIVITY_PROXY_CONFIGURATION)
+            self.assertEqual(version, ACTIVITY_PROXY_CONFIGURATION + '-first')
 
     def test_get_active_version__one(self) -> None:
         s3 = MockS3()
-        # TODO use paths to generate the path.
-        s3.mk_list_entries('s3bucket', 'p/a2/version/act/', [('a1', 100,)])
+        config = S3EnvConfig().load({ENV_BUCKET: 's3bucket', ENV_BASE_PATH: 'p/a2'})
+        s3.mk_list_entries('s3bucket', paths.get_version_reference_prefix(config, ACTIVITY_PROXY_CONFIGURATION), [
+            ('a1', 100,)
+        ])
         with s3:
-            bk = S3Backend(S3EnvConfig().load({ENV_BUCKET: 's3bucket', ENV_BASE_PATH: 'p/a2'}))
+            bk = S3Backend(config)
             bk.client = s3.client
-            version = bk.get_active_version('act')
+            version = bk.get_active_version(ACTIVITY_PROXY_CONFIGURATION)
             self.assertEqual(version, 'a1')
 
     def test_get_active_version__several(self) -> None:
         s3 = MockS3()
-        # TODO use paths to generate the path.
-        s3.mk_list_entries('s3bucket', 'p/a2/version/act/', [('a1', 100,), ('a2', 120,), ('a3', 5), ('a4', 10)])
+        config = S3EnvConfig().load({ENV_BUCKET: 's3bucket', ENV_BASE_PATH: 'p/a2'})
+        s3.mk_list_entries('s3bucket', paths.get_version_reference_prefix(config, ACTIVITY_PROXY_CONFIGURATION), [
+            ('a1', 100,), ('a2', 120,), ('a3', 5), ('a4', 10)
+        ])
         with s3:
-            bk = S3Backend(S3EnvConfig().load({ENV_BUCKET: 's3bucket', ENV_BASE_PATH: 'p/a2'}))
+            bk = S3Backend(config)
             bk.client = s3.client
-            version = bk.get_active_version('act')
+            version = bk.get_active_version(ACTIVITY_PROXY_CONFIGURATION)
             self.assertEqual(version, 'a3')
 
     def test_download_service_color(self) -> None:
         s3 = MockS3()
-        # TODO use paths to generate the path.
-        s3.mk_download('s3bucket', 'p/a3/v1a/service/n1/s1/c1/p1', 'cc1')
+        config = S3EnvConfig().load({ENV_BUCKET: 's3bucket', ENV_BASE_PATH: 'p/a3'})
+        expected_entity = ServiceColorTemplateEntity('n1', 's1', 'c1', 'p1')
+        s3.mk_download('s3bucket', paths.get_service_color_template_path(config, 'v1a', expected_entity), 'cc1')
         with s3:
             bk = S3Backend(S3EnvConfig().load({ENV_BUCKET: 's3bucket', ENV_BASE_PATH: 'p/a3'}))
             bk.client = s3.client
-            content = bk.download('v1a', ServiceColorTemplateEntity('n1', 's1', 'c1', 'p1'))
+            content = bk.download('v1a', expected_entity)
             self.assertEqual(content, 'cc1')
 
     def test_download_gateway(self) -> None:
         s3 = MockS3()
-        # TODO use paths to generate the path.
-        s3.mk_download('s3bucket', 'p/a4/1b/gateway/n1/public/p1.txt', 'cc1')
+        config = S3EnvConfig().load({ENV_BUCKET: 's3bucket', ENV_BASE_PATH: 'p/a4'})
+        expected_entity = GatewayConfigEntity('n2', True, 'p1.txt')
+        s3.mk_download('s3bucket', paths.get_gateway_config_path(config, '1b', expected_entity), 'cc2')
         with s3:
-            bk = S3Backend(S3EnvConfig().load({ENV_BUCKET: 's3bucket', ENV_BASE_PATH: 'p/a4'}))
+            bk = S3Backend(config)
             bk.client = s3.client
-            content = bk.download('1b', GatewayConfigEntity('n1', True, 'p1.txt'))
-            self.assertEqual(content, 'cc1')
+            content = bk.download('1b', expected_entity)
+            self.assertEqual(content, 'cc2')
 
 
 class MockS3:
@@ -111,7 +118,6 @@ class MockS3:
         self.stubber.add_response(
             'list_objects_v2', resp, dict(
                 Bucket=bucket,
-                Delimiter='/',
                 EncodingType='url',
                 Prefix=prefix,
                 FetchOwner=False,

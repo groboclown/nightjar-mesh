@@ -25,7 +25,7 @@ class PathsTest(unittest.TestCase):
         # Permutations are performed on the per-type.
         self.assertEqual(
             paths.get_entity_path(self.config, 'a1b', NamespaceTemplateEntity('n1', True, 'p1')),
-            'p1/a1/content/a1b/gateway/n1/public/p1'
+            'p1/a1/content/template-creation/a1b/gateway/n1/public/p1'
         )
 
 # parse_template_path(config: S3EnvConfig, version: str, path: str) -> Optional[TemplateEntity]:
@@ -71,5 +71,5 @@ class PathsTest(unittest.TestCase):
     def test_get_version_reference_path(self) -> None:
         self.assertEqual(
             paths.get_version_reference_path(self.config, 'act1', '123'),
-            'p1/a1/version/act1/123'
+            'p1/a1/versions/act1/123'
         )
