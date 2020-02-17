@@ -127,7 +127,7 @@ class DiscoveryServiceColor:
                                 group_color_name = value.strip()
                             elif key == USES_HTTP2_ATTRIBUTE_KEY:
                                 self.uses_http2 = value.strip().lower() in USES_HTTP2_AFFIRMATIVE_VALUES
-                            elif key not in AWS_STANDARD_ATTRIBUTES and key[0] in '/?*':
+                            elif key not in AWS_STANDARD_ATTRIBUTES and key[0] in '/*[':
                                 try:
                                     weight = int(value.strip())
                                 except ValueError:

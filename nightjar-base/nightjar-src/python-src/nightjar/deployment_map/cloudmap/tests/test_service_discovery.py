@@ -133,7 +133,9 @@ class TestDiscoveryServiceColor(unittest.TestCase):
             actual_weights = list(service_color.path_protect_weights)
             actual_weights.sort(key=lambda k: k[0])
             expected_weights.sort(key=lambda k: k[0])
-            self.assertEqual(service_color.path_protect_weights, expected_weights)
+            # print("expected: ", expected_weights)
+            # print("  actual: ", actual_weights)
+            self.assertEqual(actual_weights, expected_weights)
             self.assertEqual(len(service_color.instances), 1)
             instance = service_color.instances[0]
             self.assertEqual(instance.instance_id, '1234-5678')
