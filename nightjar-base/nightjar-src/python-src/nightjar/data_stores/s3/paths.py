@@ -21,12 +21,11 @@ from ..abc_backend import (
     ACTIVITY_PROXY_CONFIGURATION,
     ACTIVITY_TEMPLATE_DEFINITION,
 )
+from ...protect import RouteProtection, as_route_protection, is_valid_route_protection
 
 DEFAULT_SERVICE_NAME = '__default__'
 DEFAULT_COLOR_NAME = '__default__'
 DEFAULT_NAMESPACE_NAME = '__default__'
-PUBLIC_NAME = 'public'
-PRIVATE_NAME = 'private'
 DEFAULT_PROTECTION_NAME = 'default'
 
 
@@ -76,7 +75,7 @@ def get_namespace_template_path(
     return '{pre}gateway/{n}/{pr}/{p}'.format(
         pre=get_activity_prefix(config, version, entity.activity),
         n=entity.namespace or DEFAULT_NAMESPACE_NAME,
-        pr=get_protection_path_name(entity.is_public),
+        pr=get_protection_path_name(entity.protection),
         p=entity.purpose,
     )
 
@@ -90,7 +89,7 @@ def parse_namespace_template_path(config: S3EnvConfig, version: str, path: str) 
         return None
     gw, namespace, protection_str, purpose = parts
     protection = parse_protection(protection_str)
-    if isinstance(protection, str) or gw != 'gateway':
+    if isinstance(protection, bool) or gw != 'gateway':
         return None
     return NamespaceTemplateEntity(
         parse_namespace(namespace),
@@ -148,7 +147,7 @@ def get_gateway_config_path(
     return '{pre}gateway/{n}/{pr}/{p}'.format(
         pre=get_activity_prefix(config, version, entity.activity),
         n=entity.namespace_id,
-        pr=get_protection_path_name(entity.is_public),
+        pr=get_protection_path_name(entity.protection),
         p=entity.purpose,
     )
 
@@ -162,11 +161,11 @@ def parse_gateway_config_path(config: S3EnvConfig, version: str, path: str) -> O
         return None
     gw, namespace, protection_str, purpose = parts
     protection = parse_protection(protection_str)
-    if not isinstance(protection, bool) or gw != 'gateway':
+    if not is_valid_route_protection(protection) or gw != 'gateway':
         return None
     return GatewayConfigEntity(
         namespace,
-        protection,
+        as_route_protection(protection),
         purpose
     )
 
@@ -213,22 +212,18 @@ def parse_service_id_config_path(
     )
 
 
-def get_protection_path_name(is_public: Optional[bool]) -> str:
-    if is_public is None:
+def get_protection_path_name(protection: Optional[RouteProtection]) -> str:
+    if protection is None:
         return DEFAULT_PROTECTION_NAME
-    if is_public is True:
-        return PUBLIC_NAME
-    return PRIVATE_NAME
+    return protection
 
 
-def parse_protection(part: str) -> Union[str, Optional[bool]]:
+def parse_protection(part: str) -> Union[bool, Optional[RouteProtection]]:
     if part == DEFAULT_PROTECTION_NAME:
         return None
-    if part == PUBLIC_NAME:
-        return True
-    if part == PRIVATE_NAME:
+    if not is_valid_route_protection(part):
         return False
-    return part
+    return as_route_protection(part)
 
 
 def parse_namespace(part: str) -> Optional[str]:

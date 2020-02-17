@@ -6,6 +6,7 @@ Standard Prototype that the data stores must implement.
 
 from typing import Iterable, Optional, Union, Any
 import abc
+from ..protect import RouteProtection
 
 ACTIVITY_PROXY_CONFIGURATION = 'proxy-configuration'
 ACTIVITY_TEMPLATE_DEFINITION = 'template-creation'
@@ -36,12 +37,12 @@ class NamespaceTemplateEntity(BaseEntity):
     Describes a namespace-based entity in the ACTIVITY_TEMPLATE_DEFINITION activity,
     which can optionally be the default namespace.
     """
-    __slots__ = ('__namespace', '__is_public')
+    __slots__ = ('__namespace', '__protection')
 
-    def __init__(self, namespace: Optional[str], is_public: Optional[bool], purpose: str) -> None:
+    def __init__(self, namespace: Optional[str], protection: Optional[RouteProtection], purpose: str) -> None:
         BaseEntity.__init__(self, ACTIVITY_TEMPLATE_DEFINITION, purpose)
         self.__namespace = namespace
-        self.__is_public = is_public
+        self.__protection = protection
 
     @property
     def namespace(self) -> Optional[str]:
@@ -51,18 +52,18 @@ class NamespaceTemplateEntity(BaseEntity):
         return self.namespace is None
 
     @property
-    def is_public(self) -> Optional[bool]:
-        return self.__is_public
+    def protection(self) -> Optional[RouteProtection]:
+        return self.__protection
 
-    def is_default_public(self) -> bool:
-        return self.__is_public is None
+    def is_default_protection(self) -> bool:
+        return self.__protection is None
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, NamespaceTemplateEntity):
             return False
         return (
             self.__namespace == other.__namespace
-            and self.__is_public == other.__is_public
+            and self.__protection == other.__protection
             and self.purpose == other.purpose
             and self.activity == other.activity
         )
@@ -71,15 +72,15 @@ class NamespaceTemplateEntity(BaseEntity):
         return not self.__eq__(other)
 
     def __hash__(self) -> int:
-        return hash(self.__namespace) + hash(self.__is_public) + hash(self.purpose) + hash(self.activity)
+        return hash(self.__namespace) + hash(self.__protection) + hash(self.purpose) + hash(self.activity)
 
     def __repr__(self) -> str:
         return (
-            'NamespaceTemplateEntity(namespace={namespace}, is_public={is_public}, activity={activity}, '
+            'NamespaceTemplateEntity(namespace={namespace}, protection={protection}, activity={activity}, '
             'purpose={purpose})'
         ).format(
             namespace=repr(self.__namespace),
-            is_public=repr(self.__is_public),
+            protection=repr(self.__protection),
             activity=repr(self.activity),
             purpose=repr(self.purpose),
         )
@@ -90,27 +91,27 @@ class GatewayConfigEntity(BaseEntity):
     Describes a namespace-based entity in the ACTIVITY_TEMPLATE_DEFINITION activity,
     which can optionally be the default namespace.
     """
-    __slots__ = ('__namespace_id', '__is_public',)
+    __slots__ = ('__namespace_id', '__protection',)
 
-    def __init__(self, namespace_id: str, is_public: bool, purpose: str) -> None:
+    def __init__(self, namespace_id: str, protection: RouteProtection, purpose: str) -> None:
         BaseEntity.__init__(self, ACTIVITY_PROXY_CONFIGURATION, purpose)
         self.__namespace_id = namespace_id
-        self.__is_public = is_public
+        self.__protection = protection
 
     @property
     def namespace_id(self) -> str:
         return self.__namespace_id
 
     @property
-    def is_public(self) -> bool:
-        return self.__is_public
+    def protection(self) -> RouteProtection:
+        return self.__protection
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, GatewayConfigEntity):
             return False
         return (
             self.__namespace_id == other.__namespace_id
-            and self.__is_public == other.__is_public
+            and self.__protection == other.__protection
             and self.purpose == other.purpose
             and self.activity == other.activity
         )
@@ -119,15 +120,15 @@ class GatewayConfigEntity(BaseEntity):
         return not self.__eq__(other)
 
     def __hash__(self) -> int:
-        return hash(self.__namespace_id) + hash(self.__is_public) + hash(self.purpose) + hash(self.activity)
+        return hash(self.__namespace_id) + hash(self.__protection) + hash(self.purpose) + hash(self.activity)
 
     def __repr__(self) -> str:
         return (
-            'GatewayConfigEntity(namespace_id={namespace_id}, is_public={is_public}, activity={activity}, '
+            'GatewayConfigEntity(namespace_id={namespace_id}, protection={protection}, activity={activity}, '
             'purpose={purpose})'
         ).format(
             namespace_id=repr(self.__namespace_id),
-            is_public=repr(self.__is_public),
+            protection=repr(self.__protection),
             activity=repr(self.activity),
             purpose=repr(self.purpose),
         )
@@ -359,7 +360,7 @@ class AbcDataStoreBackend(abc.ABC):
             self,
             version: str,
             namespace: Optional[str] = None,
-            is_public: Optional[bool] = None,
+            protection: Optional[RouteProtection] = None,
             purpose: Optional[str] = None,
     ) -> Iterable[NamespaceTemplateEntity]:
         """
@@ -372,7 +373,7 @@ class AbcDataStoreBackend(abc.ABC):
             self,
             version: str,
             namespace: Optional[str] = None,
-            is_public: Optional[bool] = None,
+            protection: Optional[RouteProtection] = None,
             purpose: Optional[str] = None,
     ) -> Iterable[GatewayConfigEntity]:
         """

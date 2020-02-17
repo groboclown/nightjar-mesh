@@ -15,6 +15,9 @@ from ..config import (
     S3EnvConfig, ENV_BUCKET, ENV_BASE_PATH, AWS_REGION,
 )
 from ...abc_backend import ACTIVITY_PROXY_CONFIGURATION, ACTIVITY_TEMPLATE_DEFINITION
+from ....protect import as_route_protection
+
+PUBLIC = as_route_protection('public')
 
 
 class S3BackendTest(unittest.TestCase):
@@ -77,7 +80,7 @@ class S3BackendTest(unittest.TestCase):
     def test_download_gateway(self) -> None:
         s3 = MockS3()
         config = S3EnvConfig().load({ENV_BUCKET: 's3bucket', ENV_BASE_PATH: 'p/a4'})
-        expected_entity = GatewayConfigEntity('n2', True, 'p1.txt')
+        expected_entity = GatewayConfigEntity('n2', PUBLIC, 'p1.txt')
         s3.mk_download('s3bucket', paths.get_gateway_config_path(config, '1b', expected_entity), 'cc2')
         with s3:
             bk = S3Backend(config)

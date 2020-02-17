@@ -35,7 +35,6 @@ properties:
       type: object
       required:
         - has_mesh_port
-        - healthcheck_path
         - routes
       properties:
         has_mesh_port:
@@ -48,9 +47,6 @@ properties:
         mesh_port:
           description: egress port that the service connects to for sending requests to other members of the mesh.
           type: int
-        healthcheck_path:
-          description: URI path to the static healthcheck for the envoy proxy.  Must start with a '/'.
-          type: string
         routes:
           description: List of routes and their weights.
           type: array

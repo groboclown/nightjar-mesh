@@ -4,6 +4,7 @@ from .abc_backend import (
     AbcDataStoreBackend,
     ACTIVITY_PROXY_CONFIGURATION,
 )
+from ..protect import RouteProtection
 
 
 class EnvoyProxyDataStore:
@@ -25,7 +26,9 @@ class EnvoyProxyDataStore:
         # No special exit requirements
         self.__version = None
 
-    def get_gateway_envoy_files(self, namespace_id: str, is_public: bool) -> Iterable[Tuple[str, Optional[str]]]:
+    def get_gateway_envoy_files(
+            self, namespace_id: str, protection: RouteProtection
+    ) -> Iterable[Tuple[str, Optional[str]]]:
         """
         Returns the list of (purpose, contents) for the dynamic envoy files of the namespace.
         If the bootstrap template requires a key and there is no
@@ -33,7 +36,7 @@ class EnvoyProxyDataStore:
         """
         assert self.__version is not None
         for entity in self.backend.get_gateway_config_entities(
-                self.__version, namespace=namespace_id, is_public=is_public
+                self.__version, namespace=namespace_id, protection=protection
         ):
             yield entity.purpose, self.backend.download(self.__version, entity)
 

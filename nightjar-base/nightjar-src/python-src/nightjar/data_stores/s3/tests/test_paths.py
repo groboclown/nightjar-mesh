@@ -14,6 +14,9 @@ from ...abc_backend import (
     ACTIVITY_TEMPLATE_DEFINITION,
     ACTIVITY_PROXY_CONFIGURATION,
 )
+from ....protect import as_route_protection
+
+PUBLIC = as_route_protection('public')
 
 
 class PathsTest(unittest.TestCase):
@@ -24,7 +27,7 @@ class PathsTest(unittest.TestCase):
         # Just test the different entity types.
         # Permutations are performed on the per-type.
         self.assertEqual(
-            paths.get_entity_path(self.config, 'a1b', NamespaceTemplateEntity('n1', True, 'p1')),
+            paths.get_entity_path(self.config, 'a1b', NamespaceTemplateEntity('n1', PUBLIC, 'p1')),
             'p1/a1/content/template-creation/a1b/gateway/n1/public/p1'
         )
 

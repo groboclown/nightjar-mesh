@@ -13,6 +13,7 @@ from .abc_backend import (
     ACTIVITY_TEMPLATE_DEFINITION,
     ACTIVITY_PROXY_CONFIGURATION,
 )
+from ..protect import RouteProtection
 
 
 class ManagerReadDataStore:
@@ -109,7 +110,7 @@ class ManagerWriteDataStore:
     def set_template(self, entity: TemplateEntity, contents: str) -> None:
         ns = as_namespace_template_entity(entity)
         if ns:
-            self.set_namespace_template(ns.namespace, ns.is_public, ns.purpose, contents)
+            self.set_namespace_template(ns.namespace, ns.protection, ns.purpose, contents)
             return
         sc = as_service_color_template_entity(entity)
         assert sc
@@ -140,12 +141,12 @@ class ManagerWriteDataStore:
     def set_namespace_template(
             self,
             namespace: Optional[str],
-            is_public: Optional[bool],
+            protection: Optional[RouteProtection],
             purpose: str, contents: str,
     ) -> None:
         assert self.__version is not None
         self.backend.upload(
             self.__version,
-            NamespaceTemplateEntity(namespace, is_public, purpose),
+            NamespaceTemplateEntity(namespace, protection, purpose),
             contents
         )

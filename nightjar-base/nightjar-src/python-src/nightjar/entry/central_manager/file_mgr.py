@@ -15,6 +15,7 @@ from ...data_stores import (
     ServiceColorTemplateEntity,
     as_service_color_template_entity,
 )
+from ...protect import RouteProtection, as_route_protection
 from ...msg import warn
 
 TEMPLATE_DESCRIPTION_FILENAME = 'templates.json'
@@ -58,7 +59,7 @@ def collect_template_files(base_entity: TemplateEntity, directory: str) -> Itera
         with open(filename, 'r') as f:
             contents = f.read()
         if ns:
-            yield NamespaceTemplateEntity(ns.namespace, ns.is_public, name), contents
+            yield NamespaceTemplateEntity(ns.namespace, ns.protection, name), contents
         if sc:
             yield ServiceColorTemplateEntity(sc.namespace, sc.service, sc.color, name), contents
 
@@ -66,7 +67,7 @@ def collect_template_files(base_entity: TemplateEntity, directory: str) -> Itera
 def write_namespace_template_entity(base_dir: str, entity: NamespaceTemplateEntity, contents: str) -> None:
     sub_dir_name = 'namespace-{n}-{p}'.format(
         n=entity.namespace or 'default',
-        p=get_protection_part_name(entity.is_public)
+        p=get_protection_part_name(entity.protection)
     )
     out_dir = os.path.join(base_dir, sub_dir_name)
     os.makedirs(out_dir, exist_ok=True)
@@ -76,7 +77,7 @@ def write_namespace_template_entity(base_dir: str, entity: NamespaceTemplateEnti
             json.dump({
                 "type": "namespace",
                 "namespace": entity.namespace,
-                "is_public": entity.is_public,
+                "is_public": entity.protection,
             }, f)
     content_file = os.path.join(out_dir, entity.purpose)
     with open(content_file, 'w') as f:
@@ -84,7 +85,7 @@ def write_namespace_template_entity(base_dir: str, entity: NamespaceTemplateEnti
 
 
 def write_gateway_config_entity(base_dir: str, entity: GatewayConfigEntity, contents: str) -> None:
-    sub_dir_name = 'gateway-{n}-{p}'.format(n=entity.namespace_id, p=get_protection_part_name(entity.is_public))
+    sub_dir_name = 'gateway-{n}-{p}'.format(n=entity.namespace_id, p=get_protection_part_name(entity.protection))
     out_dir = os.path.join(base_dir, sub_dir_name)
     os.makedirs(out_dir, exist_ok=True)
     description_file = os.path.join(out_dir, CONFIG_DESCRIPTION_FILENAME)
@@ -93,7 +94,7 @@ def write_gateway_config_entity(base_dir: str, entity: GatewayConfigEntity, cont
             json.dump({
                 "type": "gateway",
                 "namespace_id": entity.namespace_id,
-                "is_public": entity.is_public,
+                "protection": entity.protection,
             }, f)
     content_file = os.path.join(out_dir, entity.purpose)
     with open(content_file, 'w') as f:
@@ -156,11 +157,11 @@ def read_template_description(filename: str) -> Optional[TemplateEntity]:
 
     template_type = data.get('type')
     namespace = data.get('namespace', data.get('namespace-id', data.get('namespace_id', None)))
-    is_public = parse_protection(data)
+    protection = parse_protection(data)
     service = data.get('service', None)
     color = data.get('color', None)
     if template_type in ('namespace', 'gateway'):
-        return NamespaceTemplateEntity(namespace, is_public, '')
+        return NamespaceTemplateEntity(namespace, protection, '')
     elif template_type in ('service', 'service-color', 'service_color', 'service/color'):
         return ServiceColorTemplateEntity(namespace, service, color, '')
     else:
@@ -168,31 +169,12 @@ def read_template_description(filename: str) -> Optional[TemplateEntity]:
         return None
 
 
-def parse_protection(data: Dict[str, Any]) -> Optional[bool]:
+def parse_protection(data: Dict[str, Any]) -> Optional[RouteProtection]:
     protection = data.get('protection', None)
-    is_public = data.get('is-public', data.get('is_public', None))
-    if protection is None and is_public is None:
+    if protection in (None, 'default'):
         return None
-    if protection == 'default' or is_public == 'default':
-        return None
-    if protection == 'public':
-        return True
-    if protection == 'private':
-        return False
-    if is_public is True:
-        return True
-    if is_public is False:
-        return False
-    if protection is not None:
-        warn('Unknown value for `protection`: {p}', p=protection)
-    if is_public is not None:
-        warn('Unknown value for `is-public`: {p}', p=is_public)
-    return None
+    return as_route_protection(protection)
 
 
-def get_protection_part_name(is_public: Optional[bool]) -> str:
-    if is_public is True:
-        return 'public'
-    if is_public is False:
-        return 'private'
-    return 'default'
+def get_protection_part_name(protection: Optional[RouteProtection]) -> str:
+    return protection or 'default'

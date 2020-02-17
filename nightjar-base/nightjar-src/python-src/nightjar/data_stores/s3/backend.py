@@ -23,6 +23,7 @@ from ..abc_backend import (
     NamespaceTemplateEntity,
     TemplateEntity
 )
+from ...protect import RouteProtection
 from ...msg import note, debug
 
 MAX_CONTENT_SIZE = 4 * 1024 * 1024  # 4 MB
@@ -133,7 +134,7 @@ class S3Backend(AbcDataStoreBackend):
 
     def get_namespace_template_entities(
             self, version: str, namespace: Optional[str] = None,
-            is_public: Optional[bool] = None,
+            protection: Optional[RouteProtection] = None,
             purpose: Optional[str] = None
     ) -> Iterable[NamespaceTemplateEntity]:
         for key, _ in self._list_entries(paths.get_namespace_template_prefix(self.config, version)):
@@ -142,14 +143,14 @@ class S3Backend(AbcDataStoreBackend):
                 continue
             if (
                     (namespace is None or namespace == ns.namespace)
-                    and (is_public is None or is_public == ns.is_public)
+                    and (protection is None or protection == ns.protection)
                     and (purpose is None or purpose == ns.purpose)
             ):
                 yield ns
 
     def get_gateway_config_entities(
             self, version: str, namespace: Optional[str] = None,
-            is_public: Optional[bool] = None, purpose: Optional[str] = None
+            protection: Optional[RouteProtection] = None, purpose: Optional[str] = None
     ) -> Iterable[GatewayConfigEntity]:
         for key, _ in self._list_entries(paths.get_gateway_config_prefix(self.config, version)):
             gc = paths.parse_gateway_config_path(self. config, version, key)
@@ -157,7 +158,7 @@ class S3Backend(AbcDataStoreBackend):
                 continue
             if (
                     (namespace is None or namespace == gc.namespace_id)
-                    and (is_public is None or is_public == gc.is_public)
+                    and (protection is None or protection == gc.protection)
                     and (purpose is None or purpose == gc.purpose)
             ):
                 yield gc

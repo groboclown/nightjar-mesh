@@ -17,11 +17,22 @@ from ...data_stores import (
     ConfigurationReaderDataStore,
     ConfigurationWriterDataStore,
 )
+from ...protect import RouteProtection, as_route_protection
+
+# For now, we just have two hard-coded protections.
+# This needs to be setup differently.
+PUBLIC_PROTECTION = as_route_protection('public')
+PRIVATE_PROTECTION = as_route_protection('private')
+KNOWN_PROTECTIONS = (
+    PUBLIC_PROTECTION,
+    PRIVATE_PROTECTION,
+)
 
 
 def process_templates(
         backend: AbcDataStoreBackend,
         namespaces: Iterable[DiscoveryServiceNamespace],
+        protections: Iterable[RouteProtection]
 ) -> None:
     """
     Process all the namespace and service/color templates into the envoy proxy content.
@@ -35,4 +46,7 @@ def process_templates(
     with CollectorDataStore(backend) as collector:
         with ConfigurationReaderDataStore(backend) as config_reader:
             with ConfigurationWriterDataStore(backend) as config_writer:
-                generate_content(collector, config_reader, config_writer, namespace_data, service_color_data)
+                generate_content(
+                    collector, config_reader, config_writer,
+                    namespace_data, service_color_data, protections,
+                )

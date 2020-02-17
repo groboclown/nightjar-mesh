@@ -1,15 +1,15 @@
 
 from typing import Iterable
 import os
-import sys
 import time
 import traceback
 import sys
 import gc
-from .process import process_templates
+from .process import process_templates, KNOWN_PROTECTIONS
 from ...cloudmap_collector import DiscoveryServiceNamespace
 from ...data_stores import AbcDataStoreBackend
 from ...data_stores.s3 import create_s3_data_store
+from ...protect import RouteProtection
 from ...msg import debug
 from ...mem import report_current_memory_usage
 
@@ -20,6 +20,7 @@ MAX_NAMESPACE_COUNT = 99
 def main_loop(
         backend: AbcDataStoreBackend,
         namespace_names: Iterable[str],
+        protections: Iterable[RouteProtection],
         loop_sleep_time_seconds: int,
         exit_on_failure: bool,
         one_pass: bool
@@ -31,7 +32,7 @@ def main_loop(
     while True:
         try:
             debug("Starting template processing.")
-            process_templates(backend, namespaces)
+            process_templates(backend, namespaces, protections)
             gc.collect()
             report_current_memory_usage()
             if one_pass:
@@ -66,4 +67,5 @@ def main() -> None:
         raise Exception('Unknown DATASTORE: "{0}"'.format(backend_name))
 
     one_pass = len(sys.argv) > 1 and sys.argv[1] == 'one-pass'
-    main_loop(backend, namespace_names, loop_sleep_time, exit_on_failure, one_pass)
+    # TODO make KNOWN_PROTECTIONS configurable.
+    main_loop(backend, namespace_names, KNOWN_PROTECTIONS, loop_sleep_time, exit_on_failure, one_pass)

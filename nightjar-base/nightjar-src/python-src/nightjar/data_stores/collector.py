@@ -8,15 +8,16 @@ from .abc_backend import (
     ACTIVITY_TEMPLATE_DEFINITION,
 )
 from ..msg import debug
+from ..protect import RouteProtection
 
 
 class MatchedNamespaceTemplate:
-    __slots__ = ('namespace_id', 'is_public', 'purpose', 'source',)
+    __slots__ = ('namespace_id', 'protection', 'purpose', 'source',)
 
-    def __init__(self, namespace_id: str, is_public: bool, source: NamespaceTemplateEntity) -> None:
+    def __init__(self, namespace_id: str, protection: RouteProtection, source: NamespaceTemplateEntity) -> None:
         self.namespace_id = namespace_id
         self.purpose = source.purpose
-        self.is_public = is_public
+        self.protection = protection
         self.source = source
 
 
@@ -79,50 +80,50 @@ class CollectorDataStore:
         self.__version = None
 
     def get_namespace_templates(
-            self, namespaces: Iterable[Tuple[str, bool]]
+            self, namespaces: Iterable[Tuple[str, RouteProtection]]
     ) -> Iterable[Tuple[MatchedNamespaceTemplate, str]]:
         """
-        namespaces: list of the tuple (namespace_id, is_public).
+        namespaces: list of the tuple (namespace_id, protection).
 
         Returns the namespace templates registered in the system and the contents.
         """
         assert self.__version is not None
         entities = list(self.backend.get_namespace_template_entities(self.__version))
         debug("loaded version {v} entities: {e}", v=self.__version, e=entities)
-        for namespace, is_public in namespaces:
+        for namespace, protection in namespaces:
             purpose_matches: Dict[str, NamespaceTemplateEntity] = {}
             for entity in entities:
                 existing = purpose_matches.get(entity.purpose)
                 if (
                         # Priority 1: exact match, regardless of existing match
-                        (entity.namespace == namespace and entity.is_public == is_public)
+                        (entity.namespace == namespace and entity.protection == protection)
 
-                        # Priority 2: namespace match, is_public isn't.
-                        or (not existing and entity.namespace == namespace and entity.is_default_public())
+                        # Priority 2: namespace match, protection isn't.
+                        or (not existing and entity.namespace == namespace and entity.is_default_protection())
                         or (
                             existing and existing.is_default_namespace()
                             and entity.namespace == namespace
-                            and entity.is_default_public()
+                            and entity.is_default_protection()
                         )
 
-                        # Priority 3: namespace default, is_public match.
+                        # Priority 3: namespace default, protection match.
                         or (
-                            not existing and entity.is_default_namespace() and entity.is_public == is_public
+                            not existing and entity.is_default_namespace() and entity.protection == protection
                         )
                         or (
-                            existing and existing.is_default_namespace() and existing.is_default_public()
-                            and entity.is_default_namespace() and entity.is_public == is_public
+                            existing and existing.is_default_namespace() and existing.is_default_protection()
+                            and entity.is_default_namespace() and entity.protection == protection
                         )
 
                         # Priority 4: defaults only if there is no existing match
-                        or (not existing and entity.is_default_namespace() and entity.is_default_public())
+                        or (not existing and entity.is_default_namespace() and entity.is_default_protection())
                 ):
                     purpose_matches[entity.purpose] = entity
             if not purpose_matches:
                 raise ValueError('No match for namespace {0}, and there is no default'.format(namespace))
             for value in purpose_matches.values():
                 yield (
-                    MatchedNamespaceTemplate(namespace, is_public, value),
+                    MatchedNamespaceTemplate(namespace, protection, value),
                     self.backend.download(self.__version, value)
                 )
 

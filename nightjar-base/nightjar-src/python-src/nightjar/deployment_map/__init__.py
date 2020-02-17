@@ -20,4 +20,14 @@ On top of this, the deployment scan must be able to find out:
 * all the service instances with the same parent service_id.
 """
 
-# TODO move the cloudmap_collector code as a implementation of this.
+from .abc_depoyment_map import (
+    DeploymentMap
+)
+
+from .service_data import (
+    EnvoyConfig,
+    EnvoyCluster,
+    EnvoyClusterEndpoint,
+    EnvoyRoute,
+    EnvoyListener,
+)

@@ -7,6 +7,7 @@ from .abc_backend import (
     ServiceIdConfigEntity,
     ACTIVITY_PROXY_CONFIGURATION,
 )
+from ..protect import RouteProtection
 
 
 class ConfigurationReaderDataStore:
@@ -30,7 +31,7 @@ class ConfigurationReaderDataStore:
         self.__version = None
 
     def list_config_entities(self) -> Iterable[ConfigEntity]:
-        """Find all the configuration (non-tempalate) entities for the currently active version."""
+        """Find all the configuration (non-template) entities for the currently active version."""
         assert self.__version is not None
         return self.backend.get_config_entities(self.__version)
 
@@ -100,14 +101,16 @@ class ConfigurationWriterDataStore:
             self.__version, ServiceIdConfigEntity(_namespace_id, service_id, service, color, purpose), contents
         )
 
-    def set_gateway_config_contents(self, namespace_id: str, is_public: bool, purpose: str, contents: str) -> None:
+    def set_gateway_config_contents(
+            self, namespace_id: str, protection: RouteProtection, purpose: str, contents: str
+    ) -> None:
         """
         The namespace's purpose's file contents.
 
         This is a configured file, used directly by the envoy proxy servers.
         """
         assert self.__version is not None
-        self.backend.upload(self.__version, GatewayConfigEntity(namespace_id, is_public, purpose), contents)
+        self.backend.upload(self.__version, GatewayConfigEntity(namespace_id, protection, purpose), contents)
 
     def set_entity_contents(self, entity: ConfigEntity, contents: str) -> None:
         """

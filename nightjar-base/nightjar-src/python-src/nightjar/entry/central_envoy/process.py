@@ -2,6 +2,7 @@
 from typing import Iterable, Tuple, Callable, Optional
 import os
 from ...data_stores import AbcDataStoreBackend, EnvoyProxyDataStore
+from ...protect import RouteProtection
 from ...msg import debug
 
 
@@ -29,12 +30,12 @@ def process_contents(
 
 
 def process_namespace(
-        namespace_id: str, is_public: bool,
+        namespace_id: str, protection: RouteProtection,
         backend: AbcDataStoreBackend, admin_port: str, listener_port: str,
         output_dir: str,
 ) -> None:
     process_contents(
-        lambda envoy_proxy: envoy_proxy.get_gateway_envoy_files(namespace_id, is_public),
+        lambda envoy_proxy: envoy_proxy.get_gateway_envoy_files(namespace_id, protection),
         backend, admin_port, listener_port, output_dir,
     )
 

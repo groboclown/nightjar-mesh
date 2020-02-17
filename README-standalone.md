@@ -54,7 +54,7 @@ The `SERVICE_MEMBER` must reference a [Cloud Map service](https://docs.aws.amazo
 
 ### Envoy Proxy Configuration
 
-The Cloud Map extracted data conforms to the [data format](nightjar-base/nightjar-src/python-src/nightjar/cloudmap_collector/service-data-schema.yaml), and is used as input to [mustache templates](https://en.wikipedia.org/wiki/Mustache_%28template_system%29), to construct the Envoy Proxy configuration.
+The Cloud Map extracted data conforms to the [data format](nightjar-base/nightjar-src/python-src/nightjar/deployment_map/service-data-schema.yaml), and is used as input to [mustache templates](https://en.wikipedia.org/wiki/Mustache_%28template_system%29), to construct the Envoy Proxy configuration.
 
 By default, Nightjar provides [configuration templates](nightjar-standalone/envoy-docker/nightjar-src/templates) that generate a simple Envoy Proxy configuration.  However, you can change these files to suit your needs with a custom image.
 

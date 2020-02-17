@@ -1,5 +1,6 @@
 from typing import List, Dict, Set, Optional, Iterable
 
+from .. import ConfigEntity
 from ..abc_backend import (
     AbcDataStoreBackend,
     Entity,
@@ -12,6 +13,7 @@ from ..abc_backend import (
     ServiceColorTemplateEntity,
     as_service_color_template_entity,
     TemplateEntity)
+from ...protect import RouteProtection
 
 
 class MockBackend(AbcDataStoreBackend):
@@ -89,26 +91,31 @@ class MockBackend(AbcDataStoreBackend):
         ret.extend(self.namespace_entities.keys())
         return ret
 
+    def get_config_entities(self, version: str) -> Iterable[ConfigEntity]:
+        ret: List[ConfigEntity] = list(self.service_id_entities.keys())
+        ret.extend(self.gateway_entities.keys())
+        return ret
+
     def get_namespace_template_entities(
             self, version: str, namespace: Optional[str] = None,
-            is_public: Optional[bool] = None, purpose: Optional[str] = None
+            protection: Optional[RouteProtection] = None, purpose: Optional[str] = None
     ) -> Iterable[NamespaceTemplateEntity]:
         for entity in self.namespace_entities.keys():
             if (
                     (namespace is None or namespace == entity.namespace)
-                    and (is_public is None or is_public == entity.is_public)
+                    and (protection is None or protection == entity.protection)
                     and (purpose is None or purpose == entity.purpose)
             ):
                 yield entity
 
     def get_gateway_config_entities(
             self, version: str, namespace: Optional[str] = None,
-            is_public: Optional[bool] = None, purpose: Optional[str] = None
+            protection: Optional[RouteProtection] = None, purpose: Optional[str] = None
     ) -> Iterable[GatewayConfigEntity]:
         for entity in self.gateway_entities.keys():
             if (
                     (namespace is None or namespace == entity.namespace_id)
-                    and (is_public is None or is_public == entity.is_public)
+                    and (protection is None or protection == entity.protection)
                     and (purpose is None or purpose == entity.purpose)
             ):
                 yield entity

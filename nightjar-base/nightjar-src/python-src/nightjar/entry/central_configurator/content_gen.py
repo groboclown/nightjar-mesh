@@ -10,6 +10,7 @@ from ...data_stores import (
     ServiceIdConfigEntity,
 )
 from ...cloudmap_collector import EnvoyConfig
+from ...protect import RouteProtection
 from ...msg import note
 
 
@@ -19,6 +20,7 @@ def generate_content(
         config_writer: ConfigurationWriterDataStore,
         namespace_data: Iterable[Tuple[str, EnvoyConfig]],
         service_color_data: Iterable[Tuple[str, str, str, str, EnvoyConfig]],
+        protections: Iterable[RouteProtection],
 ) -> bool:
     """
     service_color_data items are:
@@ -26,7 +28,7 @@ def generate_content(
     """
     diff = ContentDiff()
     diff.load_previous_entity_content(config_reader)
-    generate_namespace_content(collector, diff, namespace_data)
+    generate_namespace_content(collector, diff, namespace_data, protections)
     generate_service_color_content(collector, diff, service_color_data)
     return diff.write_if_different(config_writer)
 
@@ -50,8 +52,10 @@ class ContentDiff:
             if content:
                 self.previous_entity_content[n_entity] = content
 
-    def add_current_namespace_content(self, namespace: str, is_public: bool, purpose: str, content: str) -> None:
-        entity = GatewayConfigEntity(namespace, is_public, purpose)
+    def add_current_namespace_content(
+            self, namespace: str, protection: RouteProtection, purpose: str, content: str
+    ) -> None:
+        entity = GatewayConfigEntity(namespace, protection, purpose)
         self.current_entity_content[entity] = content
 
     def add_current_service_id_content(
@@ -92,14 +96,15 @@ def generate_namespace_content(
         collector: CollectorDataStore,
         diff: ContentDiff,
         namespace_data: Iterable[Tuple[str, EnvoyConfig]],
+        protections: Iterable[RouteProtection]
 ) -> None:
     namespace_configs = {}
     for namespace, config in namespace_data:
-        namespace_configs[(namespace, True)] = config
-        namespace_configs[(namespace, False)] = config
+        for protection in protections:
+            namespace_configs[(namespace, protection)] = config
     template_data = collector.get_namespace_templates(namespace_configs.keys())
     for match, template in template_data:
-        config = namespace_configs[(match.namespace_id, match.is_public)]
+        config = namespace_configs[(match.namespace_id, match.protection)]
 
         # TODO should the transformation happen for ALL content, or just
         #   .mustache template purposes?
@@ -107,7 +112,7 @@ def generate_namespace_content(
         content_purpose = match.purpose
         if match.purpose.endswith('.mustache'):
             content_purpose = match.purpose[:-9]
-        diff.add_current_namespace_content(match.namespace_id, match.is_public, content_purpose, content)
+        diff.add_current_namespace_content(match.namespace_id, match.protection, content_purpose, content)
 
 
 def generate_service_color_content(

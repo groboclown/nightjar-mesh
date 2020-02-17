@@ -27,7 +27,7 @@ resources:
             routes:
             # Static health check path, so something is always available when Envoy is up.
             - match:
-                path: {{healthcheck_path}}
+                path: /ping
               direct_response:
                 status: "200"
                 body:
