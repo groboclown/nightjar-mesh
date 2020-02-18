@@ -1,8 +1,18 @@
 
 import os
 from .process import process_namespace, process_service_color
-from ...data_stores.s3 import create_s3_data_store
+from ...backend.api.data_store import AbcDataStoreBackend
+from ...backend.impl.data_store import get_data_store_params, get_data_store_impl
 from ...protect import as_route_protection
+
+
+def get_data_store() -> AbcDataStoreBackend:
+    data_store_params = get_data_store_params()
+    data_store_name = os.environ['DATASTORE'].strip().lower()
+    for param in data_store_params:
+        if data_store_name in param.aliases:
+            return get_data_store_impl(param.name, param.parse_env_values())
+    raise Exception('Unknown DATASTORE: "{0}"'.format(data_store_name))
 
 
 def main() -> None:
@@ -14,11 +24,7 @@ def main() -> None:
     service_id = os.environ.get('SERVICE_ID')
     protection = as_route_protection(os.environ.get('PROTECTION', 'public'))
 
-    backend_name = os.environ['DATASTORE'].strip().lower()
-    if backend_name == 's3':
-        backend = create_s3_data_store()
-    else:
-        raise Exception('Unknown DATASTORE: "{0}"'.format(backend_name))
+    backend = get_data_store()
 
     if namespace:
         if service_id:

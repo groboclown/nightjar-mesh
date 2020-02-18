@@ -6,6 +6,8 @@ An AWS ECS Control Plane with Envoy Proxy
 
 *That's a fancy way to say that Nightjar monitors AWS Elastic Cloud Services for changes, and sends updates to a local Envoy Proxy to update the traffic routes.*
 
+**Work is underway to make Nightjar more backend-agnostic.**
+
 ## About
 
 [Nightjar](https://en.wikipedia.org/wiki/Nightjar) is a *control plane* for [Envoy Proxy](https://envoyproxy.github.io/envoy/), designed to run within the Amazon Web Services (AWS) ecosystem.  It uses [AWS Cloud Map](https://aws.amazon.com/cloud-map/) to configure how the Envoy *data plane* operates within the Elastic Cloud Services (ECS).

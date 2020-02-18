@@ -6,7 +6,7 @@ Manage the reading and writing of local files.
 from typing import Iterable, Tuple, Dict, Optional, Any
 import os
 import json
-from ...data_stores import (
+from ...backend.api.data_store import (
     GatewayConfigEntity,
     ServiceIdConfigEntity,
     TemplateEntity,

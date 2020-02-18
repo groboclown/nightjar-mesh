@@ -1,7 +1,7 @@
 
 from typing import Iterable, Tuple, Callable, Optional
 import os
-from ...data_stores import AbcDataStoreBackend, EnvoyProxyDataStore
+from ...backend.api.data_store import AbcDataStoreBackend, EnvoyProxyDataStore
 from ...protect import RouteProtection
 from ...msg import debug
 

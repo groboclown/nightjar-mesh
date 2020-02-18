@@ -5,7 +5,7 @@ from .file_mgr import (
     write_namespace_template_entity,
     write_service_color_template_entity,
 )
-from ...data_stores import (
+from ...backend.api.data_store import (
     AbcDataStoreBackend,
     ManagerReadDataStore,
     as_gateway_config_entity,

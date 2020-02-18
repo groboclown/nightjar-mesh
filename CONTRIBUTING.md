@@ -36,7 +36,7 @@ The code must:
     * `cd nightjar-base/nightjar-src/python-src && mypy -p nightjar`
 * Pass shell script tests.
     * `docker build -t my/nightjar-test -f Dockerfile.shell-test . && docker run -it --rm my/nightjar-test`
-    * These are moving over to [BATS](https://github.com/bats-core/bats-core)
+    * These are being rewritten.
 * The docker images construct without failures.
     * `./build-docker-images.sh`
 

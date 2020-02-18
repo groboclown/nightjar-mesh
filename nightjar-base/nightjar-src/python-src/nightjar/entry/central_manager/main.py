@@ -3,13 +3,11 @@ import os
 import sys
 import argparse
 import textwrap
-from ...data_stores.s3 import (
-    S3EnvConfig, S3Backend,
-    ENV_BUCKET, ENV_BASE_PATH, AWS_REGION, AWS_PROFILE,
-)
-from .file_mgr import TEMPLATE_DESCRIPTION_FILENAME, CONFIG_DESCRIPTION_FILENAME
+from .file_mgr import TEMPLATE_DESCRIPTION_FILENAME
 from .push_templates import push_templates
 from .pull_files import pull_generated_files, pull_templates
+from ...backend.api.params import setup_argparse, pull_argparse
+from ...backend.impl.data_store import get_data_store_impl, get_data_store_params
 
 
 ACTION_NAME__PUSH_TEMPLATES = 'push-templates'
@@ -25,34 +23,9 @@ def main() -> None:
 For use by the nightjar centralized configurator.
 """)
     )
-    parser.add_argument(
-        '-b', '--backend', dest='backend', default="not given", required=True,
-        choices=['s3'],
-        help="backend data store.  Currently supports only `s3`."
-    )
-    parser.add_argument(
-        '--region', dest='aws_region', default=os.environ.get(AWS_REGION),
-        help="AWS region.  Defaults to the ENV value `{0}`.".format(AWS_REGION)
-    )
-    parser.add_argument(
-        '--profile', dest='aws_profile', default=os.environ.get(AWS_PROFILE),
-        help="AWS profile, from the credentials.  Defaults to the ENV value `{0}`.".format(AWS_PROFILE)
-    )
-    parser.add_argument(
-        '--s3-bucket', dest='s3_bucket', default=os.environ.get(ENV_BUCKET),
-        help="(s3 backend only) the bucket that will store the templates.  Defaults to ENV value `{0}`".format(
-            ENV_BUCKET
-        )
-    )
-    parser.add_argument(
-        '--s3-base-path', dest='s3_base_path', default=os.environ.get(ENV_BASE_PATH),
-        help=(
-            "(s3 backend only) the path in the bucket that the templates are placed in.  Defaults to ENV value `{0}`"
-            .format(
-                ENV_BASE_PATH
-            )
-        )
-    )
+
+    data_store_params = get_data_store_params()
+    setup_argparse(parser, 'datastore', 'data store implementation', 'datastore', data_store_params)
 
     # ---------------------------------------------
     # Actions
@@ -127,16 +100,13 @@ For use by the nightjar centralized configurator.
     if not parsed.aws_region:
         print("You must specify --region or AWS_REGION.")
         sys.exit(1)
-    if parsed.backend.strip().lower() == 's3':
-        backend = S3Backend(S3EnvConfig().load({
-            AWS_REGION: parsed.aws_region,
-            AWS_PROFILE: parsed.aws_profile,
-            ENV_BUCKET: parsed.s3_bucket,
-            ENV_BASE_PATH: parsed.s3_base_path,
-        }))
-    else:
-        print("The valid backends are `s3`.  Please specify a valid backend.")
+    backend_params = pull_argparse(parsed, 'datastore', data_store_params)
+    if not backend_params:
+        print("The valid backends are {0}.  Please specify a valid backend.".format(
+            [*[dsp.aliases for dsp in data_store_params]]
+        ))
         sys.exit(1)
+    backend = get_data_store_impl(backend_params[0].name, backend_params[1])
 
     if parsed.action_name == ACTION_NAME__PUSH_TEMPLATES:
         push_templates(backend, parsed.source)

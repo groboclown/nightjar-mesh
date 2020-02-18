@@ -1,15 +1,17 @@
 
-from typing import Iterable, Dict, Tuple
+from typing import Iterable, Dict, Tuple, Union, Any
 import pystache  # type: ignore
-from ...data_stores import (
+from ...backend.api.data_store import (
     ConfigEntity,
     CollectorDataStore,
     ConfigurationReaderDataStore,
     ConfigurationWriterDataStore,
     GatewayConfigEntity,
     ServiceIdConfigEntity,
+    MatchedServiceColorTemplate,
+    MatchedNamespaceTemplate,
 )
-from ...cloudmap_collector import EnvoyConfig
+from ...backend.api.deployment_map import EnvoyConfig
 from ...protect import RouteProtection
 from ...msg import note
 
@@ -105,13 +107,9 @@ def generate_namespace_content(
     template_data = collector.get_namespace_templates(namespace_configs.keys())
     for match, template in template_data:
         config = namespace_configs[(match.namespace_id, match.protection)]
-
-        # TODO should the transformation happen for ALL content, or just
-        #   .mustache template purposes?
-        content = pystache.render(template, config.get_context())
-        content_purpose = match.purpose
-        if match.purpose.endswith('.mustache'):
-            content_purpose = match.purpose[:-9]
+        content, content_purpose = render_content(
+            match, template, config.get_context('gateway', 'gateway', None)
+        )
         diff.add_current_namespace_content(match.namespace_id, match.protection, content_purpose, content)
 
 
@@ -131,14 +129,27 @@ def generate_service_color_content(
     template_data = collector.get_service_color_templates(service_color_configs.keys())
     for match, template in template_data:
         config = service_color_configs[(match.namespace_id, match.service_id, match.service, match.color)]
-
-        # TODO should the transformation happen for ALL content, or just
-        #   .mustache template purposes?
-        content = pystache.render(template, config.get_context())
-        content_purpose = match.purpose
-        if match.purpose.endswith('.mustache'):
-            content_purpose = match.purpose[:-9]
+        content, content_purpose = render_content(
+            match, template, config.get_context(
+                match.namespace_id,
+                '{0}-{1}'.format(match.service, match.color),
+                None
+            )
+        )
         diff.add_current_service_id_content(
             match.namespace_id, match.service_id,
             (match.service, match.color), content_purpose, content
         )
+
+
+def render_content(
+        match: Union[MatchedServiceColorTemplate, MatchedNamespaceTemplate],
+        template: str, config: Dict[str, Any]
+) -> Tuple[str, str]:
+    # TODO should the transformation happen for ALL content, or just
+    #   .mustache template purposes?
+    content = pystache.render(template, config)
+    content_purpose = match.purpose
+    if match.purpose.endswith('.mustache'):
+        content_purpose = match.purpose[:-9]
+    return content, content_purpose
