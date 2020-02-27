@@ -2,7 +2,7 @@
 # This file must be clean of any boto3 or boto imports.  Likewise, it
 # can't import anything that in turn imports those.
 
-from typing import Optional
+from typing import Optional, List
 from ..shared_aws import PARAM__AWS_REGION, PARAM__AWS_PROFILE
 from ...api.params import ParamDef, ParamValues, ImplementationParameters
 
@@ -55,6 +55,8 @@ class S3EnvConfig:
         path = PARAM__S3_BASE_PATH.get_value(values) or DEFAULT_BASE_PATH
         while path[0] == '/':
             path = path[1:]
+        while path[-1] == '/':
+            path = path[:-1]
         self.__base_path = path
         self.__region = PARAM__AWS_REGION.get_value(values)
         self.__profile = PARAM__AWS_PROFILE.get_value(values)
@@ -94,3 +96,17 @@ class S3EnvConfig:
     def aws_profile(self) -> Optional[str]:
         assert self.__loaded
         return self.__profile
+
+    def get_path(self, path_parts: List[str]) -> str:
+        if self.base_path:
+            return self.base_path + '/' + ('/'.join(path_parts))
+        return '/'.join(path_parts)
+
+    def split_key_to_path(self, path: str) -> List[str]:
+        ret = []
+        if not path.startswith(self.base_path):
+            return ret
+        for part in path[len(self.base_path):].split('/'):
+            if part:
+                ret.append(part)
+        return ret

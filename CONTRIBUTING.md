@@ -77,8 +77,8 @@ $ cd /my/path/to/nightjar-mesh
 $ python3 -m venv venv
 $ . venv/bin/activate
 $ python3 -m pip install --upgrade pip
-$ python3 -m pip install -r nightjar/requirements.txt
-$ python3 -m pip install -r nightjar/test-requirements.txt
+$ python3 -m pip install -r nightjar-base/nightjar-src/python-src/requirements.txt
+$ python3 -m pip install -r nightjar-base/nightjar-src/python-src/test-requirements.txt
 ```
 
 For Windows users, it's a bit different.

@@ -41,8 +41,17 @@ class ServiceDiscoveryDeploymentMap(AbcDeploymentMap):
         set_aws_config(config)
         self.namespace_cache = load_namespaces(namespaces, [])[1]
 
-    def load_services_in_namespaces(self, namespace: Iterable[str]) -> Dict[str, Iterable[ServiceDef]]:
-        pass
+    def load_services_in_namespaces(self, namespaces: Iterable[str]) -> Dict[str, Iterable[ServiceDef]]:
+        namespaces, new_cache = load_namespaces(namespaces, self.namespace_cache)
+        self.namespace_cache = new_cache
+        ret: Dict[str, Iterable[ServiceDef]] = {}
+        for key, ns in namespaces.items():
+            ns.load_services(False)
+            ret[key] = [
+                ServiceDef(svc.namespace_id, svc.service_id, svc.group_service_name, svc.group_color_name)
+                for svc in ns.services
+            ]
+        return ret
 
     def load_service_config(
             self, service_id_port: NamedProtectionPort,

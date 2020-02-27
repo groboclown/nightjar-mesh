@@ -2,23 +2,49 @@
 
 # nightjar-mesh
 
-An AWS ECS Control Plane with Envoy Proxy
+Yet Another Control Plane with Envoy Proxy (currently focused on supporting AWS services)
 
 *That's a fancy way to say that Nightjar monitors AWS Elastic Cloud Services for changes, and sends updates to a local Envoy Proxy to update the traffic routes.*
 
-**Work is underway to make Nightjar more backend-agnostic.**
-
 ## About
 
-[Nightjar](https://en.wikipedia.org/wiki/Nightjar) is a *control plane* for [Envoy Proxy](https://envoyproxy.github.io/envoy/), designed to run within the Amazon Web Services (AWS) ecosystem.  It uses [AWS Cloud Map](https://aws.amazon.com/cloud-map/) to configure how the Envoy *data plane* operates within the Elastic Cloud Services (ECS).
+[Nightjar](https://en.wikipedia.org/wiki/Nightjar) is a *control plane* for [Envoy Proxy](https://envoyproxy.github.io/envoy/) that uses a file-based approach to allow for transparency in the envoy configuration.
 
 ![2 services communicating through nightjar + Envoy Proxy](2-service-traffic.svg)
 
-Nightjar loads the service configuration defined in [AWS Cloud Map](https://docs.aws.amazon.com/cloud-map/latest/dg) and updates the Envoy Proxy configuration.  It then periodically scans AWS for updates and changes Envoy as the network changes.  Nightjar works both for network traffic entering the data plane and for traffic within the plane.
+Nightjar loads the locations of all the services throughout the service meshes, then transforms those from a template into the Envoy Proxy configurations.  It then periodically scans for updates and changes Envoy as the network changes.
+
+Nightjar works both for network traffic entering the data plane and for traffic within the plane.
 
 ![Traffic flow within a service mesh, deploying a blue-green mix of service #2](nightjar-service-mesh.svg)
 
+The construction of the proxy configuration comes from these layers of data:
+
+1. The network definition.  *Defined through the deployment map abstraction.*
+    1. Which services to use, and where are they?
+    1. What URI paths do they respond to, and how should they be weighted?
+1. Access definition.  *Defined in the construction of the service data.*
+    1. Which services and other meshes are available to each service and gateway?
+    1. Which routes for those services should this allow access to?
+1. Envoy configuration.  *Defined in the envoy configuration templates.*
+    1. Default envoy configurations, and able to define configurations on a per service, deployment color, or service-mesh basis.
+
+
+## Supported Infrastructure
+
+Nightjar has abstraction layers that allow it to run with any number of backing technology.
+
+### AWS
+
+Currently, it only supports reading the service configuration defined in [AWS Cloud Map](https://docs.aws.amazon.com/cloud-map/latest/dg) to construct the Envoy *data plane* for locating services within within the AWS Elastic Cloud Services (ECS).
+
 AWS provides their [App Mesh](https://aws.amazon.com/app-mesh/) tooling, but it involves many limitations that some deployments cannot work around, or should not work around.  Nightjar acts as a low-level intermediary between the AWS API and the Envoy Proxy to make deployments in EC2 or Fargate possible, with little fuss.  It even works without `awsvpc` networks, and takes advantage of ephemeral ports.  Additionally, the envoy configuration Nightar generates is completely configurable.
+
+### Others
+
+Have an idea for another technology to include in Nightjar?  Open a ticket, or, better yet, [submit a push request](CONTRIBUTING.md) with your code!  See details in the [guide to extending Nightjar](EXTENDING.md).
+
+Because of the currently limited support for just AWS, the remainder of this document concerns itself only with using Nightjar with AWS.
 
 
 ## Some Notes on Terminology
@@ -34,9 +60,9 @@ The **control plane** manages the configuration of the data plane.
 
 ## How It Works
 
-You add the Nightjar container to an [ECS Task Definition](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html), along with your existing service container.  The Nightjar container runs the Envoy proxy, and is considered a "sidecar" container here.  The service must be configured to send all traffic to other services in the service mesh to the Nightjar container.  Inbound traffic to the service comes from the Nightjar containers running in the other services. 
+You add the Nightjar container to an [ECS Task Definition](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html), along with your existing service container.  The Nightjar container runs the Envoy proxy, and is considered a "sidecar" container here.  The service must be configured to send all traffic to other services in the service mesh to the Nightjar container.  Inbound traffic to the service comes from the Nightjar containers running in the other services.
 
-You also need to register your ECS service in an AWS Cloud Map namespace, using SVR registration.  Nightjar reads the [service name](https://docs.aws.amazon.com/cloud-map/latest/dg/working-with-services.html) information for each service registered under a single [namespace](https://docs.aws.amazon.com/cloud-map/latest/dg/working-with-namespaces.html), transforms that into a [common data format](nightjar-base/nightjar-src/python-src/nightjar/deployment_map/service-data-schema.yaml), and uses that data with template files to generate envoy proxy files.
+You also need to register your ECS service in an AWS Cloud Map namespace, using SVR registration.  Nightjar reads the [service name](https://docs.aws.amazon.com/cloud-map/latest/dg/working-with-services.html) information for each service registered under a single [namespace](https://docs.aws.amazon.com/cloud-map/latest/dg/working-with-namespaces.html), transforms that into a [common data format](nightjar-base/nightjar-src/python-src/nightjar/backend/api/deployment_map/service-data-schema.yaml), and uses that data with template files to generate envoy proxy files.
 
 You can also have Nightjar run as a gateway proxy.  This does not run as a sidecar, but instead as a standalone container, usually with an AWS Application Load Balancer (ALB) running in front of it.
 

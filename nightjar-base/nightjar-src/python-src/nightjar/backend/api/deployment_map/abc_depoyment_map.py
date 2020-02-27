@@ -44,7 +44,7 @@ class AbcDeploymentMap(ABC):
         """
         raise NotImplementedError()
 
-    def load_services_in_namespaces(self, namespace: Iterable[str]) -> Dict[str, Iterable[ServiceDef]]:
+    def load_services_in_namespaces(self, namespaces: Iterable[str]) -> Dict[str, Iterable[ServiceDef]]:
         """
         Retrieve all the service IDs and their associated service/color description from the
         given namespaces.  The returned mapping is namespace_id -> associated services.

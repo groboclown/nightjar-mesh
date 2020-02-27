@@ -9,7 +9,7 @@ import boto3
 from botocore.config import Config  # type: ignore
 
 from .config import S3EnvConfig
-from . import paths
+from ..data_store_util import wide
 from ...api.data_store import ConfigEntity
 from ...api.data_store.abc_backend import (
     AbcDataStoreBackend,
@@ -53,7 +53,7 @@ class ProcessingVersion:
     def add_entity(self, entity: Entity, contents: str) -> None:
         data = contents.encode('utf-8')
         assert len(data) < MAX_CONTENT_SIZE
-        self.uploaded_data[paths.get_entity_path(self.config, self.name, entity)] = (entity, data)
+        self.uploaded_data[self.config.get_path(wide.get_entity_path(self.name, entity))] = (entity, data)
 
     def get_final_version_name(self) -> str:
         hashing = hashlib.md5()
@@ -121,14 +121,18 @@ class S3Backend(AbcDataStoreBackend):
         return active_version
 
     def get_template_entities(self, version: str) -> Iterable[TemplateEntity]:
-        for key, _ in self._list_entries(paths.get_activity_prefix(self.config, version, ACTIVITY_TEMPLATE_DEFINITION)):
-            entity = paths.parse_template_path(self.config, version, key)
+        for key, _ in self._list_entries(
+                self.config.get_path(wide.get_activity_prefix(version, ACTIVITY_TEMPLATE_DEFINITION))
+        ):
+            entity = wide.parse_template_path(version, self.config.split_key_to_path(key))
             if entity:
                 yield entity
 
     def get_config_entities(self, version: str) -> Iterable[ConfigEntity]:
-        for key, _ in self._list_entries(paths.get_activity_prefix(self.config, version, ACTIVITY_PROXY_CONFIGURATION)):
-            entity = paths.parse_config_path(self.config, version, key)
+        for key, _ in self._list_entries(
+                self.config.get_path(wide.get_activity_prefix(version, ACTIVITY_PROXY_CONFIGURATION))
+        ):
+            entity = wide.parse_config_path(version, self.config.split_key_to_path(key))
             if entity:
                 yield entity
 
@@ -137,8 +141,10 @@ class S3Backend(AbcDataStoreBackend):
             protection: Optional[RouteProtection] = None,
             purpose: Optional[str] = None
     ) -> Iterable[NamespaceTemplateEntity]:
-        for key, _ in self._list_entries(paths.get_namespace_template_prefix(self.config, version)):
-            ns = paths.parse_namespace_template_path(self.config, version, key)
+        for key, _ in self._list_entries(
+                self.config.get_path(wide.get_namespace_template_prefix(version))
+        ):
+            ns = wide.parse_namespace_template_path(version, self.config.split_key_to_path(key))
             if not ns:
                 continue
             if (
@@ -152,8 +158,10 @@ class S3Backend(AbcDataStoreBackend):
             self, version: str, namespace: Optional[str] = None,
             protection: Optional[RouteProtection] = None, purpose: Optional[str] = None
     ) -> Iterable[GatewayConfigEntity]:
-        for key, _ in self._list_entries(paths.get_gateway_config_prefix(self.config, version)):
-            gc = paths.parse_gateway_config_path(self. config, version, key)
+        for key, _ in self._list_entries(
+                self.config.get_path(wide.get_gateway_config_prefix(version))
+        ):
+            gc = wide.parse_gateway_config_path(version, self.config.split_key_to_path(key))
             if not gc:
                 continue
             if (
@@ -171,8 +179,10 @@ class S3Backend(AbcDataStoreBackend):
             color: Optional[str] = None,
             purpose: Optional[str] = None,
     ) -> Iterable[ServiceColorTemplateEntity]:
-        for key, _ in self._list_entries(paths.get_service_color_template_prefix(self.config, version)):
-            sc = paths.parse_service_color_template_path(self.config, version, key)
+        for key, _ in self._list_entries(
+                self.config.get_path(wide.get_service_color_template_prefix(version))
+        ):
+            sc = wide.parse_service_color_template_path(version, self.config.split_key_to_path(key))
             if not sc:
                 continue
             if (
@@ -192,8 +202,10 @@ class S3Backend(AbcDataStoreBackend):
             color: Optional[str] = None,
             purpose: Optional[str] = None,
     ) -> Iterable[ServiceIdConfigEntity]:
-        for key, _ in self._list_entries(paths.get_service_id_config_prefix(self.config, version)):
-            sc = paths.parse_service_id_config_path(self.config, version, key)
+        for key, _ in self._list_entries(
+                self.config.get_path(wide.get_service_id_config_prefix(version))
+        ):
+            sc = wide.parse_service_id_config_path(version, self.config.split_key_to_path(key))
             if not sc:
                 debug('Skipped item {s}', s=key)
                 continue
@@ -209,7 +221,7 @@ class S3Backend(AbcDataStoreBackend):
                 debug('Not match: {s}', s=sc)
 
     def download(self, version: str, entity: Entity) -> str:
-        path = paths.get_entity_path(self.config, version, entity)
+        path = self.config.get_path(wide.get_entity_path(version, entity))
         return self._download(path)
 
     # -----------------------------------------------------------------------
@@ -238,11 +250,11 @@ class S3Backend(AbcDataStoreBackend):
         uploaded_paths = []
         try:
             for entity, data in activity_version.uploaded_data.values():
-                path = paths.get_entity_path(self.config, final_version, entity)
+                path = self.config.get_path(wide.get_entity_path(final_version, entity))
                 self._upload(path, data)
                 uploaded_paths.append(path)
             self._upload(
-                paths.get_version_reference_path(self.config, activity_version.activity, final_version),
+                self.config.get_path(wide.get_version_reference_path(activity_version.activity, final_version)),
                 final_version.encode('utf-8')
             )
         except Exception:
@@ -274,8 +286,10 @@ class S3Backend(AbcDataStoreBackend):
     # Support
 
     def _get_versions(self, activity: str) -> Iterable[Tuple[str, datetime.datetime]]:
-        for key, when in self._list_entries(paths.get_version_reference_prefix(self.config, activity)):
-            version = paths.parse_version_reference_path(self.config, activity, key)
+        for key, when in self._list_entries(
+                self.config.get_path(wide.get_version_reference_prefix(activity))
+        ):
+            version = wide.parse_version_reference_path(activity, self.config.split_key_to_path(key))
             if version:
                 yield version, when
 
@@ -294,10 +308,14 @@ class S3Backend(AbcDataStoreBackend):
                 note('Removing old activity {a} version {v}', a=activity, v=version)
                 to_delete = [
                     d[0]
-                    for d in self._list_entries(paths.get_activity_prefix(self.config, version, activity))
+                    for d in self._list_entries(
+                        self.config.get_path(wide.get_activity_prefix(version, activity))
+                    )
                 ]
                 # don't forget the reference to this version!
-                to_delete.append(paths.get_version_reference_path(self.config, activity, version))
+                to_delete.append(
+                    self.config.get_path(wide.get_version_reference_path(activity, version))
+                )
                 self._delete(to_delete)
 
     def _list_entries(self, path: str) -> Iterable[Tuple[str, datetime.datetime]]:
