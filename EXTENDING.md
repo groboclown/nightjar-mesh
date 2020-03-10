@@ -8,10 +8,15 @@ Nightjar uses two abstraction levels to support the dynamic generation of the En
 
 ## Deployment Map
 
+Discovers the list of service instances in a namespace, along with their host, listening ports, and URL path weights.
+
 ### What Deployment Map Implementations Must Do
 
-blah
+* Provide an implementation of the [`AbcDeploymentMap`](nightjar-base/nightjar-src/python-src/nightjar/backend/api/deployment_map/abc_depoyment_map.py) class.
+* Add a hook in [deployment_map.py](nightjar-base/nightjar-src/python-src/nightjar/backend/impl/deployment_map.py) to allow command line tools to use the new implementation.
+* Only import the dependency libraries (e.g. `boto3`) when the implementation is created.  This helps save memory by not loading code when it isn't needed.
 
+### 
 
 
 ## Data Store

@@ -28,3 +28,8 @@ cd $( dirname "$0" )
   cd nightjar-standalone/envoy-docker && \
   docker build -t ${LOCAL_REPOSITORY_NAME}/nightjar-standalone .
 ) || exit 1
+
+(
+  cd nightjar-standalone/shared-volume-docker && \
+  docker build -t ${LOCAL_REPOSITORY_NAME}/nightjar-standalone-files .
+) || exit 1

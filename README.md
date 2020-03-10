@@ -29,6 +29,8 @@ The construction of the proxy configuration comes from these layers of data:
 1. Envoy configuration.  *Defined in the envoy configuration templates.*
     1. Default envoy configurations, and able to define configurations on a per service, deployment color, or service-mesh basis.
 
+The services call out to other by sending a request to the Envoy proxy directly, rather than to a DNS name that Envoy reroutes through ip table changes.  This makes the Envoy setup require fewer permissions.
+
 
 ## Supported Infrastructure
 

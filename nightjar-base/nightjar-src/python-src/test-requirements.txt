@@ -1,9 +1,9 @@
 mypy>=0.761
-boto3-stubs>=1.12.3.1
-mypy-boto3>=1.12.3.1
-mypy-boto3-s3>=1.12.3.1
-mypy-boto3-dynamodb>=1.12.3.1
-mypy-boto3-servicediscovery>=1.12.3.1
+boto3-stubs>=1.12.17.1
+mypy-boto3>=1.12.17.1
+mypy-boto3-s3>=1.12.17.1
+mypy-boto3-dynamodb>=1.12.17.1
+mypy-boto3-servicediscovery>=1.12.17.1
 coverage>=5.0.3
 jsonschema>=3.2.0
 pyyaml>=5.3

@@ -39,3 +39,21 @@ If one nightjar loops over this, it performs 1 service/color lookup to fetch the
 If nightjar checks twice a minute, that means it checks 2,880 times a day.  That's 118,080 calls per day.  Right now, the fee is $1.00 per 1 million requests, or $0.11 per day, or $43.09 per year.
 
 For some people, this is the price of their web hosting; for others, it's chump change in comparison to the rest of their AWS bill.  It's your call.
+
+
+## `shared-volume-docker`
+
+***EXPERIMENTAL***
+
+This is an alternate approach to the deployment that uses the envoy docker image as-is, ands puts the Nightjar standalone inspection source into another container.
+
+With this approach, the envoy container must be defined with shared volume, and passes in the bootstrap configuration through the task arguments.  If you desire the bootstrap configuration to change, then alter the container's definition and create the new container.  The bootstrap configuration will define the dynamic parameters as located in the shared volume that the Nightjar standalone inspection container writes into.  
+
+The Envoy container should have this command value:
+
+```bash
+"--config"
+"{node:{id:${SERVICE_MEMBER},cluster:${SERVICE_CONTAINER_NAME}},admin:{access_log_path:/dev/stdout,address:{socket_address:{address:0.0.0.0,port_value:${ENVOY_ADMIN_PORT}}}},dynamic_resources:{cds_config:{path:/mnt/envoy-config/active-envoy-config/cds.yaml},lds_config:{path:/mnt/envoy-config/active-envoy-config/lds.yaml}}"
+```
+
+The method used for launching this image should correctly replace the variables above: `ENVOY_ADMIN_PORT`, `SERVICE_PORT`, `SERVICE_MEMBER` and `ENV SERVICE_CONTAINER_NAME`.
