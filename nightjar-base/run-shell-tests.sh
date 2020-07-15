@@ -2,7 +2,7 @@
 
 set -e
 
-if [ "$1" -ne "docker-based-test" ] ; then
+if [ "$1" != "docker-based-test" ] ; then
   echo "This script should ONLY be run from within Docker."
   exit 1
 fi
