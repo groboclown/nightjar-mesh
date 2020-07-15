@@ -1,0 +1,24 @@
+language: python
+
+services:
+  - docker
+
+install:
+  - pip install -r nightjar-base/nightjar-src/python-src/requirements.txt
+  - pip install -r nightjar-base/nightjar-src/python-src/test-requirements.txt
+
+script:
+  - echo "==========================================================="
+  - echo "Type Checking Python Source"
+  - ( cd nightjar-base/nightjar-src/python-src && mypy -p nightjar )
+  - echo "==========================================================="
+  - echo "Unit Testing Python Source"
+  - ( cd nightjar-base/nightjar-src/python-src && python3 -m coverage run --source . -m unittest discover )
+  - ( cd nightjar-base/nightjar-src/python-src && python3 -m coverage report )
+  # TODO grab the coverage measurement, and ensure it hasn't gone down.
+  - echo "==========================================================="
+  - echo "Unit Testing Shell Scripts"
+  - ( docker build -t my/nightjar-test -f Dockerfile.shell-test . && docker run -it --rm my/nightjar-test )
+  - echo "==========================================================="
+  - echo "Testing Docker Image Construction"
+  - ./build-docker-images.sh
