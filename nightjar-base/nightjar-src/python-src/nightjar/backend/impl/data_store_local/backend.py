@@ -69,12 +69,14 @@ class LocalFileBackend(AbcDataStoreBackend):
 
     def get_template_entities(self, version: str) -> Iterable[TemplateEntity]:
         for entity in self.get_all_entities(version):
-            if isinstance(entity, TemplateEntity):
+            # Note: TemplateEntity is one of NamespaceTemplateEntity, ServiceColorTemplateEntity
+            if isinstance(entity, (NamespaceTemplateEntity, ServiceColorTemplateEntity)):
                 yield entity
 
     def get_config_entities(self, version: str) -> Iterable[ConfigEntity]:
         for entity in self.get_all_entities(version):
-            if isinstance(entity, ConfigEntity):
+            # Note: ConfigEntity is one of GatewayConfigEntity, ServiceIdConfigEntity
+            if isinstance(entity, (GatewayConfigEntity, ServiceIdConfigEntity)):
                 yield entity
 
     def get_namespace_template_entities(
@@ -99,7 +101,7 @@ class LocalFileBackend(AbcDataStoreBackend):
             gce = as_gateway_config_entity(entity)
             if (
                 gce
-                and (not namespace or namespace == gce.namespace)
+                and (not namespace or namespace == gce.namespace_id)
                 and (not protection or protection == gce.protection)
                 and (not purpose or purpose == gce.purpose)
             ):
@@ -186,7 +188,7 @@ class LocalFileBackend(AbcDataStoreBackend):
         return os.path.join(self.config.base_path, *parts)
 
     def _split_path(self, full_path: str) -> List[str]:
-        ret = []
+        ret: List[str] = []
         if not full_path.startswith(self.config.base_path):
             return ret
         current = full_path[len(self.config.base_path):]

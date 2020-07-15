@@ -370,7 +370,7 @@ def get_servicediscovery_client() -> Any:
             region_name=region,  # type: ignore
             profile_name=profile,  # type: ignore
         )
-        CLIENTS[client_name] = session.client('servicediscovery', config=Config(
+        CLIENTS[client_name] = session.client(client_name, config=Config(
             max_pool_connections=1,
             retries=dict(max_attempts=2)
         ))

@@ -4,7 +4,7 @@ Constructs an input data format for each of the namespaces and service/color env
 """
 
 
-from typing import List, Tuple, Dict, Iterable
+from typing import List, Tuple, Iterable
 
 from ...backend.api.deployment_map import AbcDeploymentMap, EnvoyConfig, NamedProtectionPort
 from ...protect import RouteProtection
@@ -36,7 +36,7 @@ def load_service_color_data(
     """
 
     services_by_namespace = deployment_map.load_services_in_namespaces(namespaces)
-    for service_list in services_by_namespace.values():
+    for namespace, service_list in services_by_namespace.items():
         for service in service_list:
             yield (
                 service.namespace_id,
@@ -44,6 +44,7 @@ def load_service_color_data(
                 service.group_service_name,
                 service.group_color_name,
                 deployment_map.load_service_config(
+                    namespace,
                     (service.service_id, protection, None),
                     [], False
                 )

@@ -12,6 +12,7 @@ T = TypeVar('T')
 MAX_NAMESPACE_COUNT = 99
 SERVICE_MEMBER_GATEWAY = '-gateway-'
 DEFAULT_SERVICE_PORT = '8080'
+DEFAULT_NAMESPACE = 'stand-alone'
 
 
 # ---------------------------------------------------------------------------
@@ -22,10 +23,12 @@ class EnvSetup:
             self,
             admin_port: int,
             local_service: Optional[NamedProtectionPort],
+            local_namespace: Optional[str],
             namespaces: Dict[str, int],
     ) -> None:
         self.admin_port = admin_port
         self.local_service = local_service
+        self.local_namespace = local_namespace
         self.namespace_ports = dict(namespaces)
 
     @staticmethod
@@ -43,6 +46,7 @@ class EnvSetup:
                 'Must set SERVICE_MEMBER environment variable to the AWS Cloud Map (service discovery) service ID.'
             )
         local_service: Optional[NamedProtectionPort] = None
+        local_namespace: Optional[str] = None
         if member.lower() == SERVICE_MEMBER_GATEWAY:
             note("Using 'gateway' mode for the proxy.")
         else:
@@ -54,6 +58,8 @@ class EnvSetup:
                     port=port_str
                 )
             local_service = (member, PROTECTION_PRIVATE, int(port_str))
+            local_namespace = os.environ.get('NAMESPACE', DEFAULT_NAMESPACE)
+
         namespaces: Dict[str, int] = {}
         for ni in range(0, MAX_NAMESPACE_COUNT + 1):
             namespace = os.environ.get('NAMESPACE_{0}'.format(ni), '').strip()
@@ -68,7 +74,7 @@ class EnvSetup:
                         index=ni, name=namespace, port=namespace_port_str,
                     )
 
-        return EnvSetup(admin_port, local_service, namespaces)
+        return EnvSetup(admin_port, local_service, local_namespace, namespaces)
 
 
 class EnvoyConfigContext:
@@ -111,9 +117,10 @@ def get_deployment_map(namespace_names: Iterable[str]) -> AbcDeploymentMap:
 
 def create_envoy_config_from_env(env: EnvSetup) -> EnvoyConfigContext:
     discovery_map = get_deployment_map(env.namespace_ports.keys())
-    if env.local_service:
+    if env.local_service and env.local_namespace:
         return EnvoyConfigContext(
             discovery_map.load_service_config(
+                env.local_namespace,
                 env.local_service,
                 [(nsn, PROTECTION_PUBLIC, nsp) for nsn, nsp in env.namespace_ports.items()],
                 True

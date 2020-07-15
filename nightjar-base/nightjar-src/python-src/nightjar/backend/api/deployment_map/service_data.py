@@ -109,7 +109,7 @@ class EnvoyCluster:
     ) -> None:
         self.cluster_name = cluster_name
         self.uses_http2 = uses_http2
-        self.instances = list(instances)
+        self.instances: List[EnvoyClusterEndpoint] = list(instances)
 
     def endpoint_count(self) -> int:
         return len(self.instances)
@@ -134,8 +134,8 @@ class EnvoyConfig:
 
     def __init__(
             self,
-            listeners: Iterable[EnvoyListener], clusters: Iterable[EnvoyCluster],
-
+            listeners: Iterable[EnvoyListener],
+            clusters: Iterable[EnvoyCluster],
     ) -> None:
         self.listeners = list(listeners)
         self.clusters = list(clusters)

@@ -1,12 +1,12 @@
 
 from typing import Dict, Any
 import yaml
-import jsonschema
+import jsonschema  # type: ignore
 try:
     import importlib.resources as pkg_resources
 except ImportError:
     # Try backported to PY<37 `importlib_resources`.
-    import importlib_resources as pkg_resources
+    import importlib_resources as pkg_resources  # type: ignore
 
 from ... import deployment_map
 

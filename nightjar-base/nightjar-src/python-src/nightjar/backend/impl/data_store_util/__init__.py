@@ -8,3 +8,5 @@ The functions allow for two general techniques of storage
     resource indicates the details.
 * a "single" model, where each version is a single data blob.
 """
+
+from . import wide

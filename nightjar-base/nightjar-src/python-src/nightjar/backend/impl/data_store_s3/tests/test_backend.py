@@ -5,7 +5,6 @@ import datetime
 import boto3
 import io
 import botocore.stub  # type: ignore
-from .. import paths
 from ..backend import (
     S3Backend,
     GatewayConfigEntity,
@@ -14,6 +13,7 @@ from ..backend import (
 from ..config import (
     S3EnvConfig, PARAM__AWS_REGION, PARAM__S3_BASE_PATH, PARAM__S3_BUCKET,
 )
+from ...data_store_util import wide
 from ....api.data_store.abc_backend import ACTIVITY_PROXY_CONFIGURATION
 from .....protect import as_route_protection, PROTECTION_PUBLIC
 
@@ -32,7 +32,11 @@ class S3BackendTest(unittest.TestCase):
     def test_get_active_version__none(self) -> None:
         s3 = MockS3()
         config = S3EnvConfig({PARAM__S3_BUCKET.name: 's3bucket', PARAM__S3_BASE_PATH.name: 'p/a2', PARAM__AWS_REGION.name: 'z'})
-        s3.mk_list_entries('s3bucket', paths.get_version_reference_prefix(config, ACTIVITY_PROXY_CONFIGURATION), [])
+        s3.mk_list_entries(
+            's3bucket',
+            'p/a2/' + ('/'.join(wide.get_version_reference_prefix(ACTIVITY_PROXY_CONFIGURATION))),
+            [],
+        )
         with s3:
             bk = S3Backend(config)
             bk.client = s3.client
@@ -42,9 +46,11 @@ class S3BackendTest(unittest.TestCase):
     def test_get_active_version__one(self) -> None:
         s3 = MockS3()
         config = S3EnvConfig({PARAM__S3_BUCKET.name: 's3bucket', PARAM__S3_BASE_PATH.name: 'p/a2', PARAM__AWS_REGION.name: 'z'})
-        s3.mk_list_entries('s3bucket', paths.get_version_reference_prefix(config, ACTIVITY_PROXY_CONFIGURATION), [
-            ('a1', 100,)
-        ])
+        s3.mk_list_entries(
+            's3bucket',
+            'p/a2/' + ('/'.join(wide.get_version_reference_prefix(ACTIVITY_PROXY_CONFIGURATION))),
+            [('/a1', 100,)],
+        )
         with s3:
             bk = S3Backend(config)
             bk.client = s3.client
@@ -54,9 +60,11 @@ class S3BackendTest(unittest.TestCase):
     def test_get_active_version__several(self) -> None:
         s3 = MockS3()
         config = S3EnvConfig({PARAM__S3_BUCKET.name: 's3bucket', PARAM__S3_BASE_PATH.name: 'p/a2', PARAM__AWS_REGION.name: 'z'})
-        s3.mk_list_entries('s3bucket', paths.get_version_reference_prefix(config, ACTIVITY_PROXY_CONFIGURATION), [
-            ('a1', 100,), ('a2', 120,), ('a3', 5), ('a4', 10)
-        ])
+        s3.mk_list_entries(
+            's3bucket',
+            'p/a2/' + ('/'.join(wide.get_version_reference_prefix(ACTIVITY_PROXY_CONFIGURATION))),
+            [('/a1', 100,), ('/a2', 120,), ('/a3', 5), ('/a4', 10)],
+        )
         with s3:
             bk = S3Backend(config)
             bk.client = s3.client
@@ -67,7 +75,11 @@ class S3BackendTest(unittest.TestCase):
         s3 = MockS3()
         config = S3EnvConfig({PARAM__S3_BUCKET.name: 's3bucket', PARAM__S3_BASE_PATH.name: 'p/a3', PARAM__AWS_REGION.name: 'z'})
         expected_entity = ServiceColorTemplateEntity('n1', 's1', 'c1', 'p1')
-        s3.mk_download('s3bucket', paths.get_service_color_template_path(config, 'v1a', expected_entity), 'cc1')
+        s3.mk_download(
+            's3bucket',
+            'p/a3/' + ('/'.join(wide.get_service_color_template_path('v1a', expected_entity))),
+            'cc1',
+        )
         with s3:
             bk = S3Backend(config)
             bk.client = s3.client
@@ -78,7 +90,11 @@ class S3BackendTest(unittest.TestCase):
         s3 = MockS3()
         config = S3EnvConfig({PARAM__S3_BUCKET.name: 's3bucket', PARAM__S3_BASE_PATH.name: 'p/a4', PARAM__AWS_REGION.name: 'z'})
         expected_entity = GatewayConfigEntity('n2', PROTECTION_PUBLIC, 'p1.txt')
-        s3.mk_download('s3bucket', paths.get_gateway_config_path(config, '1b', expected_entity), 'cc2')
+        s3.mk_download(
+            's3bucket',
+            'p/a4/' + ('/'.join(wide.get_gateway_config_path('1b', expected_entity))),
+            'cc2',
+        )
         with s3:
             bk = S3Backend(config)
             bk.client = s3.client

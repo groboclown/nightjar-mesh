@@ -16,7 +16,9 @@ Discovers the list of service instances in a namespace, along with their host, l
 * Add a hook in [deployment_map.py](nightjar-base/nightjar-src/python-src/nightjar/backend/impl/deployment_map.py) to allow command line tools to use the new implementation.
 * Only import the dependency libraries (e.g. `boto3`) when the implementation is created.  This helps save memory by not loading code when it isn't needed.
 
-### 
+### Paths, Weights, and Service Locations
+
+The deployment map must be able to associate the IP + listening port of each service with a URI path and weight.  The simple approach here is to use "/" as the path and "1" as the weight for all services. 
 
 
 ## Data Store

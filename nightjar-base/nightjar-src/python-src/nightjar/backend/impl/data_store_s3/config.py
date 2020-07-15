@@ -103,7 +103,7 @@ class S3EnvConfig:
         return '/'.join(path_parts)
 
     def split_key_to_path(self, path: str) -> List[str]:
-        ret = []
+        ret: List[str] = []
         if not path.startswith(self.base_path):
             return ret
         for part in path[len(self.base_path):].split('/'):

@@ -233,7 +233,7 @@ class MockServiceDiscovery:
 
     def __init__(self) -> None:
         self.client = None
-        self._client = boto3.client('servicediscovery')
+        self._client = boto3.client('servicediscovery', region_name='us-west-1')
         self.stubber = botocore.stub.Stubber(self._client)
         self.old_client = None
 

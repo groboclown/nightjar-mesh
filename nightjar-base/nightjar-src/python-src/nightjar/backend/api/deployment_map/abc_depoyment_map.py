@@ -29,18 +29,27 @@ class ServiceDef:
 
 
 class AbcDeploymentMap(ABC):
+    """
+    Parent class for all deployment maps.
+
+    You need to register the deployment maps in the
+    `nightjar.backend.impl.deployment_map` file.
+    """
     def load_service_config(
             self,
+            local_namespace: str,
             service_id_port: NamedProtectionPort,
             external_namespace_protection_ports: Iterable[NamedProtectionPort],
             force_cache_refresh: bool = False,
     ) -> EnvoyConfig:
         """
-        Constructs the Envoy configuration for a service sidecar that directs
-        outbound service traffic to the rest of the service-mesh, both internal and
-        external.
+        Constructs the Envoy configuration for a service sidecar (service specified by the
+        `service_id_port`) that directs outbound service traffic to the rest of the service-mesh,
+        both internal and external.
 
-        The local service's namespace will have the protection-level routes available.
+        The local service's namespace will have the protection-level routes available.  All other
+        namespaces have the namespace, protection level, and listening port on the
+        `external_namespace_protection_ports`.
         """
         raise NotImplementedError()
 

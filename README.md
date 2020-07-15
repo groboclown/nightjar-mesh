@@ -36,11 +36,19 @@ The services call out to other by sending a request to the Envoy proxy directly,
 
 Nightjar has abstraction layers that allow it to run with any number of backing technology.
 
-### AWS
+### AWS - Cloud Map
 
-Currently, it only supports reading the service configuration defined in [AWS Cloud Map](https://docs.aws.amazon.com/cloud-map/latest/dg) to construct the Envoy *data plane* for locating services within within the AWS Elastic Cloud Services (ECS).
+Currently, nightjar only supports reading the service configuration defined in [AWS Cloud Map](https://docs.aws.amazon.com/cloud-map/latest/dg) to construct the Envoy *data plane* for locating services within within the AWS Elastic Cloud Services (ECS).
 
-AWS provides their [App Mesh](https://aws.amazon.com/app-mesh/) tooling, but it involves many limitations that some deployments cannot work around, or should not work around.  Nightjar acts as a low-level intermediary between the AWS API and the Envoy Proxy to make deployments in EC2 or Fargate possible, with little fuss.  It even works without `awsvpc` networks, and takes advantage of ephemeral ports.  Additionally, the envoy configuration Nightar generates is completely configurable.
+### AWS - ECS Tags
+
+**In progress - an extension that uses the tags on tasks in an ECS cluster.  This has the same benefits of the cloud-map, but with none of the associated costs.  When this is further along in development, the documentation here will change around to reflect the additional discovery method.**
+
+
+### AWS - App Mesh
+
+AWS provides their [App Mesh](https://aws.amazon.com/app-mesh/) tooling, but it involves many limitations that some deployments cannot work around, or should not work around.  Nightjar acts as a low-level intermediary between the AWS API and the Envoy Proxy to make deployments in EC2 or Fargate possible, with little fuss.  It even works without `awsvpc` networks, and takes advantage of ephemeral ports.  Additionally, the envoy configuration Nightar generates is completely configurable, which gives you flexibility to take advantage of many Envoy features without needing to wait for AWS to support them.
+
 
 ### Others
 

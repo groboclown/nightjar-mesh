@@ -27,13 +27,13 @@ Keep the functionality in the right place.  Where possible, have tools that do o
 
 The code must:
 
+* Pass mypy checks.
+    * `cd nightjar-base/nightjar-src/python-src && mypy -p nightjar`
 * Pass Python unit tests.
     * `cd nightjar-base/nightjar-src/python-src && python3 -m coverage run --source . -m unittest discover`
 * And code coverage must not go down.
     * `cd nightjar-base/nightjar-src/python-src && python3 -m coverage report`
     * Major refactoring can be excluded from this rule.
-* Pass mypy checks.
-    * `cd nightjar-base/nightjar-src/python-src && mypy -p nightjar`
 * Pass shell script tests.
     * `docker build -t my/nightjar-test -f Dockerfile.shell-test . && docker run -it --rm my/nightjar-test`
     * These are being rewritten.

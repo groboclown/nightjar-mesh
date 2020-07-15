@@ -1,4 +1,4 @@
-boto3 >= 1.12.17
-botocore >= 1.15.17
+boto3 >= 1.14.20
+botocore >= 1.17.20
 pystache >= 0.5.4
-docker >= 4.2.0
+docker >= 4.2.2

@@ -74,12 +74,12 @@ class WideTest(unittest.TestCase):
 
     def test_get_namespace_template_prefix(self) -> None:
         self.assertEqual(
+            ['content', ACTIVITY_TEMPLATE_DEFINITION, '1', 'gateway'],
             wide.get_namespace_template_prefix('1'),
-            ['content', ACTIVITY_TEMPLATE_DEFINITION, '1'],
         )
         self.assertEqual(
+            ['content', ACTIVITY_TEMPLATE_DEFINITION, 'abcdefghijklmnop.a.2.2/1@#%@', 'gateway'],
             wide.get_namespace_template_prefix('abcdefghijklmnop.a.2.2/1@#%@'),
-            ['content', ACTIVITY_TEMPLATE_DEFINITION, 'abcdefghijklmnop.a.2.2/1@#%@'],
         )
 
 
