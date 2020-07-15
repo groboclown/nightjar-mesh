@@ -2,6 +2,8 @@
 
 # nightjar-mesh
 
+![build status (dev branch)](https://api.travis-ci.com/groboclown/nightjar-mesh.svg?branch=dev)
+
 Yet Another Control Plane with Envoy Proxy (currently focused on supporting AWS services)
 
 *That's a fancy way to say that Nightjar monitors AWS Elastic Cloud Services for changes, and sends updates to a local Envoy Proxy to update the traffic routes.*
