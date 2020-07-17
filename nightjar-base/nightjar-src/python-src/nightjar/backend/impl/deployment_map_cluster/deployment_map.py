@@ -1,4 +1,8 @@
 
+"""
+Implementation of the deployment map for the clustering method.
+"""
+
 from typing import Iterable, List, Dict, Optional
 from . import ecs
 from .config import AwsEcsClusterConfig
@@ -29,12 +33,12 @@ class ClusterTaskDeploymentMap(AbcDeploymentMap):
     deployment map must have special tags on the task:
 
         _ Possibly a required name / value, as defined in the configuration.
-          Only tasks that have this name / value will be picked up.
+            Only tasks that have this name / value will be picked up.
         _ a `NAMESPACE` tag, which is how the deployment map determines the
-          namespace each task belongs to.
+            namespace each task belongs to.
         _ a `COLOR` tag, which is the color this service belongs to.
-        _ a `ROUTE_n` tag, where `n` is some non-negative integer.  This indicates a supported URI path
-          that this task handles.
+        _ a `ROUTE_n` tag, where `n` is some non-negative integer.  This indicates a supported
+            URI path that this task handles.
         _ a `WEIGHT_n` tag, where `n` is a matching integer to the route.  If not given, then
             the weight of the route is 1.
         _ a `PORT_n` tag, where `n` is a matching integer to the route.  This is the container
@@ -47,13 +51,13 @@ class ClusterTaskDeploymentMap(AbcDeploymentMap):
             be grouped into a single "envoy cluster", which means requests for that service
             are sent to any of those tasks.
 
-    If there is just one container in the task, then many things can be assumed, such as the service name.
-    If there is only one container and one published port, then that can also be assumed.  Otherwise, the
-    default port and the default service name will be pulled from the first container seen, which does not
-    have a guaranteed ordering.
-    If multiple containers specify the same container port, then there is no guarantee that the host port
-    to container port will be correct.  To help with this, you can also specify the PORT tag to be
-    `(container-name):(port)`.
+    If there is just one container in the task, then many things can be assumed, such as the
+    service name.  If there is only one container and one published port, then that can also be
+    assumed.  Otherwise, the default port and the default service name will be pulled from the
+    first container seen, which does not have a guaranteed ordering.
+    If multiple containers specify the same container port, then there is no guarantee that the
+    host port to container port will be correct.  To help with this, you can also specify the PORT
+    tag to be `(container-name):(port)`.
     """
     __slots__ = ('_config', '_task_cache',)
 
@@ -64,12 +68,14 @@ class ClusterTaskDeploymentMap(AbcDeploymentMap):
     ) -> None:
         self._config = config
         ecs.set_aws_config(config)
-        self._task_cache: Dict[str, Iterable[ecs.EcsTask]] = dict([
-            (namespace, ecs.load_tasks_for_namespace(namespace))
+        self._task_cache: Dict[str, Iterable[ecs.EcsTask]] = {
+            namespace: ecs.load_tasks_for_namespace(namespace)
             for namespace in initial_namespace_list
-        ])
+        }
 
-    def load_services_in_namespaces(self, namespaces: Iterable[str]) -> Dict[str, Iterable[ServiceDef]]:
+    def load_services_in_namespaces(
+            self, namespaces: Iterable[str],
+    ) -> Dict[str, Iterable[ServiceDef]]:
         ret: Dict[str, Iterable[ServiceDef]] = {}
         for namespace in namespaces:
             service_defs = [
@@ -86,13 +92,13 @@ class ClusterTaskDeploymentMap(AbcDeploymentMap):
 
     def load_service_config(
             self,
-            namespace: str,
+            local_namespace: str,
             service_id_port: NamedProtectionPort,
             external_namespace_protection_ports: Iterable[NamedProtectionPort],
             force_cache_refresh: bool = False,
     ) -> EnvoyConfig:
         """Loads the envoy configuration for use by the given service's envoy sidecar."""
-        local_service_id, local_route_protection, outgoing_mesh_port = service_id_port
+        local_service_id, _, outgoing_mesh_port = service_id_port
         assert local_service_id is not None
 
         envoy_listeners: List[EnvoyListener] = []
@@ -102,7 +108,7 @@ class ClusterTaskDeploymentMap(AbcDeploymentMap):
         # Local Namespace collection
 
         self._load_namespace_cluster(
-            namespace=namespace,
+            namespace=local_namespace,
             namespace_protection=PROTECTION_PRIVATE,
             namespace_mesh_listening_port=outgoing_mesh_port,
             envoy_clusters=envoy_clusters,
@@ -113,7 +119,8 @@ class ClusterTaskDeploymentMap(AbcDeploymentMap):
         # ---------------------------------------------
         # External Namespace collection
 
-        for external_namespace, external_namespace_protection, external_port in external_namespace_protection_ports:
+        for port in external_namespace_protection_ports:
+            external_namespace, external_namespace_protection, external_port = port
             self._load_namespace_cluster(
                 namespace=external_namespace,
                 namespace_protection=external_namespace_protection,
@@ -129,8 +136,8 @@ class ClusterTaskDeploymentMap(AbcDeploymentMap):
             self, namespaces: Iterable[NamedProtectionPort],
             force_cache_refresh: bool = False,
     ) -> Dict[str, EnvoyConfig]:
-        """Loads the gateway config for each namespace, where the gateway is the inbound service proxy that
-        directs traffic into the mesh."""
+        """Loads the gateway config for each namespace, where the gateway is the inbound service
+        proxy that directs traffic into the mesh."""
         ret: Dict[str, EnvoyConfig] = {}
         for namespace, namespace_protection, mesh_port in namespaces:
             envoy_listeners: List[EnvoyListener] = []

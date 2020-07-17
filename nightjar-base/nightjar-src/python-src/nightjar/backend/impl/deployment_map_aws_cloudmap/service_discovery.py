@@ -57,14 +57,16 @@ PROTECT_RE = re.compile(r'^\[([0-9a-zA-Z][0-9a-zA-Z_\-]*)\](/.*)$')
 
 def set_refresh_limit(delta: datetime.timedelta) -> None:
     """Set the limit for refreshing the cache."""
-    global REQUIRE_REFRESH_LIMIT
+    global REQUIRE_REFRESH_LIMIT  # pylint: disable=W0603
     REQUIRE_REFRESH_LIMIT = delta
 
 
 # ---------------------------------------------------------------------------
 class DiscoveryServiceInstance:
     """An instance of the service discovery cache."""
-    __slots__ = ('instance_id', 'attributes', 'cache_load_time', 'ec2_instance_id', 'ipv4', 'port_str',)
+    __slots__ = (
+        'instance_id', 'attributes', 'cache_load_time', 'ec2_instance_id', 'ipv4', 'port_str',
+    )
 
     def __init__(self, instance_id: str, attributes: Dict[str, str]) -> None:
         self.instance_id = instance_id
@@ -78,8 +80,9 @@ class DiscoveryServiceInstance:
 class DiscoveryServiceColor:
     """A service color."""
     __slots__ = (
-        'instances', 'group_service_name', 'group_color_name', 'path_protect_weights', 'cache_load_time',
-        'service_arn', 'service_id', 'namespace_id', 'discovery_service_name', 'uses_http2',
+        'instances', 'group_service_name', 'group_color_name', 'path_protect_weights',
+        'cache_load_time', 'service_arn', 'service_id', 'namespace_id', 'discovery_service_name',
+        'uses_http2',
     )
 
     instances: List[DiscoveryServiceInstance]
@@ -89,7 +92,7 @@ class DiscoveryServiceColor:
     cache_load_time: Optional[datetime.datetime]
 
     def __init__(
-            self, arn: str, namespace_id: str, service_id: str, discovery_service_name: str
+            self, arn: str, namespace_id: str, service_id: str, discovery_service_name: str,
     ) -> None:
         self.service_arn = arn
         self.namespace_id = namespace_id
@@ -105,7 +108,7 @@ class DiscoveryServiceColor:
 
         self.cache_load_time = None
 
-    def load_instances(self, refresh_cache: bool) -> None:
+    def load_instances(self, refresh_cache: bool) -> None:  # pylint: disable=R1702
         """Load instances in this service/color."""
         if skip_reload(self.cache_load_time, refresh_cache):
             return
@@ -135,7 +138,7 @@ class DiscoveryServiceColor:
                                 group_color_name = value.strip()
                             elif key == USES_HTTP2_ATTRIBUTE_KEY:
                                 self.uses_http2 = (
-                                        value.strip().lower() in USES_HTTP2_AFFIRMATIVE_VALUES
+                                    value.strip().lower() in USES_HTTP2_AFFIRMATIVE_VALUES
                                 )
                             elif key not in AWS_STANDARD_ATTRIBUTES and key[0] in '/*[':
                                 try:
@@ -153,11 +156,11 @@ class DiscoveryServiceColor:
                                 path_protect_weights.append(parse_path_protect_weight(key, weight))
                     else:
                         instances.append(DiscoveryServiceInstance(instance_id, attributes))
-        except ClientError as e:
+        except ClientError as err:
             # This means that either there was a communication error, or the
             # service was deleted during the query.
             # Clear out the instances and weights, since they can no longer be trusted.
-            warn('Failed to load instances for service {svc}: {e}', svc=self.service_id, e=e)
+            warn('Failed to load instances for service {svc}: {e}', svc=self.service_id, e=err)
             instances = []
             path_protect_weights = []
         self.group_service_name = group_service_name
@@ -195,8 +198,11 @@ class DiscoveryServiceColor:
         client = get_servicediscovery_client()
         try:
             return DiscoveryServiceColor.from_resp(client.get_service(Id=service_id))
-        except ClientError as e:
-            warn('Could not find service discovery service with id {svc}: {e}', svc=repr(service_id), e=e)
+        except ClientError as err:
+            warn(
+                'Could not find service discovery service with id {svc}: {e}',
+                svc=repr(service_id), e=err,
+            )
             return None
 
 
@@ -241,12 +247,14 @@ class DiscoveryServiceNamespace:
             Filters=[{
                 'Name': 'NAMESPACE_ID',
                 'Values': [self.namespace_id],
-                'Condition': 'EQ'
+                'Condition': 'EQ',
             }]
         )
         self.services = []
         for service_list_raw in service_iter:
-            for service in DiscoveryServiceColor.from_resp_list(service_list_raw, self.namespace_id):
+            for service in DiscoveryServiceColor.from_resp_list(
+                    service_list_raw, self.namespace_id,
+            ):
                 service.load_instances(True)
                 self.services.append(service)
 
@@ -291,16 +299,16 @@ def load_namespaces(
     """
 
     requested: Dict[str, DiscoveryServiceNamespace] = {}
-    known_by_id: Dict[str, DiscoveryServiceNamespace] = dict([
-        (ns.namespace_id, ns) for ns in already_known_list
-    ])
+    known_by_id: Dict[str, DiscoveryServiceNamespace] = {
+        ns.namespace_id: ns for ns in already_known_list
+    }
     client = get_servicediscovery_client()
 
     # Find namespace IDs.
     # ARNs are in the form 'arn:aws:servicediscovery:(region):(account):namespace/(namespace)'
     # Namespace IDs match 'ns-[a-z0-9]{16}', it looks like.
-    # Namespace IDs, however, can very easily overlap the name, so if the user prepends a namespace id
-    # with 'id:', then we use that as the explicit trigger.
+    # Namespace IDs, however, can very easily overlap the name, so if the user prepends a
+    # namespace id with 'id:', then we use that as the explicit trigger.
     # Anything that doesn't match these will need to go into the list_namespaces for a long search.
     # That should be avoided, because it adds one additional Cloud Map service call *per loop*,
     # which can be costly over a month of continual usage.
@@ -311,7 +319,9 @@ def load_namespaces(
         found_already = False
         for already in already_known_list:
             if p_name in (
-                    already.namespace_id, already.namespace_name, already.namespace_arn, 'id:' + already.namespace_id
+                    already.namespace_id,
+                    already.namespace_name,
+                    already.namespace_arn, 'id:' + already.namespace_id,
             ):
                 requested[name] = already
                 found_already = True
@@ -331,25 +341,26 @@ def load_namespaces(
         paginator = client.get_paginator('list_namespaces')
         for page in perform_client_request(lambda: list(paginator.paginate())):
             for raw in dt_list_dict(page, 'Namespaces'):
-                ns = DiscoveryServiceNamespace.from_resp(raw)
-                if ns.namespace_id not in known_by_id:
+                n_s = DiscoveryServiceNamespace.from_resp(raw)
+                if n_s.namespace_id not in known_by_id:
                     # Only set the namespace value if it isn't already loaded;
                     # this allows us to keep our cache.
-                    known_by_id[ns.namespace_id] = ns
+                    known_by_id[n_s.namespace_id] = n_s
                 else:
-                    # This shouldn't change, but it's the only property that could potentially change.
-                    known_by_id[ns.namespace_id].namespace_name = ns.namespace_name
-                if ns.namespace_id in remaining_namespaces:
-                    remaining_namespaces.remove(ns.namespace_id)
-                    requested[ns.namespace_id] = ns
-                elif ns.namespace_arn in remaining_namespaces:
+                    # This shouldn't change, but it's the only property that could
+                    # potentially change.
+                    known_by_id[n_s.namespace_id].namespace_name = n_s.namespace_name
+                if n_s.namespace_id in remaining_namespaces:
+                    remaining_namespaces.remove(n_s.namespace_id)
+                    requested[n_s.namespace_id] = n_s
+                elif n_s.namespace_arn in remaining_namespaces:
                     # This should never happen, because the ARN should have been
                     # matched in the first pass.
-                    remaining_namespaces.remove(ns.namespace_arn)
-                    requested[ns.namespace_arn] = ns
-                elif ns.namespace_name in remaining_namespaces:
-                    remaining_namespaces.remove(ns.namespace_name)
-                    requested[ns.namespace_name] = ns
+                    remaining_namespaces.remove(n_s.namespace_arn)
+                    requested[n_s.namespace_arn] = n_s
+                elif n_s.namespace_name in remaining_namespaces:
+                    remaining_namespaces.remove(n_s.namespace_name)
+                    requested[n_s.namespace_name] = n_s
     return requested, list(known_by_id.values())
 
 
@@ -376,7 +387,7 @@ CONFIG: Optional[AwsCloudmapConfig] = None
 
 def set_aws_config(config: AwsCloudmapConfig) -> None:
     """Set the global AWS config."""
-    global CONFIG
+    global CONFIG  # pylint: disable=W0603
     CONFIG = config
 
 
@@ -384,8 +395,8 @@ def get_servicediscovery_client() -> Any:
     """Get the boto3 service discovery client."""
     client_name = 'servicediscovery'
     if client_name not in CLIENTS:
-        region = CONFIG and CONFIG.aws_region or None
-        profile = CONFIG and CONFIG.aws_profile or None
+        region = CONFIG.aws_region if CONFIG else None
+        profile = CONFIG.aws_profile if CONFIG else None
         session = boto3.session.Session(
             region_name=region,  # type: ignore
             profile_name=profile,  # type: ignore
@@ -419,9 +430,9 @@ def perform_client_request(cmd: Callable[..., T], *vargs: Any, **kv_args: Any) -
     raise throttle_err or Exception('throttled requests to ' + str(cmd))
 
 
-def dt_get(d: Dict[str, Any], *keys: Union[str, int]) -> Any:
+def dt_get(inp: Dict[str, Any], *keys: Union[str, int]) -> Any:
     """dictionary typed get"""
-    current: Union[List[Any], Dict[str, Any]] = d
+    current: Union[List[Any], Dict[str, Any]] = inp
     for k in keys:
         # Ignore the type here, because it *should* be an int -> list
         # and str -> dict.  The dict can take an int argument, but the
@@ -437,45 +448,45 @@ def dt_get(d: Dict[str, Any], *keys: Union[str, int]) -> Any:
     return current
 
 
-def dt_opt_get(d: Dict[str, Any], *keys: Union[str, int]) -> Any:
+def dt_opt_get(inp: Dict[str, Any], *keys: Union[str, int]) -> Any:
     """dictionary typed get"""
     try:
-        return dt_get(d, *keys)
+        return dt_get(inp, *keys)
     except ValueError:
         return None
 
 
-def dt_str(d: Dict[str, Any], *keys: Union[str, int]) -> str:
+def dt_str(inp: Dict[str, Any], *keys: Union[str, int]) -> str:
     """dictionary typed get"""
-    val = dt_get(d, *keys)
+    val = dt_get(inp, *keys)
     assert isinstance(val, str)
     return val
 
 
-def dt_opt_str(d: Dict[str, Any], *keys: Union[str, int]) -> Optional[str]:
+def dt_opt_str(inp: Dict[str, Any], *keys: Union[str, int]) -> Optional[str]:
     """dictionary typed get"""
-    val = dt_opt_get(d, *keys)
+    val = dt_opt_get(inp, *keys)
     assert val is None or isinstance(val, str)
     return val
 
 
-def dt_int(d: Dict[str, Any], *keys: Union[str, int]) -> int:
+def dt_int(inp: Dict[str, Any], *keys: Union[str, int]) -> int:
     """dictionary typed get"""
-    val = dt_get(d, *keys)
+    val = dt_get(inp, *keys)
     assert isinstance(val, int)
     return val
 
 
-def dt_list_dict(d: Dict[str, Any], *keys: Union[str, int]) -> List[Dict[str, Any]]:
+def dt_list_dict(inp: Dict[str, Any], *keys: Union[str, int]) -> List[Dict[str, Any]]:
     """dictionary typed get"""
-    val = dt_get(d, *keys)
+    val = dt_get(inp, *keys)
     assert isinstance(val, list)
     return list(val)
 
 
-def dt_dict(d: Dict[str, Any], *keys: Union[str, int]) -> Dict[str, Any]:
+def dt_dict(inp: Dict[str, Any], *keys: Union[str, int]) -> Dict[str, Any]:
     """dictionary typed get"""
-    val = dt_get(d, *keys)
+    val = dt_get(inp, *keys)
     assert isinstance(val, dict)
     return val
 

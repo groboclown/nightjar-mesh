@@ -39,6 +39,8 @@ The code must:
     * These are being rewritten.
 * The docker images construct without failures.
     * `./build-docker-images.sh`
+* Python files must "pass" linting:
+    * `cd nightjar-base/nightjar-src/python-src && PYTHONPATH=. python3 -m pylint --load-plugins nightjar.tests.trailing_commas nightjar`
 
 You will need to install the required Python modules to run the Python tests.  See the development environment section below to help get them installed.
 

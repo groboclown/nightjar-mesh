@@ -121,7 +121,9 @@ def generate_namespace_content(
         content, content_purpose = render_content(
             match, template, config.get_context('gateway', 'gateway', None),
         )
-        diff.add_current_namespace_content(match.namespace_id, match.protection, content_purpose, content)
+        diff.add_current_namespace_content(
+            match.namespace_id, match.protection, content_purpose, content,
+        )
 
 
 def generate_service_color_content(
@@ -139,7 +141,9 @@ def generate_service_color_content(
         service_color_configs[(namespace_id, service_id, service, color)] = config
     template_data = collector.get_service_color_templates(service_color_configs.keys())
     for match, template in template_data:
-        config = service_color_configs[(match.namespace_id, match.service_id, match.service, match.color)]
+        config = service_color_configs[(
+            match.namespace_id, match.service_id, match.service, match.color,
+        )]
         content, content_purpose = render_content(
             match, template, config.get_context(
                 match.namespace_id,

@@ -1,8 +1,10 @@
 
+"""AWS ECS Interface."""
+
 from typing import Dict, Tuple, List, Optional, Iterable, Union, Any
 import re
 import boto3
-from botocore.exceptions import ClientError  # type: ignore
+# from botocore.exceptions import ClientError  # type: ignore
 from botocore.config import Config  # type: ignore
 from .config import AwsEcsClusterConfig
 from ....protect import PROTECTION_PRIVATE, PROTECTION_PUBLIC, RouteProtection
@@ -19,6 +21,7 @@ ROUTE_TAG_MATCHER = re.compile(r'^ROUTE_(\d+)$')
 
 
 class EcsTask:
+    """An ECS task with 1 or more containers."""
     def __init__(
             self,
             task_name: str,
@@ -27,7 +30,7 @@ class EcsTask:
             instance_arn: str,
             host_ip: str,
             container_host_ports: Dict[str, int],
-            tags: Dict[str, str]
+            tags: Dict[str, str],
     ) -> None:
         self.task_name = task_name
         self.task_arn = task_arn
@@ -38,24 +41,30 @@ class EcsTask:
         self.tags = dict(tags)
 
     def get_namespace_tag(self) -> Optional[str]:
+        """The optional namespace tag on the task."""
         return self.tags.get('NAMESPACE')
 
     def get_protocol(self) -> str:
+        """The optional protocol defined for this service."""
         protocol = self.tags.get('PROTOCOL', PROTOCOL__HTTP1_1)
         if protocol.upper() in SUPPORTED_PROTOCOLS:
             return protocol.upper()
         return PROTOCOL__HTTP1_1
 
     def get_service_name(self) -> str:
+        """The name of the service."""
         return self.get_service_name_tag() or self.task_name
 
     def get_service_name_tag(self) -> Optional[str]:
+        """The service name tag, if given."""
         return self.tags.get('SERVICE_NAME')
 
     def get_color(self) -> str:
+        """The color for this service."""
         return self.tags.get('COLOR') or 'default'
 
     def get_service_id(self) -> str:
+        """The opaque ID for this service instance."""
         return self.task_arn
 
     def get_route_container_host_port_for(self, index: int) -> Tuple[str, int]:
@@ -80,11 +89,13 @@ class EcsTask:
                 return container_port_str, host_port
             # No port known.  Return a value that isn't valid, but won't cause an error.
             return '0', 1
-        else:
-            host_port = self.container_host_ports.get(container_port_str, 1)
-            return container_port_str, host_port
+        host_port = self.container_host_ports.get(container_port_str, 1)
+        return container_port_str, host_port
 
-    def get_route_weight_protection_for(self, index: int) -> Tuple[Optional[str], int, RouteProtection]:
+    def get_route_weight_protection_for(
+            self, index: int,
+    ) -> Tuple[Optional[str], int, RouteProtection]:
+        """Get the route, weight, and protection for the route at the given index.."""
         route = self.tags.get('ROUTE_' + str(index))
         if not route:
             return None, 0, PROTECTION_PRIVATE
@@ -147,6 +158,7 @@ def load_tasks_for_cluster(cluster_name: str) -> Iterable[EcsTask]:
 
 
 def get_task_arns_in_cluster(cluster_name: str) -> Iterable[str]:
+    """Find the task arns running in the given cluster."""
     ret: List[str] = []
     paginator = get_ecs_client().get_paginator('list_tasks')
     response_iterator = paginator.paginate(cluster=cluster_name)
@@ -191,7 +203,9 @@ def load_tasks_by_arns(cluster_name: str, task_arns: Iterable[str]) -> List[EcsT
                     # If there's an overlap with an existing registration, overwrite it.
                     container_port = dt_int(binding, 'containerPort')
                     host_port = dt_int(binding, 'hostPort')
-                    container_host_ports['{0}:{1}'.format(container_name, container_port)] = host_port
+                    container_host_ports['{0}:{1}'.format(
+                        container_name, container_port
+                    )] = host_port
                     container_host_ports[str(container_port)] = host_port
             discovered_tasks.append(EcsTask(
                 task_name=service_name,
@@ -200,10 +214,10 @@ def load_tasks_by_arns(cluster_name: str, task_arns: Iterable[str]) -> List[EcsT
                 instance_arn=dt_str(task, 'containerInstanceArn'),
                 host_ip='',
                 container_host_ports=container_host_ports,
-                tags=dict([
-                    (dt_str(tag, 'key'), dt_str(tag, 'value'),)
+                tags={
+                    dt_str(tag, 'key'): dt_str(tag, 'value')
                     for tag in task['tags']
-                ])
+                },
             ))
 
     # Map the task container instances to the ec2 host IP.
@@ -264,10 +278,11 @@ def load_ec2_info_by_container_instances(
 def load_ec2_host_ip_by_info(
         container_instance_to_ec2_info: Dict[str, Tuple[str, str, str]]
 ) -> Dict[str, str]:
-    ec2_instance_id_info: Dict[str, Tuple[str, str, str, str]] = dict([
-        (ec2_info[0], (container_arn, ec2_info[0], ec2_info[1], ec2_info[2],))
+    """Get the host IP by the ec2 instance ID."""
+    ec2_instance_id_info: Dict[str, Tuple[str, str, str, str]] = {
+        ec2_info[0]: (container_arn, ec2_info[0], ec2_info[1], ec2_info[2],)
         for container_arn, ec2_info in container_instance_to_ec2_info.items()
-    ])
+    }
     ret: Dict[str, str] = {}
     paginator = get_ec2_client().get_paginator('describe_instances')
     response_iterator = paginator.paginate(
@@ -281,8 +296,8 @@ def load_ec2_host_ip_by_info(
                 # match up the network interface with the vpc and subnet...
                 for network in ec2_instance['NetworkInterfaces']:
                     if (
-                        (not vpc_id or dt_str(network, 'VpcId') == vpc_id) and
-                        (not subnet_id or dt_str(network, 'SubnetId') == subnet_id)
+                            (not vpc_id or dt_str(network, 'VpcId') == vpc_id) and
+                            (not subnet_id or dt_str(network, 'SubnetId') == subnet_id)
                     ):
                         # TODO include ipv6 ('Ipv6Addresses')
                         ret[container_arn] = dt_str(network, 'PrivateIpAddress')
@@ -295,15 +310,17 @@ CONFIG: Optional[AwsEcsClusterConfig] = None
 
 
 def set_aws_config(config: AwsEcsClusterConfig) -> None:
-    global CONFIG
+    """Set the global AWS configuration."""
+    global CONFIG  # pylint: disable=W0603
     CONFIG = config
 
 
 def get_ecs_client() -> Any:
+    """Get the boto3 ecs client."""
     client_name = 'ecs'
     if client_name not in CLIENTS:
-        region = CONFIG and CONFIG.aws_region or None
-        profile = CONFIG and CONFIG.aws_profile or None
+        region = CONFIG.aws_region if CONFIG else None
+        profile = CONFIG.aws_profile if CONFIG else None
         session = boto3.session.Session(
             region_name=region,  # type: ignore
             profile_name=profile,  # type: ignore
@@ -316,10 +333,11 @@ def get_ecs_client() -> Any:
 
 
 def get_ec2_client() -> Any:
+    """Get the boto3 ec2 client."""
     client_name = 'ec2'
     if client_name not in CLIENTS:
-        region = CONFIG and CONFIG.aws_region or None
-        profile = CONFIG and CONFIG.aws_profile or None
+        region = CONFIG.aws_region if CONFIG else None
+        profile = CONFIG.aws_profile if CONFIG else None
         session = boto3.session.Session(
             region_name=region,  # type: ignore
             profile_name=profile,  # type: ignore
@@ -331,8 +349,9 @@ def get_ec2_client() -> Any:
     return CLIENTS[client_name]
 
 
-def dt_get(d: Dict[str, Any], *keys: Union[str, int]) -> Any:
-    current: Union[List[Any], Dict[str, Any]] = d
+def dt_get(inp: Dict[str, Any], *keys: Union[str, int]) -> Any:
+    """Typed dictionary get"""
+    current: Union[List[Any], Dict[str, Any]] = inp
     for k in keys:
         # Ignore the type here, because it *should* be an int -> list
         # and str -> dict.  The dict can take an int argument, but the
@@ -348,38 +367,44 @@ def dt_get(d: Dict[str, Any], *keys: Union[str, int]) -> Any:
     return current
 
 
-def dt_opt_get(d: Dict[str, Any], *keys: Union[str, int]) -> Any:
+def dt_opt_get(inp: Dict[str, Any], *keys: Union[str, int]) -> Any:
+    """Typed dictionary get"""
     try:
-        return dt_get(d, *keys)
+        return dt_get(inp, *keys)
     except ValueError:
         return None
 
 
-def dt_str(d: Dict[str, Any], *keys: Union[str, int]) -> str:
-    val = dt_get(d, *keys)
+def dt_str(inp: Dict[str, Any], *keys: Union[str, int]) -> str:
+    """Typed dictionary get"""
+    val = dt_get(inp, *keys)
     assert isinstance(val, str)
     return val
 
 
-def dt_opt_str(d: Dict[str, Any], *keys: Union[str, int]) -> Optional[str]:
-    val = dt_opt_get(d, *keys)
+def dt_opt_str(inp: Dict[str, Any], *keys: Union[str, int]) -> Optional[str]:
+    """Typed dictionary get"""
+    val = dt_opt_get(inp, *keys)
     assert val is None or isinstance(val, str)
     return val
 
 
-def dt_int(d: Dict[str, Any], *keys: Union[str, int]) -> int:
-    val = dt_get(d, *keys)
+def dt_int(inp: Dict[str, Any], *keys: Union[str, int]) -> int:
+    """Typed dictionary get"""
+    val = dt_get(inp, *keys)
     assert isinstance(val, int)
     return val
 
 
-def dt_list_dict(d: Dict[str, Any], *keys: Union[str, int]) -> List[Dict[str, Any]]:
-    val = dt_get(d, *keys)
+def dt_list_dict(inp: Dict[str, Any], *keys: Union[str, int]) -> List[Dict[str, Any]]:
+    """Typed dictionary get"""
+    val = dt_get(inp, *keys)
     assert isinstance(val, list)
     return list(val)
 
 
-def dt_dict(d: Dict[str, Any], *keys: Union[str, int]) -> Dict[str, Any]:
-    val = dt_get(d, *keys)
+def dt_dict(inp: Dict[str, Any], *keys: Union[str, int]) -> Dict[str, Any]:
+    """Typed dictionary get"""
+    val = dt_get(inp, *keys)
     assert isinstance(val, dict)
     return val

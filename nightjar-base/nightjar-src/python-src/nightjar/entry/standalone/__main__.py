@@ -1,3 +1,6 @@
+
+"""Standalone program entry point."""
+
 import json
 from .input_data_gen import get_envoy_config
 

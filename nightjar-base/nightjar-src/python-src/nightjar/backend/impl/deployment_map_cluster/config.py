@@ -1,4 +1,6 @@
 
+"""AWS ECS Cluster Configuration"""
+
 from typing import List, Optional
 from ...api import ParamDef, ParamValues, ImplementationParameters
 from ..shared_aws import PARAM__AWS_REGION, PARAM__AWS_PROFILE
@@ -23,7 +25,10 @@ PARAM__REQUIRED_TAG_NAME_VALUE = ParamDef[str](
     name='ecs_cluster_required_tag_name_value',
     env_name=ENV_REQUIRED_TAG_NAME_VALUE,
     arg_names=('expected-tag-name-value',),
-    help_text="If given, this tag name and value, in the form `name:value`, must be on a task to be included in routing",
+    help_text=(
+        "If given, this tag name and value, in the form "
+        "`name:value`, must be on a task to be included in routing"
+    ),
     default_value=None,
     var_type=str,
     required=False,
@@ -36,11 +41,12 @@ ECS_CLUSTER_PARAMETERS = ImplementationParameters(
     params=(
         PARAM__AWS_PROFILE, PARAM__AWS_REGION,
         PARAM__ECS_CLUSTERS, PARAM__REQUIRED_TAG_NAME_VALUE,
-    )
+    ),
 )
 
 
 class AwsEcsClusterConfig:
+    """Configuration parameters for loading discovery map from ECS clusters."""
     def __init__(self, params: Optional[ParamValues] = None) -> None:
         self.aws_region: Optional[str] = None
         self.aws_profile: Optional[str] = None
@@ -51,6 +57,7 @@ class AwsEcsClusterConfig:
             self.load(params)
 
     def load(self, params: ParamValues) -> 'AwsEcsClusterConfig':
+        """Load the configuration contents from the parameters."""
         self.aws_region = PARAM__AWS_REGION.get_value(params)
         self.aws_profile = PARAM__AWS_PROFILE.get_value(params)
         cluster_names = PARAM__ECS_CLUSTERS.get_value(params)

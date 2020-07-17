@@ -31,13 +31,16 @@ def main_loop(
         namespace_protections: Iterable[RouteProtection],
         loop_sleep_time_seconds: int,
         exit_on_failure: bool,
-        one_pass: bool
+        one_pass: bool,
 ) -> None:
     """Infinite loop for the central configurator."""
     while True:
         try:
             debug("Starting template processing.")
-            process_templates(backend, deployment_map, namespace_names, namespace_protections, PROTECTION_PRIVATE)
+            process_templates(
+                backend, deployment_map, namespace_names,
+                namespace_protections, PROTECTION_PRIVATE,
+            )
             gc.collect()
             report_current_memory_usage()
             if one_pass:
@@ -45,9 +48,9 @@ def main_loop(
             time.sleep(loop_sleep_time_seconds)
         except KeyboardInterrupt:
             sys.exit(0)
-        except Exception as err:
-            tb = traceback.format_exception(etype=type(err), value=err, tb=err.__traceback__)
-            print('\n'.join(tb))
+        except BaseException as err:  # pylint: disable=W0703
+            t_b = traceback.format_exception(etype=type(err), value=err, tb=err.__traceback__)
+            print('\n'.join(t_b))
             if one_pass or exit_on_failure:
                 sys.exit(1)
             time.sleep(loop_sleep_time_seconds)
@@ -96,5 +99,5 @@ def main() -> None:
     main_loop(
         data_store, deployment_map,
         namespace_names, KNOWN_PROTECTIONS,
-        loop_sleep_time, exit_on_failure, one_pass
+        loop_sleep_time, exit_on_failure, one_pass,
     )

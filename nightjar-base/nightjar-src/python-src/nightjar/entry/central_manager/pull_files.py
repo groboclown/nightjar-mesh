@@ -33,10 +33,10 @@ def pull_generated_files(backend: AbcDataStoreBackend, output_dir: str) -> None:
     with ManagerReadDataStore(backend) as reader:
         for entity in reader.get_generated_files():
             content = reader.get_generated_file(entity)
-            gc = as_gateway_config_entity(entity)
-            if gc:
-                write_gateway_config_entity(output_dir, gc, content or '')
+            g_c = as_gateway_config_entity(entity)
+            if g_c:
+                write_gateway_config_entity(output_dir, g_c, content or '')
                 continue
-            sc = as_service_id_config_entity(entity)
-            assert sc
-            write_service_id_config_entity(output_dir, sc, content or '')
+            s_c = as_service_id_config_entity(entity)
+            assert s_c
+            write_service_id_config_entity(output_dir, s_c, content or '')

@@ -41,7 +41,7 @@ def main() -> None:
         # above if shows that namespace not given, so don't need to check.
         process_service_color(
             service_id.strip(),
-            backend, admin_port, listener_port, out_dir
+            backend, admin_port, listener_port, out_dir,
         )
     else:
         raise ValueError('Must specify one of GATEWAY_NAMESPACE or (SERVICE and COLOR).')

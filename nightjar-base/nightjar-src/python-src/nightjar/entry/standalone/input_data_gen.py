@@ -1,4 +1,7 @@
-#!/usr/bin/python3
+
+"""
+Generate input data for the envoy config.
+"""
 
 from typing import Tuple, Dict, Iterable, Optional, Any, TypeVar
 import os
@@ -19,6 +22,7 @@ DEFAULT_NAMESPACE = 'stand-alone'
 
 
 class EnvSetup:
+    """Setup for the environment."""
     def __init__(
             self,
             admin_port: int,
@@ -33,6 +37,7 @@ class EnvSetup:
 
     @staticmethod
     def from_env() -> 'EnvSetup':
+        """Load the environment setup from environment variables."""
         admin_port_str = os.environ.get('ENVOY_ADMIN_PORT', '9901')
         admin_port_valid, admin_port = _validate_port(admin_port_str)
         if not admin_port_valid:
@@ -43,7 +48,8 @@ class EnvSetup:
         member = os.environ.get('SERVICE_MEMBER', 'NOT_SET').strip()
         if member == 'NOT_SET':
             fatal(
-                'Must set SERVICE_MEMBER environment variable to the AWS Cloud Map (service discovery) service ID.'
+                'Must set SERVICE_MEMBER environment variable to the AWS Cloud '
+                'Map (service discovery) service ID.'
             )
         local_service: Optional[NamedProtectionPort] = None
         local_namespace: Optional[str] = None
@@ -51,7 +57,7 @@ class EnvSetup:
             note("Using 'gateway' mode for the proxy.")
         else:
             port_str = os.environ.get('SERVICE_PORT', DEFAULT_SERVICE_PORT)
-            valid_port, member_port = _validate_port(port_str)
+            valid_port, _ = _validate_port(port_str)
             if not valid_port:
                 fatal(
                     "Invalid port for service member ({port}) in SERVICE_PORT, cannot use proxy.",
@@ -61,34 +67,39 @@ class EnvSetup:
             local_namespace = os.environ.get('NAMESPACE', DEFAULT_NAMESPACE)
 
         namespaces: Dict[str, int] = {}
-        for ni in range(0, MAX_NAMESPACE_COUNT + 1):
-            namespace = os.environ.get('NAMESPACE_{0}'.format(ni), '').strip()
+        for n_i in range(0, MAX_NAMESPACE_COUNT + 1):
+            namespace = os.environ.get('NAMESPACE_{0}'.format(n_i), '').strip()
             if namespace:
-                namespace_port_str = os.environ.get('NAMESPACE_{0}_PORT'.format(ni), 'NOT SET')
+                namespace_port_str = os.environ.get('NAMESPACE_{0}_PORT'.format(n_i), 'NOT SET')
                 port_valid, port = _validate_port(namespace_port_str)
                 if port_valid:
                     namespaces[namespace] = port
                 else:
                     warn(
                         'Namespace {index} ({name}) has invalid port value ({port}); skipping it.',
-                        index=ni, name=namespace, port=namespace_port_str,
+                        index=n_i, name=namespace, port=namespace_port_str,
                     )
 
         return EnvSetup(admin_port, local_service, local_namespace, namespaces)
 
 
 class EnvoyConfigContext:
+    """Configuration context for an envoy instance."""
     __slots__ = ('config', 'network', 'service', 'admin_port',)
 
-    def __init__(self, config: EnvoyConfig, network: str, service: str, admin_port: Optional[int]) -> None:
+    def __init__(
+            self, config: EnvoyConfig, network: str,
+            service: str, admin_port: Optional[int],
+    ) -> None:
         self.config = config
         self.network = network
         self.service = service
         self.admin_port = admin_port
 
     def get_context(self) -> Dict[str, Any]:
+        """Get the JSON structure for the context."""
         return self.config.get_context(
-            self.network, self.service, self.admin_port
+            self.network, self.service, self.admin_port,
         )
 
 
@@ -107,6 +118,7 @@ def _validate_port(port_str: str) -> Tuple[bool, int]:
 
 
 def get_deployment_map(namespace_names: Iterable[str]) -> AbcDeploymentMap:
+    """Load the deployment map from the environment and parameters."""
     deployment_map_params = get_deployment_map_params()
     deployment_map_name = os.environ['DEPLOYMENTMAP'].strip().lower()
     for param in deployment_map_params:
@@ -116,6 +128,7 @@ def get_deployment_map(namespace_names: Iterable[str]) -> AbcDeploymentMap:
 
 
 def create_envoy_config_from_env(env: EnvSetup) -> EnvoyConfigContext:
+    """Create the envoy config using the environment given."""
     discovery_map = get_deployment_map(env.namespace_ports.keys())
     if env.local_service and env.local_namespace:
         return EnvoyConfigContext(
@@ -123,20 +136,21 @@ def create_envoy_config_from_env(env: EnvSetup) -> EnvoyConfigContext:
                 env.local_namespace,
                 env.local_service,
                 [(nsn, PROTECTION_PUBLIC, nsp) for nsn, nsp in env.namespace_ports.items()],
-                True
+                True,
             ),
-            env.local_service[0], env.local_service[0], env.admin_port
+            env.local_service[0], env.local_service[0], env.admin_port,
         )
     configs = discovery_map.load_gateway_envoy_configs(
         [(nsn, PROTECTION_PUBLIC, nsp) for nsn, nsp in env.namespace_ports.items()],
-        True
+        True,
     )
     return EnvoyConfigContext(
         EnvoyConfig.join(configs.values()),
-        'gateway', 'gateway', env.admin_port
+        'gateway', 'gateway', env.admin_port,
     )
 
 
 def get_envoy_config() -> Dict[str, Any]:
+    """Create the envoy configuration JSON context."""
     env = EnvSetup.from_env()
     return create_envoy_config_from_env(env).get_context()

@@ -1,4 +1,6 @@
 
+"""Test the service_discovery module."""
+
 from typing import Dict, List, Any, Optional
 import unittest
 from datetime import datetime
@@ -15,6 +17,7 @@ class TestDiscoveryServiceInstance(unittest.TestCase):
     """
 
     def test_full_attributes(self) -> None:
+        """Test discovery with all attributes given."""
         data = {
             sd.ATTR_AWS_INSTANCE_IPV4: '10.0.5.92',
             sd.ATTR_EC2_INSTANCE_ID: 'i-1234',
@@ -34,6 +37,7 @@ class TestDiscoveryServiceInstance(unittest.TestCase):
         self.assertEqual(instance.ec2_instance_id, 'i-1234')
 
     def test_empty_attributes(self) -> None:
+        """Test discovery with the barest attributes specified."""
         instance = sd.DiscoveryServiceInstance('id2', {})
         self.assertEqual(instance.attributes, {})
         self.assertEqual(instance.instance_id, 'id2')
@@ -93,7 +97,7 @@ class TestDiscoveryServiceColor(unittest.TestCase):
                 sd.ATTR_ECS_CLUSTER_NAME: 'my-cluster',
                 sd.ATTR_ECS_SERVICE_NAME: 'svc-abc',
                 sd.ATTR_ECS_TASK_DEFINITION_FAMILY: 'my-family',
-            }
+            },
         })
         with msd:
             service_color = sd.DiscoveryServiceColor.from_single_id('1234')
@@ -181,6 +185,7 @@ class TestDiscoveryServiceColor(unittest.TestCase):
 
 
 class TestDiscoveryServiceNamespace(unittest.TestCase):
+    """Test DiscoveryServiceNamespace class"""
     def test_throttling_1_retry(self) -> None:
         """Test behavior when the list_namespaces call is throttled only once."""
         msd = MockServiceDiscovery()
@@ -211,22 +216,24 @@ class TestDiscoveryServiceNamespace(unittest.TestCase):
                 self.assertEqual(err.response['Error']['Code'], 'RequestLimitExceeded')
 
     def test_load_services(self) -> None:
+        """Test load services call"""
         msd = MockServiceDiscovery()
         msd.mk_list_services('ns-1234', 's1', 's2')
         msd.mk_instances('svc-s1', {})
         msd.mk_instances('svc-s2', {})
         with msd:
-            ns = sd.DiscoveryServiceNamespace('ns-1234', None, None)
-            self.assertEqual(len(ns.services), 0)
-            ns.load_services(True)
-            self.assertEqual(len(ns.services), 2)
-            self.assertEqual(ns.services[0].namespace_id, 'ns-1234')
-            self.assertEqual(ns.services[0].service_id, 'svc-s1')
-            self.assertEqual(ns.services[1].namespace_id, 'ns-1234')
-            self.assertEqual(ns.services[1].service_id, 'svc-s2')
+            n_s = sd.DiscoveryServiceNamespace('ns-1234', None, None)
+            self.assertEqual(len(n_s.services), 0)
+            n_s.load_services(True)
+            self.assertEqual(len(n_s.services), 2)
+            self.assertEqual(n_s.services[0].namespace_id, 'ns-1234')
+            self.assertEqual(n_s.services[0].service_id, 'svc-s1')
+            self.assertEqual(n_s.services[1].namespace_id, 'ns-1234')
+            self.assertEqual(n_s.services[1].service_id, 'svc-s2')
 
 
 class MockServiceDiscovery:
+    """Mock AWS ServiceDiscover wrapper."""
     services: List[Dict[str, Any]] = []
     client: Any
     old_client: Any
@@ -253,13 +260,15 @@ class MockServiceDiscovery:
         return self.stubber.__exit__(exc_type, exc_val, exc_tb)
 
     def mk_service_not_found(self, service_id: str) -> None:
+        """Add a service-not-found response."""
         self.stubber.add_client_error(
             'get_service',
             expected_params={'Id': service_id},
-            service_error_code='ServiceNotFound'
+            service_error_code='ServiceNotFound',
         )
 
     def mk_namespace_not_found(self, namespace_id: str) -> None:
+        """Add a namespace-not-found response."""
         self.stubber.add_client_error(
             'get_namespace',
             expected_params={'Id': namespace_id},
@@ -267,6 +276,7 @@ class MockServiceDiscovery:
         )
 
     def mk_list_namespaces_throttled(self) -> None:
+        """Add a throttled list namespace response."""
         self.stubber.add_client_error(
             'list_namespaces',
             expected_params={},
@@ -274,6 +284,7 @@ class MockServiceDiscovery:
         )
 
     def mk_list_services(self, namespace_id: str, *services: str) -> None:
+        """Add a list service response."""
         self.stubber.add_response('list_services', {'Services': [
             {
                 'Id': 'svc-' + s,
@@ -292,6 +303,7 @@ class MockServiceDiscovery:
         ]}, dict(Filters=[dict(Name='NAMESPACE_ID', Values=[namespace_id], Condition='EQ')]))
 
     def mk_service(self, service_id: str, name: str, namespace_id: str) -> None:
+        """Add a service response."""
         self.stubber.add_response('get_service', {'Service': {
             'Id': service_id,
             'Arn': 'arn:blah:' + service_id,
@@ -310,22 +322,26 @@ class MockServiceDiscovery:
                 'FailureThreshold': 123,
             },
             'HealthCheckCustomConfig': {
-                'FailureThreshold': 123
+                'FailureThreshold': 123,
             },
             'CreateDate': datetime(2015, 1, 1),
             'CreatorRequestId': 'string',
         }}, {'Id': service_id})
 
     def mk_instances_service_not_found(self, service_id: str) -> None:
+        """Add a service-instance-not-found response"""
         self.stubber.add_client_error(
             'list_instances',
             expected_params={'ServiceId': service_id},
-            service_error_code='ServiceNotFound'
+            service_error_code='ServiceNotFound',
         )
 
     def mk_instances(
-            self, service_id: str, instance_attributes: Dict[str, Dict[str, str]], next_token: Optional[str] = None
+            self, service_id: str,
+            instance_attributes: Dict[str, Dict[str, str]],
+            next_token: Optional[str] = None,
     ) -> None:
+        """Add instances."""
         data: Dict[str, Any] = {
             'Instances': [
                 {
@@ -339,6 +355,7 @@ class MockServiceDiscovery:
         self.stubber.add_response('list_instances', data, {'ServiceId': service_id})
 
     def mk_namespaces(self, namespace_ids: List[str], next_token: Optional[str] = None) -> None:
+        """Add namespaces."""
         data: Dict[str, Any] = {
             "Namespaces": [
                 {
@@ -349,13 +366,13 @@ class MockServiceDiscovery:
                     "Name": "name.{0}".format(nid),
                     "Properties": {
                         "DnsProperties": {
-                            "HostedZoneId": "zoneid"
-                        }
+                            "HostedZoneId": "zoneid",
+                        },
                     },
                     "ServiceCount": -1,  # not needed right now
                     "Type": "DNS_PRIVATE",
                 } for nid in namespace_ids
-            ]
+            ],
         }
         if next_token:
             data['NextToken'] = next_token

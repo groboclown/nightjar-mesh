@@ -1,4 +1,8 @@
 
+"""
+Process templates.
+"""
+
 from typing import Iterable
 from ...backend.api.deployment_map import AbcDeploymentMap
 from .content_gen import (
@@ -20,7 +24,7 @@ def process_templates(
         deployment_map: AbcDeploymentMap,
         namespaces: Iterable[str],
         namespace_protections: Iterable[RouteProtection],
-        service_protection: RouteProtection
+        service_protection: RouteProtection,
 ) -> None:
     """
     Process all the namespace and service/color templates into the envoy proxy content.

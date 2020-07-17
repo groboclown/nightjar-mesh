@@ -23,7 +23,7 @@ def load_namespace_data(
             npp_list.append((namespace, protection, None))
 
     namespace_configs = deployment_map.load_gateway_envoy_configs(npp_list)
-    return [nc for nc in namespace_configs.items()]
+    return namespace_configs.items()
 
 
 def load_service_color_data(
@@ -47,6 +47,6 @@ def load_service_color_data(
                 deployment_map.load_service_config(
                     namespace,
                     (service.service_id, protection, None),
-                    [], False
-                )
+                    [], False,
+                ),
             )

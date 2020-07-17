@@ -18,7 +18,9 @@ from ...api.deployment_map.service_data import (
     EnvoyListener,
     EnvoyRoute,
 )
-from ...api.deployment_map.abc_depoyment_map import AbcDeploymentMap, NamedProtectionPort, ServiceDef
+from ...api.deployment_map.abc_depoyment_map import (
+    AbcDeploymentMap, NamedProtectionPort, ServiceDef,
+)
 from ....msg import warn
 
 
@@ -51,22 +53,22 @@ class ServiceDiscoveryDeploymentMap(AbcDeploymentMap):
         loaded_namespaces, new_cache = load_namespaces(namespaces, self.namespace_cache)
         self.namespace_cache = new_cache
         ret: Dict[str, Iterable[ServiceDef]] = {}
-        for key, ns in loaded_namespaces.items():
-            ns.load_services(False)
+        for key, n_s in loaded_namespaces.items():
+            n_s.load_services(False)
             ret[key] = [
                 ServiceDef(
                     svc.namespace_id, svc.service_id,
                     svc.group_service_name or 'default',
                     svc.group_color_name or 'default',
                 )
-                for svc in ns.services
+                for svc in n_s.services
             ]
         return ret
 
     def load_service_config(
-            self, _namespace: str, service_id_port: NamedProtectionPort,
+            self, _local_namespace: str, service_id_port: NamedProtectionPort,
             external_namespace_ports: Iterable[NamedProtectionPort],
-            force_cache_refresh: bool = False
+            force_cache_refresh: bool = False,
     ) -> EnvoyConfig:
         """
         Construct the listener groups, which are per namespace, and the clusters
@@ -80,7 +82,7 @@ class ServiceDiscoveryDeploymentMap(AbcDeploymentMap):
 
         # -------------------------------------------------------------------
         local_service, local_namespace, external_namespaces = self.load_services(
-            service_id_port, external_namespace_ports, force_cache_refresh
+            service_id_port, external_namespace_ports, force_cache_refresh,
         )
         if not local_service:
             # TODO better exception?
@@ -147,14 +149,16 @@ class ServiceDiscoveryDeploymentMap(AbcDeploymentMap):
                     warn(
                         "Cluster {s}-{c} has no discovered instances",
                         s=service_color.group_service_name,
-                        c=service_color.group_color_name
+                        c=service_color.group_color_name,
                     )
                 endpoints = []
                 for sci in service_color.instances:
                     if sci.ipv4:
                         endpoints.append(EnvoyClusterEndpoint(sci.ipv4, sci.port_str))
                 cluster = EnvoyCluster(
-                    '{0}-{1}'.format(service_color.group_service_name, service_color.group_color_name),
+                    '{0}-{1}'.format(
+                        service_color.group_service_name, service_color.group_color_name,
+                    ),
                     service_color.uses_http2, endpoints,
                 )
                 if service_color.path_protect_weights:
@@ -197,7 +201,7 @@ class ServiceDiscoveryDeploymentMap(AbcDeploymentMap):
                     warn(
                         "Cluster {s}-{c} has no discovered instances",
                         s=service_color.group_service_name,
-                        c=service_color.group_color_name
+                        c=service_color.group_color_name,
                     )
                 endpoints: List[EnvoyClusterEndpoint] = []
                 for sci in service_color.instances:
@@ -233,20 +237,21 @@ class ServiceDiscoveryDeploymentMap(AbcDeploymentMap):
             self,
             service_id_port: Optional[NamedProtectionPort],
             external_namespace_ports: Iterable[NamedProtectionPort],
-            force_cache_refresh: bool
+            force_cache_refresh: bool,
     ) -> Tuple[
         Optional[DiscoveryServiceColor],
         Optional[DiscoveryServiceNamespace],
         List[Tuple[DiscoveryServiceNamespace, NamedProtectionPort]],
-    ]:
-        # Get all the namespaces possible.
+    ]:  # pylint: disable=R0912, R0915
+        """Gets all the services in all the namespaces as possible."""
+        # TODO simplify this code, or break it into smaller, more easily tested, chunks.
 
         # Initial discovery work, to match the requested data with the
         # Service Discovery data.
 
-        remaining_external: Dict[str, NamedProtectionPort] = dict([
-            (npp[0], npp) for npp in external_namespace_ports
-        ])
+        remaining_external: Dict[str, NamedProtectionPort] = {
+            npp[0]: npp for npp in external_namespace_ports
+        }
         external_namespaces: List[Tuple[DiscoveryServiceNamespace, NamedProtectionPort]] = []
 
         #   First phase:
@@ -291,7 +296,7 @@ class ServiceDiscoveryDeploymentMap(AbcDeploymentMap):
                     ns_name = disco_namespace.namespace_id
                 elif disco_namespace.namespace_arn in remaining_external:
                     ns_name = disco_namespace.namespace_arn
-                elif ('id:' + disco_namespace.namespace_id) in remaining_external:
+                elif 'id:' + disco_namespace.namespace_id in remaining_external:
                     ns_name = 'id:' + disco_namespace.namespace_id
                 elif disco_namespace.namespace_name in remaining_external:
                     ns_name = disco_namespace.namespace_name
@@ -307,7 +312,7 @@ class ServiceDiscoveryDeploymentMap(AbcDeploymentMap):
 
         if service_id_port and local_service and not local_namespace:
             remaining_external['id:' + local_service.namespace_id] = (
-                'id:' + local_service.namespace_id, service_id_port[1], service_id_port[2]
+                'id:' + local_service.namespace_id, service_id_port[1], service_id_port[2],
             )
 
         if remaining_external:
@@ -331,7 +336,7 @@ class ServiceDiscoveryDeploymentMap(AbcDeploymentMap):
                         ns_name = disco_namespace.namespace_id
                     elif disco_namespace.namespace_arn in remaining_external:
                         ns_name = disco_namespace.namespace_arn
-                    elif ('id:' + disco_namespace.namespace_id) in remaining_external:
+                    elif 'id:' + disco_namespace.namespace_id in remaining_external:
                         ns_name = 'id:' + disco_namespace.namespace_id
                     elif disco_namespace.namespace_name in remaining_external:
                         ns_name = disco_namespace.namespace_name

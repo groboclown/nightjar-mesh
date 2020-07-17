@@ -53,9 +53,9 @@ def collect_template_files(
         base_entity: TemplateEntity, directory: str,
 ) -> Iterable[Tuple[TemplateEntity, str]]:
     """Collect all the entity files from the directory, and parse them."""
-    ns = as_namespace_template_entity(base_entity)
-    sc = as_service_color_template_entity(base_entity)
-    assert ns or sc
+    n_s = as_namespace_template_entity(base_entity)
+    s_c = as_service_color_template_entity(base_entity)
+    assert n_s or s_c
     for name in os.listdir(directory):
         if name.startswith('.') or name == TEMPLATE_DESCRIPTION_FILENAME:
             continue
@@ -64,10 +64,10 @@ def collect_template_files(
             continue
         with open(filename, 'r') as f:
             contents = f.read()
-        if ns:
-            yield NamespaceTemplateEntity(ns.namespace, ns.protection, name), contents
-        if sc:
-            yield ServiceColorTemplateEntity(sc.namespace, sc.service, sc.color, name), contents
+        if n_s:
+            yield NamespaceTemplateEntity(n_s.namespace, n_s.protection, name), contents
+        if s_c:
+            yield ServiceColorTemplateEntity(s_c.namespace, s_c.service, s_c.color, name), contents
 
 
 def write_namespace_template_entity(
@@ -182,11 +182,10 @@ def read_template_description(filename: str) -> Optional[TemplateEntity]:
     color = data.get('color', None)
     if template_type in ('namespace', 'gateway'):
         return NamespaceTemplateEntity(namespace, protection, '')
-    elif template_type in ('service', 'service-color', 'service_color', 'service/color'):
+    if template_type in ('service', 'service-color', 'service_color', 'service/color'):
         return ServiceColorTemplateEntity(namespace, service, color, '')
-    else:
-        warn('Unsupported template type: {t}', t=template_type)
-        return None
+    warn('Unsupported template type: {t}', t=template_type)
+    return None
 
 
 def parse_protection(data: Dict[str, Any]) -> Optional[RouteProtection]:

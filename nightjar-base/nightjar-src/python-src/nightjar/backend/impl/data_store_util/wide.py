@@ -98,7 +98,7 @@ def parse_namespace_template_path(
     return NamespaceTemplateEntity(
         parse_namespace(namespace),
         protection,
-        purpose
+        purpose,
     )
 
 
@@ -133,7 +133,7 @@ def parse_service_color_template_path(
         parse_namespace(namespace),
         parse_service(service),
         parse_color(color),
-        purpose
+        purpose,
     )
 
 
@@ -141,7 +141,7 @@ def get_gateway_config_prefix(version: str) -> List[str]:
     """Get the prefix path parts for the gateway config + version."""
     return [
         *get_activity_prefix(version, ACTIVITY_PROXY_CONFIGURATION),
-        'gateway'
+        'gateway',
     ]
 
 
@@ -169,7 +169,7 @@ def parse_gateway_config_path(version: str, path: List[str]) -> Optional[Gateway
     return GatewayConfigEntity(
         namespace,
         as_route_protection(protection),
-        purpose
+        purpose,
     )
 
 
@@ -205,7 +205,7 @@ def parse_service_id_config_path(version: str, path: List[str]) -> Optional[Serv
         service_id,
         service,
         color,
-        purpose
+        purpose,
     )
 
 
@@ -275,7 +275,7 @@ def parse_activity(version: str, path: List[str]) -> Optional[str]:
     """parse the activity from the path parts."""
     if len(path) < 3:
         return None
-    if version != path[2] or 'content' != path[0]:
+    if path[2] != version or path[0] != 'content':
         return None
     if path[1] in SUPPORTED_ACTIVITIES:
         return path[1]

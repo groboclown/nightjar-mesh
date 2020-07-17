@@ -23,9 +23,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         prog='central_manager',
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=textwrap.dedent("""Tool to upload template files into the backend data
-store, and read them back.  For use by the nightjar centralized configurator.
-""")
+        description=textwrap.dedent(
+            """Tool to upload template files into the backend data
+            store, and read them back.  For use by the nightjar centralized configurator.
+            """
+        ),
     )
 
     data_store_params = get_data_store_params()
