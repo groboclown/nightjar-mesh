@@ -8,10 +8,13 @@ if [ $UID -ne 0 ]; then
   exit 1
 fi
 
-
-export TEST_DIR=$( dirname "$0" )
-export ROOT_DIR="${TEST_DIR}/.."
+export ROOT_DIR=$( dirname $0 )
 export SRC_DIR="${ROOT_DIR}/nightjar-src"
+
+
+for TEST_DIR in "$*" ; do
+
+export TEST_DIR
 export ERROR_DIR=/tmp/errors
 mkdir -p ${ERROR_DIR}
 
