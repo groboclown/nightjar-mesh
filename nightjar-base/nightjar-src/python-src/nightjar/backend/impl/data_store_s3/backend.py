@@ -57,9 +57,9 @@ class ProcessingVersion:
         """Add an entity into this version."""
         data = contents.encode('utf-8')
         assert len(data) < MAX_CONTENT_SIZE
-        self.uploaded_data[
-            self.config.get_path(wide.get_entity_path(self.name, entity)),
-        ] = (entity, data,)
+        self.uploaded_data[self.config.get_path(
+            wide.get_entity_path(self.name, entity),
+        )] = (entity, data,)
 
     def get_final_version_name(self) -> str:
         """Get the final name for this version.  It's based on a hash of the contents,

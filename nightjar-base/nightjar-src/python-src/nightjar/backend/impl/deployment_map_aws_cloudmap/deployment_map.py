@@ -66,7 +66,7 @@ class ServiceDiscoveryDeploymentMap(AbcDeploymentMap):
         return ret
 
     def load_service_config(
-            self, _local_namespace: str, service_id_port: NamedProtectionPort,
+            self, local_namespace: str, service_id_port: NamedProtectionPort,
             external_namespace_ports: Iterable[NamedProtectionPort],
             force_cache_refresh: bool = False,
     ) -> EnvoyConfig:
@@ -81,33 +81,33 @@ class ServiceDiscoveryDeploymentMap(AbcDeploymentMap):
         output_clusters: List[EnvoyCluster] = []
 
         # -------------------------------------------------------------------
-        local_service, local_namespace, external_namespaces = self.load_services(
+        loaded_service, loaded_namespace, external_namespaces = self.load_services(
             service_id_port, external_namespace_ports, force_cache_refresh,
         )
-        if not local_service:
+        if not loaded_service:
             # TODO better exception?
             raise ValueError(
                 (
                     'Could not find service {0}?  Could be a changed configuration after request.'
                 ).format(service_id_port[0]),
             )
-        if not local_namespace:
+        if not loaded_namespace:
             # TODO better exception?
             raise ValueError(
                 (
                     'Could not find service namespace {0}?  Could be a changed '
                     'configuration after request.'
-                ).format(local_service.namespace_id),
+                ).format(loaded_service.namespace_id),
             )
 
         # -------------------------------------------------------------------
         # Collate the requested services into an envoy configuration.
 
         local_routes: Dict[str, Dict[str, int]] = {}
-        local_namespace.load_services(force_cache_refresh)
-        for service_color in local_namespace.services:
+        loaded_namespace.load_services(force_cache_refresh)
+        for service_color in loaded_namespace.services:
             if (
-                    service_color.group_service_name == local_service.group_service_name
+                    service_color.group_service_name == loaded_service.group_service_name
             ):
                 # The local service should never be directed outbound.
                 continue

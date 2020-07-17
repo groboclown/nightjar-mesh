@@ -281,6 +281,7 @@ class ServiceIdConfigEntity(BaseEntity):
 
     def __hash__(self) -> int:
         return (
+            hash(self.__namespace_id) +
             hash(self.__service_id) + hash(self.__service) + hash(self.__color) +
             hash(self.purpose) + hash(self.activity)
         )
@@ -359,14 +360,14 @@ class AbcDataStoreBackend(abc.ABC):
         Discover the most recent completed version.  This always begins a series of atomic actions.
         The backend should maintain a certain number of these, based on time.
         """
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma no cover
 
     def start_changes(self, activity: str) -> str:
         """
         Tells the backend that changes to the data store are starting.  The data assigns
         these changes to a version string.
         """
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma no cover
 
     def commit_changes(self, version: str) -> None:
         """
@@ -374,33 +375,33 @@ class AbcDataStoreBackend(abc.ABC):
         that's pulling doesn't get a mix of old and new configurations.  This commit process
         can also clean up old data.
         """
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma no cover
 
     def rollback_changes(self, version: str) -> None:
         """Performed on error, to revert any uploads."""
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma no cover
 
     def download(self, version: str, entity: Entity) -> str:
         """Download the contents of the entry."""
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma no cover
 
     def upload(self, version: str, entity: Entity, contents: str) -> None:
         """Upload the given entry key with the given contents."""
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma no cover
 
     def get_template_entities(self, version: str) -> Iterable[TemplateEntity]:
         """
         Returns all template entities stored for the given version.  This can
         potentially conserve on API calls.
         """
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma no cover
 
     def get_config_entities(self, version: str) -> Iterable[ConfigEntity]:
         """
         Returns all configuration entities stored for the given version.  This can
         potentially conserve on API calls.
         """
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma no cover
 
     def get_namespace_template_entities(
             self,
@@ -413,7 +414,7 @@ class AbcDataStoreBackend(abc.ABC):
         Get the entities that match the namespace and purpose.  If either is None, then it acts
         as a wild-card.
         """
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma no cover
 
     def get_gateway_config_entities(
             self,
@@ -427,7 +428,7 @@ class AbcDataStoreBackend(abc.ABC):
 
         If namespace or purpose are None, then they act as wildcards.
         """
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma no cover
 
     def get_service_color_template_entities(
             self,
@@ -442,7 +443,7 @@ class AbcDataStoreBackend(abc.ABC):
 
         If any argument is None, then it acts as a wildcard.
         """
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma no cover
 
     def get_service_id_config_entities(
             self,
@@ -458,4 +459,4 @@ class AbcDataStoreBackend(abc.ABC):
 
         If any argument is None, then it acts as a wildcard.
         """
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma no cover

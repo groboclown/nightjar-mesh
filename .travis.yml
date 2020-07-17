@@ -20,7 +20,7 @@ script:
   - echo "==========================================================="
   - echo "Unit Testing Python Source"
   - ( cd nightjar-base/nightjar-src/python-src && python3 -m coverage run --source . -m unittest discover )
-  - ( cd nightjar-base/nightjar-src/python-src && python3 -m coverage report )
+  - ( cd nightjar-base/nightjar-src/python-src && python3 -m coverage report -m --fail-under 95 )
   # TODO grab the coverage measurement, and ensure it hasn't gone down.
   - echo "==========================================================="
   - echo "Unit Testing Shell Scripts"
