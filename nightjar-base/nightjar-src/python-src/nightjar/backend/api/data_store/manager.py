@@ -1,4 +1,8 @@
 
+"""
+API for the manager data stores.
+"""
+
 from typing import Iterable, Optional
 from .abc_backend import (
     AbcDataStoreBackend,
@@ -55,37 +59,45 @@ class ManagerReadDataStore:
             self.__config_version = None
 
     def get_template(self, entity: TemplateEntity) -> Optional[str]:
+        """Get the template from the backend for this entity at the current version."""
         assert self.__template_version
         return self.backend.download(version=self.__template_version, entity=entity)
 
     def get_generated_file(self, entity: ConfigEntity) -> Optional[str]:
+        """Get the generated file from the backend for this entity at the current version."""
         assert self.__config_version
         return self.backend.download(version=self.__config_version, entity=entity)
 
     def get_service_color_templates(self) -> Iterable[ServiceColorTemplateEntity]:
+        """Get the template from the backend for this entity at the current version."""
         assert self.__template_version
         return self.backend.get_service_color_template_entities(version=self.__template_version)
 
     def get_namespace_templates(self) -> Iterable[NamespaceTemplateEntity]:
+        """Get the templates from the backend  at the current version."""
         assert self.__template_version
         return self.backend.get_namespace_template_entities(version=self.__template_version)
 
     def get_generated_files(self) -> Iterable[ConfigEntity]:
+        """Get the generated files from the backend at the current version."""
         assert self.__config_version
         return self.backend.get_config_entities(version=self.__config_version)
 
     def get_service_id_generated_files(self) -> Iterable[ServiceIdConfigEntity]:
+        """Get the generated file from the backend for this entity at the current version."""
         assert self.__config_version
         return self.backend.get_service_id_config_entities(version=self.__config_version)
 
     def get_gateway_generated_files(self) -> Iterable[GatewayConfigEntity]:
+        """Get the generated file from the backend for this entity at the current version."""
         assert self.__config_version
         return self.backend.get_gateway_config_entities(version=self.__config_version)
 
 
 class ManagerWriteDataStore:
     """
-    API used by tools that need to read and write the envoy templates used to construct the envoy files.
+    API used by tools that need to read and write the envoy templates used to construct the
+    envoy files.
     """
     __version: Optional[str]
 
@@ -108,13 +120,16 @@ class ManagerWriteDataStore:
         self.__version = None
 
     def set_template(self, entity: TemplateEntity, contents: str) -> None:
-        ns = as_namespace_template_entity(entity)
-        if ns:
-            self.set_namespace_template(ns.namespace, ns.protection, ns.purpose, contents)
+        """Set the contents for the given template entity."""
+        n_s = as_namespace_template_entity(entity)
+        if n_s:
+            self.set_namespace_template(n_s.namespace, n_s.protection, n_s.purpose, contents)
             return
-        sc = as_service_color_template_entity(entity)
-        assert sc
-        self.set_service_color_template(sc.namespace, sc.service, sc.color, sc.purpose, contents)
+        s_c = as_service_color_template_entity(entity)
+        assert s_c
+        self.set_service_color_template(
+            s_c.namespace, s_c.service, s_c.color, s_c.purpose, contents,
+        )
 
     def set_service_color_template(
             self,
@@ -122,12 +137,13 @@ class ManagerWriteDataStore:
             purpose: str, contents: str,
     ) -> None:
         """
-        Writes the template for the given key associated with the service/color.  The translation logic
-        should interpret the optional service and key as:
-            Request for service+color must have a template.  If the data store contains an exact match for
-            service+color, use that.  Then if the data store contains an exact match for service but None color,
-            use that.  Otherwise, use the None service/None color.
-        If service is None, then color must be None.  This does not support a generic per-color template.
+        Writes the template for the given key associated with the service/color.  The translation
+        logic should interpret the optional service and key as:
+            Request for service+color must have a template.  If the data store contains an exact
+            match for service+color, use that.  Then if the data store contains an exact match for
+            service but None color, use that.  Otherwise, use the None service/None color.
+        If service is None, then color must be None.  This does not support a generic per-color
+        template.
         """
         if not service and color:
             raise ValueError('To specify color, the service must also be specified.')
@@ -135,7 +151,7 @@ class ManagerWriteDataStore:
         self.backend.upload(
             self.__version,
             ServiceColorTemplateEntity(namespace_id, service, color, purpose),
-            contents
+            contents,
         )
 
     def set_namespace_template(
@@ -144,9 +160,10 @@ class ManagerWriteDataStore:
             protection: Optional[RouteProtection],
             purpose: str, contents: str,
     ) -> None:
+        """Set the namespace template definition and contents."""
         assert self.__version is not None
         self.backend.upload(
             self.__version,
             NamespaceTemplateEntity(namespace, protection, purpose),
-            contents
+            contents,
         )

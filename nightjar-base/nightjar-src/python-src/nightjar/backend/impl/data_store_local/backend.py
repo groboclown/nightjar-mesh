@@ -1,4 +1,6 @@
 
+"""Local file system backend implementation."""
+
 from typing import Tuple, Optional, Iterable, List
 import os
 import json
@@ -53,7 +55,7 @@ class LocalFileBackend(AbcDataStoreBackend):
             shutil.rmtree(version_dir, True)
 
     def download(self, version: str, entity: Entity) -> str:
-        activity, version_num = LocalFileBackend._parse_version(version)
+        _, version_num = LocalFileBackend._parse_version(version)
         file_path = self._get_path(wide.get_entity_path(str(version_num), entity))
         if not file_path:
             raise ValueError('no such file at ' + file_path)
@@ -61,7 +63,7 @@ class LocalFileBackend(AbcDataStoreBackend):
             return f.read()
 
     def upload(self, version: str, entity: Entity, contents: str) -> None:
-        activity, version_num = LocalFileBackend._parse_version(version)
+        _, version_num = LocalFileBackend._parse_version(version)
         file_path = self._get_path(wide.get_entity_path(str(version_num), entity))
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, 'w') as f:
@@ -81,70 +83,71 @@ class LocalFileBackend(AbcDataStoreBackend):
 
     def get_namespace_template_entities(
             self, version: str, namespace: Optional[str] = None,
-            protection: Optional[RouteProtection] = None, purpose: Optional[str] = None
+            protection: Optional[RouteProtection] = None, purpose: Optional[str] = None,
     ) -> Iterable[NamespaceTemplateEntity]:
         for entity in self.get_all_entities(version):
             nte = as_namespace_template_entity(entity)
             if (
-                nte
-                and (not namespace or namespace == nte.namespace)
-                and (not protection or protection == nte.protection)
-                and (not purpose or purpose == nte.purpose)
+                    nte
+                    and (not namespace or namespace == nte.namespace)
+                    and (not protection or protection == nte.protection)
+                    and (not purpose or purpose == nte.purpose)
             ):
                 yield nte
 
     def get_gateway_config_entities(
             self, version: str, namespace: Optional[str] = None,
-            protection: Optional[RouteProtection] = None, purpose: Optional[str] = None
+            protection: Optional[RouteProtection] = None, purpose: Optional[str] = None,
     ) -> Iterable[GatewayConfigEntity]:
         for entity in self.get_all_entities(version):
             gce = as_gateway_config_entity(entity)
             if (
-                gce
-                and (not namespace or namespace == gce.namespace_id)
-                and (not protection or protection == gce.protection)
-                and (not purpose or purpose == gce.purpose)
+                    gce
+                    and (not namespace or namespace == gce.namespace_id)
+                    and (not protection or protection == gce.protection)
+                    and (not purpose or purpose == gce.purpose)
             ):
                 yield gce
 
     def get_service_color_template_entities(
             self, version: str, namespace: Optional[str] = None,
             service: Optional[str] = None, color: Optional[str] = None,
-            purpose: Optional[str] = None
+            purpose: Optional[str] = None,
     ) -> Iterable[ServiceColorTemplateEntity]:
         for entity in self.get_all_entities(version):
             sct = as_service_color_template_entity(entity)
             if (
-                sct
-                and (not namespace or namespace == sct.namespace)
-                and (not service or service == sct.service)
-                and (not color or color == sct.color)
-                and (not purpose or purpose == sct.purpose)
+                    sct
+                    and (not namespace or namespace == sct.namespace)
+                    and (not service or service == sct.service)
+                    and (not color or color == sct.color)
+                    and (not purpose or purpose == sct.purpose)
             ):
                 yield sct
 
     def get_service_id_config_entities(
             self, version: str, namespace_id: Optional[str] = None,
             service_id: Optional[str] = None, service: Optional[str] = None,
-            color: Optional[str] = None, purpose: Optional[str] = None
+            color: Optional[str] = None, purpose: Optional[str] = None,
     ) -> Iterable[ServiceIdConfigEntity]:
         for entity in self.get_all_entities(version):
             sic = as_service_id_config_entity(entity)
             if (
-                sic
-                and (not namespace_id or namespace_id == sic.namespace_id)
-                and (not service_id or service_id == sic.service_id)
-                and (not service or service == sic.service)
-                and (not color or color == sic.color)
-                and (not purpose or purpose == sic.purpose)
+                    sic
+                    and (not namespace_id or namespace_id == sic.namespace_id)
+                    and (not service_id or service_id == sic.service_id)
+                    and (not service or service == sic.service)
+                    and (not color or color == sic.color)
+                    and (not purpose or purpose == sic.purpose)
             ):
                 yield sic
 
     def get_all_entities(self, version: str) -> Iterable[Entity]:
+        """Find all entities stored for this version."""
         activity, version_num = LocalFileBackend._parse_version(version)
         version_str = str(version_num)
         base_entity_path = self._get_path(wide.get_activity_prefix(version_str, activity))
-        for dirpath, dirnames, filenames in os.walk(base_entity_path):
+        for dirpath, _, filenames in os.walk(base_entity_path):
             for filename in filenames:
                 entity_path = self._split_path(os.path.join(dirpath, filename))
                 config_entity = wide.parse_config_path(version_str, entity_path)
@@ -161,7 +164,11 @@ class LocalFileBackend(AbcDataStoreBackend):
         if os.path.isfile(version_file):
             with open(version_file, 'r') as f:
                 contents = json.load(f)
-            if isinstance(contents, dict) and 'version' in contents and isinstance(contents['version'], int):
+            if (
+                    isinstance(contents, dict)
+                    and 'version' in contents
+                    and isinstance(contents['version'], int)
+            ):
                 version = contents['version']
                 version_dir = os.path.join(self.config.base_path, activity, str(version))
                 if os.path.isdir(version_dir):

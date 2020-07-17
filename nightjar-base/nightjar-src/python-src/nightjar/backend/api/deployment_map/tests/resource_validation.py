@@ -1,7 +1,10 @@
 
+"""Test to validate the schema."""
+
 from typing import Dict, Any
 import yaml
 import jsonschema  # type: ignore
+
 try:
     import importlib.resources as pkg_resources
 except ImportError:
@@ -15,4 +18,5 @@ SCHEMA = yaml.safe_load(SCHEMA_YAML)
 
 
 def validate_envoy_config(config: Dict[str, Any]) -> None:
+    """Run json schema validation on the configuration."""
     jsonschema.validate(config, SCHEMA)

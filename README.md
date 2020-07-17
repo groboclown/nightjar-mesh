@@ -1,4 +1,4 @@
-![Logo](logo.svg)
+![Logo](docs/logo.svg)
 
 # nightjar-mesh
 
@@ -12,13 +12,13 @@ Yet Another Control Plane with Envoy Proxy (currently focused on supporting AWS 
 
 [Nightjar](https://en.wikipedia.org/wiki/Nightjar) is a *control plane* for [Envoy Proxy](https://envoyproxy.github.io/envoy/) that uses a file-based approach to allow for transparency in the envoy configuration.
 
-![2 services communicating through nightjar + Envoy Proxy](2-service-traffic.svg)
+![2 services communicating through nightjar + Envoy Proxy](docs/2-service-traffic.svg)
 
 Nightjar loads the locations of all the services throughout the service meshes, then transforms those from a template into the Envoy Proxy configurations.  It then periodically scans for updates and changes Envoy as the network changes.
 
 Nightjar works both for network traffic entering the data plane and for traffic within the plane.
 
-![Traffic flow within a service mesh, deploying a blue-green mix of service #2](nightjar-service-mesh.svg)
+![Traffic flow within a service mesh, deploying a blue-green mix of service #2](docs/nightjar-service-mesh.svg)
 
 The construction of the proxy configuration comes from these layers of data:
 
@@ -82,7 +82,7 @@ There are two modes in which Nightjar runs, standalone and centralized.
 
 ### Standalone Mode
 
-*[Details for standalone mode](README-standalone.md)*
+*[Details for standalone mode](docs/standalone-deployment-model.md)*
 
 In standalone mode, the Nightjar sidecar and gateway proxies are independent of each other.  They each read from the AWS Cloud Map configuration and create their own proxy configuration.  This means that problems with one container do not escalate to other containers.  Additionally, all configuration of the mesh is defined within the Cloud Formation templates, if you use those.  It works well for small deployments.
 
@@ -90,12 +90,12 @@ This implementation has some downsides:
 
 * Changing the envoy proxy configuration requires creating new nightjar-standalone docker images.  If you want different configurations for different purposes, then you will need to create one docker image for each purpose.
 * The generated envoy proxy files can only be checked by extracting them out of the container, which requires direct access to the docker daemon.  For services running in Fargate, this is not possible.
-* As the number of running services goes up, you incur an additional fee from the API usage from AWS.  Some shops may find this fee minimal, while others may consider it too costly.  You need to decide for yourself.  [Here is some information to help you out.](nightjar-standalone/README.md#api-usage)
+* As the number of running services goes up, you incur an additional fee from the API usage from AWS.  Some shops may find this fee minimal, while others may consider it too costly.  You need to decide for yourself.  [Here is some information to help you out.](docs/discovery-aws-cloudmap.md#api-usage)
 
 
 ### Centralized Mode
 
-*[Details for centralized mode](README-centralized.md)*
+*[Details for centralized mode](docs/centralized-deployment-model.md)*
 
 In centralized mode, the service configuration is broken up.
 

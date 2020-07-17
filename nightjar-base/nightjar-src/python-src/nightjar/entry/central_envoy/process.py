@@ -1,4 +1,6 @@
 
+"""Process the envoy file."""
+
 from typing import Iterable, Tuple, Callable, Optional
 import os
 from ...backend.api.data_store import AbcDataStoreBackend, EnvoyProxyDataStore
@@ -11,6 +13,7 @@ def process_contents(
         backend: AbcDataStoreBackend, admin_port: str, listener_port: str,
         output_dir: str,
 ) -> None:
+    """Generate the envoy proxy configuration."""
     with EnvoyProxyDataStore(backend) as envoy_proxy:
         purpose_files = {}
 
@@ -34,6 +37,7 @@ def process_namespace(
         backend: AbcDataStoreBackend, admin_port: str, listener_port: str,
         output_dir: str,
 ) -> None:
+    """Process a namespace."""
     process_contents(
         lambda envoy_proxy: envoy_proxy.get_gateway_envoy_files(namespace_id, protection),
         backend, admin_port, listener_port, output_dir,
@@ -45,6 +49,7 @@ def process_service_color(
         backend: AbcDataStoreBackend, admin_port: str, listener_port: str,
         output_dir: str,
 ) -> None:
+    """Process a service color."""
     process_contents(
         lambda envoy_proxy: envoy_proxy.get_service_envoy_files(service_id),
         backend, admin_port, listener_port, output_dir,

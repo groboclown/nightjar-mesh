@@ -1,4 +1,8 @@
 
+"""
+S3 Configuration Parameters
+"""
+
 # This file must be clean of any boto3 or boto imports.  Likewise, it
 # can't import anything that in turn imports those.
 
@@ -33,11 +37,12 @@ S3_PARAMETERS = ImplementationParameters(
         PARAM__AWS_REGION, PARAM__AWS_PROFILE,
         PARAM__S3_BUCKET, PARAM__S3_BASE_PATH,
         PARAM__PURGE_BEFORE_DAYS,
-    )
+    ),
 )
 
 
 class S3EnvConfig:
+    """Configuration for the S3 backend"""
     __bucket: Optional[str] = None
     __base_path: str = DEFAULT_BASE_PATH
     __region: Optional[str] = None
@@ -51,6 +56,7 @@ class S3EnvConfig:
             self.load(values)
 
     def load(self, values: ParamValues) -> 'S3EnvConfig':
+        """Load the configuration with the values."""
         self.__bucket = PARAM__S3_BUCKET.get_value(values)
         path = PARAM__S3_BASE_PATH.get_value(values) or DEFAULT_BASE_PATH
         while path[0] == '/':
@@ -67,42 +73,50 @@ class S3EnvConfig:
 
     @property
     def bucket(self) -> str:
+        """The s3 bucket"""
         assert self.__loaded
         assert self.__bucket is not None
         return self.__bucket
 
     @property
     def base_path(self) -> str:
+        """The base path"""
         assert self.__loaded
         return self.__base_path
 
     @property
     def purge_old_versions(self) -> bool:
+        """Should old versions be purged?"""
         assert self.__loaded
         return self.__purge_old_versions
 
     @property
     def purge_older_than_days(self) -> int:
+        """Old versions older than this number of days are purged, if purging is enabled."""
         assert self.__loaded
         return self.__purge_older_than_days
 
     @property
     def aws_region(self) -> str:
+        """AWS region"""
         assert self.__loaded
         assert self.__region is not None
         return self.__region
 
     @property
     def aws_profile(self) -> Optional[str]:
+        """AWS profile"""
         assert self.__loaded
         return self.__profile
 
     def get_path(self, path_parts: List[str]) -> str:
+        """S3 path for the given path parts."""
         if self.base_path:
             return self.base_path + '/' + ('/'.join(path_parts))
         return '/'.join(path_parts)
 
     def split_key_to_path(self, path: str) -> List[str]:
+        """Split this S3 key into path parts."""
         ret: List[str] = []
         if not path.startswith(self.base_path):
             return ret

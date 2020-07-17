@@ -11,7 +11,8 @@ from ...protect import RouteProtection
 
 
 def load_namespace_data(
-        deployment_map: AbcDeploymentMap, namespaces: Iterable[str], protections: Iterable[RouteProtection]
+        deployment_map: AbcDeploymentMap, namespaces: Iterable[str],
+        protections: Iterable[RouteProtection],
 ) -> Iterable[Tuple[str, EnvoyConfig]]:
     """
     Generate the per-namespace (e.g. gateway) configuration data.
@@ -26,7 +27,7 @@ def load_namespace_data(
 
 
 def load_service_color_data(
-        deployment_map: AbcDeploymentMap, namespaces: Iterable[str], protection: RouteProtection
+        deployment_map: AbcDeploymentMap, namespaces: Iterable[str], protection: RouteProtection,
 ) -> Iterable[Tuple[str, str, str, str, EnvoyConfig]]:
     """
     Generate the per-service/color configuration data.

@@ -1,9 +1,9 @@
 #!/bin/bash
 
-mkdir /tmp/${TESTFILE}
-mkdir /tmp/${TESTFILE}/bin
+mkdir -p /tmp/${TESTFILE}
+mkdir -p /tmp/${TESTFILE}/bin
 
-cp ${SRC_DIR}/restart-envoy.sh /tmp/${TESTFILE}/.
+cp ${SUITE_DIR}/envoy-docker/nightjar-src/restart-envoy.sh /tmp/${TESTFILE}/.
 cp /bin/kill /bin/original-kill
 cp ${TEST_DIR}/mock-script2.sh /bin/kill
 cp /usr/local/bin/envoy /usr/local/bin/original-envoy

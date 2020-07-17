@@ -1,4 +1,8 @@
 
+"""
+Pull files from the data store backend.
+"""
+
 from .file_mgr import (
     write_gateway_config_entity,
     write_service_id_config_entity,
@@ -14,6 +18,7 @@ from ...backend.api.data_store import (
 
 
 def pull_templates(backend: AbcDataStoreBackend, output_dir: str) -> None:
+    """Pull the templates from the backend. into the directory."""
     with ManagerReadDataStore(backend) as reader:
         for entity_n in reader.get_namespace_templates():
             content = reader.get_template(entity_n)
@@ -24,6 +29,7 @@ def pull_templates(backend: AbcDataStoreBackend, output_dir: str) -> None:
 
 
 def pull_generated_files(backend: AbcDataStoreBackend, output_dir: str) -> None:
+    """Pull the generated files from the backend, into the directory."""
     with ManagerReadDataStore(backend) as reader:
         for entity in reader.get_generated_files():
             content = reader.get_generated_file(entity)

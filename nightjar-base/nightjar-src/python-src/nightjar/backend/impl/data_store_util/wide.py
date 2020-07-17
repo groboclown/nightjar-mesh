@@ -29,6 +29,7 @@ DEFAULT_PROTECTION_NAME = 'default'
 
 
 def get_entity_path(version: str, entity: Entity) -> List[str]:
+    """Get the standard path for the version + entity"""
     nte = as_namespace_template_entity(entity)
     if nte:
         return get_namespace_template_path(version, nte)
@@ -44,6 +45,7 @@ def get_entity_path(version: str, entity: Entity) -> List[str]:
 
 
 def parse_template_path(version: str, path: List[str]) -> Optional[TemplateEntity]:
+    """Convert the version + path into a template entity."""
     namespace = parse_namespace_template_path(version, path)
     if namespace:
         return namespace
@@ -54,6 +56,7 @@ def parse_template_path(version: str, path: List[str]) -> Optional[TemplateEntit
 
 
 def parse_config_path(version: str, path: List[str]) -> Optional[ConfigEntity]:
+    """Convert the version + path into a config entity."""
     namespace = parse_gateway_config_path(version, path)
     if namespace:
         return namespace
@@ -64,6 +67,7 @@ def parse_config_path(version: str, path: List[str]) -> Optional[ConfigEntity]:
 
 
 def get_namespace_template_prefix(version: str) -> List[str]:
+    """Get the prefix path parts for the namespace template + version."""
     return [
         *get_activity_prefix(version, ACTIVITY_TEMPLATE_DEFINITION),
         'gateway',
@@ -71,6 +75,7 @@ def get_namespace_template_prefix(version: str) -> List[str]:
 
 
 def get_namespace_template_path(version: str, entity: NamespaceTemplateEntity) -> List[str]:
+    """Get the path parts for the namespace template + version."""
     return [
         *get_namespace_template_prefix(version),
         entity.namespace or DEFAULT_NAMESPACE_NAME,
@@ -79,7 +84,10 @@ def get_namespace_template_path(version: str, entity: NamespaceTemplateEntity) -
     ]
 
 
-def parse_namespace_template_path(version: str, path: List[str]) -> Optional[NamespaceTemplateEntity]:
+def parse_namespace_template_path(
+        version: str, path: List[str],
+) -> Optional[NamespaceTemplateEntity]:
+    """Parse the version + path parts into a namespace template entity."""
     parts = get_path_after_prefix(get_namespace_template_prefix(version), 3, path)
     if not parts:
         return None
@@ -95,6 +103,7 @@ def parse_namespace_template_path(version: str, path: List[str]) -> Optional[Nam
 
 
 def get_service_color_template_prefix(version: str) -> List[str]:
+    """Get the prefix path parts for the service/color template + version."""
     return [
         *get_activity_prefix(version, ACTIVITY_TEMPLATE_DEFINITION),
         'service',
@@ -102,6 +111,7 @@ def get_service_color_template_prefix(version: str) -> List[str]:
 
 
 def get_service_color_template_path(version: str, entity: ServiceColorTemplateEntity) -> List[str]:
+    """Get the path parts for the service/color template + version."""
     return [
         *get_service_color_template_prefix(version),
         entity.namespace or DEFAULT_NAMESPACE_NAME,
@@ -111,7 +121,10 @@ def get_service_color_template_path(version: str, entity: ServiceColorTemplateEn
     ]
 
 
-def parse_service_color_template_path(version: str, path: List[str]) -> Optional[ServiceColorTemplateEntity]:
+def parse_service_color_template_path(
+        version: str, path: List[str],
+) -> Optional[ServiceColorTemplateEntity]:
+    """Parse the version + path parts into a service/color template entity."""
     parts = get_path_after_prefix(get_service_color_template_prefix(version), 4, path)
     if not parts:
         return None
@@ -125,6 +138,7 @@ def parse_service_color_template_path(version: str, path: List[str]) -> Optional
 
 
 def get_gateway_config_prefix(version: str) -> List[str]:
+    """Get the prefix path parts for the gateway config + version."""
     return [
         *get_activity_prefix(version, ACTIVITY_PROXY_CONFIGURATION),
         'gateway'
@@ -132,6 +146,7 @@ def get_gateway_config_prefix(version: str) -> List[str]:
 
 
 def get_gateway_config_path(version: str, entity: GatewayConfigEntity) -> List[str]:
+    """Get the path parts for the gateway config + version."""
     # namespace_id cannot be None or empty
     assert entity.namespace_id
     return [
@@ -143,6 +158,7 @@ def get_gateway_config_path(version: str, entity: GatewayConfigEntity) -> List[s
 
 
 def parse_gateway_config_path(version: str, path: List[str]) -> Optional[GatewayConfigEntity]:
+    """Parse the version + path parts into a gateway config entity."""
     parts = get_path_after_prefix(get_gateway_config_prefix(version), 3, path)
     if not parts:
         return None
@@ -158,6 +174,7 @@ def parse_gateway_config_path(version: str, path: List[str]) -> Optional[Gateway
 
 
 def get_service_id_config_prefix(version: str) -> List[str]:
+    """Get the prefix path parts for the service id config + version."""
     return [
         *get_activity_prefix(version, ACTIVITY_PROXY_CONFIGURATION),
         'service',
@@ -165,6 +182,7 @@ def get_service_id_config_prefix(version: str) -> List[str]:
 
 
 def get_service_id_config_path(version: str, entity: ServiceIdConfigEntity) -> List[str]:
+    """Get the path parts for the service id config + version."""
     return [
         *get_service_id_config_prefix(version),
         entity.namespace_id,
@@ -176,6 +194,7 @@ def get_service_id_config_path(version: str, entity: ServiceIdConfigEntity) -> L
 
 
 def parse_service_id_config_path(version: str, path: List[str]) -> Optional[ServiceIdConfigEntity]:
+    """Parse the version + path parts into a service id config entity."""
     parts = get_path_after_prefix(get_service_id_config_prefix(version), 5, path)
     if not parts:
         # debug('Insufficient parts for a service_id: {p}', p=path)
@@ -191,12 +210,14 @@ def parse_service_id_config_path(version: str, path: List[str]) -> Optional[Serv
 
 
 def get_protection_path_name(protection: Optional[RouteProtection]) -> str:
+    """Get the protection's path name."""
     if protection is None:
         return DEFAULT_PROTECTION_NAME
     return protection
 
 
 def parse_protection(part: str) -> Union[bool, Optional[RouteProtection]]:
+    """Parse the protection path part."""
     if part == DEFAULT_PROTECTION_NAME:
         return None
     if not is_valid_route_protection(part):
@@ -205,24 +226,28 @@ def parse_protection(part: str) -> Union[bool, Optional[RouteProtection]]:
 
 
 def parse_namespace(part: str) -> Optional[str]:
+    """Parse the namespace path part."""
     if part == DEFAULT_NAMESPACE_NAME:
         return None
     return part
 
 
 def parse_service(part: str) -> Optional[str]:
+    """Parse the service path part."""
     if part == DEFAULT_SERVICE_NAME:
         return None
     return part
 
 
 def parse_color(part: str) -> Optional[str]:
+    """Parse the color path part."""
     if part == DEFAULT_COLOR_NAME:
         return None
     return part
 
 
 def get_activity_prefix(version: str, activity: str) -> List[str]:
+    """Get the prefix for the version + activity."""
     # Each activity is versioned, so have the activity/version path.
     return [
         'content',
@@ -231,7 +256,10 @@ def get_activity_prefix(version: str, activity: str) -> List[str]:
     ]
 
 
-def get_path_after_prefix(prefix: List[str], expected_length: int, path: List[str]) -> Optional[List[str]]:
+def get_path_after_prefix(
+        prefix: List[str], expected_length: int, path: List[str],
+) -> Optional[List[str]]:
+    """Get the path parts after the prefix."""
     prefix_len = len(prefix)
     if len(path) < prefix_len:
         return None
@@ -244,6 +272,7 @@ def get_path_after_prefix(prefix: List[str], expected_length: int, path: List[st
 
 
 def parse_activity(version: str, path: List[str]) -> Optional[str]:
+    """parse the activity from the path parts."""
     if len(path) < 3:
         return None
     if version != path[2] or 'content' != path[0]:
@@ -254,6 +283,7 @@ def parse_activity(version: str, path: List[str]) -> Optional[str]:
 
 
 def get_version_reference_prefix(activity: str) -> List[str]:
+    """Get the version reference prefix for the activity."""
     return [
         'versions',
         activity,
@@ -261,6 +291,7 @@ def get_version_reference_prefix(activity: str) -> List[str]:
 
 
 def get_version_reference_path(activity: str, version: str) -> List[str]:
+    """Get the version reference path for the activity."""
     return [
         *get_version_reference_prefix(activity),
         version,
@@ -268,6 +299,7 @@ def get_version_reference_path(activity: str, version: str) -> List[str]:
 
 
 def parse_version_reference_path(activity: str, path: List[str]) -> Optional[str]:
+    """Parse the version path part for the activity."""
     parts = get_path_after_prefix(get_version_reference_prefix(activity), 1, path)
     if not parts:
         return None

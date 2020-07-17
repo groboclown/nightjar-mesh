@@ -1,4 +1,6 @@
 
+"""Main program for the central envoy config generator."""
+
 import os
 from .process import process_namespace, process_service_color
 from ...backend.api.data_store import AbcDataStoreBackend
@@ -7,6 +9,7 @@ from ...protect import as_route_protection
 
 
 def get_data_store() -> AbcDataStoreBackend:
+    """Get the defined data store."""
     data_store_params = get_data_store_params()
     data_store_name = os.environ['DATASTORE'].strip().lower()
     for param in data_store_params:
@@ -16,6 +19,7 @@ def get_data_store() -> AbcDataStoreBackend:
 
 
 def main() -> None:
+    """Entry point."""
     out_dir = os.environ['OUTPUT_DIR'].strip()
     os.makedirs(out_dir, exist_ok=True)
     admin_port = os.environ['ADMIN_PORT'].strip()

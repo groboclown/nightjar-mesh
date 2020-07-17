@@ -1,5 +1,14 @@
 
-from typing import Sequence, Iterable, Tuple, Dict, Optional, Generic, TypeVar, List, Type, Any, Callable, Union, Text, cast
+"""
+Command line and environment variable parameter definitions.
+
+Allows for configurable setup of extensions.
+"""
+
+from typing import (
+    Sequence, Iterable, Tuple, Dict, Optional,
+    Generic, TypeVar, List, Type, Any, Callable, Union, Text, cast,
+)
 import os
 import argparse
 
@@ -9,8 +18,10 @@ ArgTypeT = TypeVar('ArgTypeT', str, int, bool)
 
 
 class ParamDef(Generic[ArgTypeT]):
+    """A command line or environment variable parameter."""
     __slots__ = (
-        'name', 'env_name', 'arg_names', 'help_text', 'default_value', 'required', 'var_type', 'parse_var_type'
+        'name', 'env_name', 'arg_names', 'help_text', 'default_value', 'required',
+        'var_type', 'parse_var_type',
     )
     default_value: Optional[ArgTypeT]
 
@@ -37,17 +48,21 @@ class ParamDef(Generic[ArgTypeT]):
 
     @property
     def store_type(self) -> str:
+        """Type of storage."""
         if self.var_type == bool:
             return 'store_true'
         return 'store'
 
     def parse_value(self, value: Optional[str]) -> Optional[ArgTypeT]:
+        """Convert the string argument into the expected type."""
         if value is None:
             return self.default_value
         if self.var_type == bool:
             return cast(
                 ArgTypeT,
-                value.lower().strip() in ('on', 'yes', 'true', 'active', 'activated', 'enable', 'enabled', '1')
+                value.lower().strip() in (
+                    'on', 'yes', 'true', 'active', 'activated', 'enable', 'enabled', '1',
+                )
             )
         if self.var_type == int:
             return cast(ArgTypeT, int(value))
@@ -55,6 +70,7 @@ class ParamDef(Generic[ArgTypeT]):
         return cast(ArgTypeT, value)
 
     def get_value(self, params: Dict[str, Any]) -> Optional[ArgTypeT]:
+        """Return the value from the dictionary of values."""
         value = params.get(self.name, None)
         if value is None:
             ret = self.default_value
@@ -66,7 +82,7 @@ class ParamDef(Generic[ArgTypeT]):
         if isinstance(value, str):
             return self.parse_value(value)
         raise ValueError('Expected {0} to have a value of type {1}, but found `{2}`'.format(
-            self.env_name, self.var_type, value
+            self.env_name, self.var_type, value,
         ))
 
     def __eq__(self, other: Any) -> bool:
@@ -87,10 +103,10 @@ class ParamDef(Generic[ArgTypeT]):
 
     def __hash__(self) -> int:
         return (
-                hash(self.name) + hash(self.env_name) +
-                hash(self.arg_names) + hash(self.help_text) +
-                hash(self.default_value) + hash(self.required) +
-                hash(self.var_type)
+            hash(self.name) + hash(self.env_name) +
+            hash(self.arg_names) + hash(self.help_text) +
+            hash(self.default_value) + hash(self.required) +
+            hash(self.var_type)
         )
 
 
@@ -109,15 +125,20 @@ def parse_env_values(params: Sequence[ParamDef]) -> ParamValues:
 
 
 class ImplementationParameters:
+    """A collection of parameters for an implementation."""
     __slots__ = ('name', 'description', 'params', 'aliases')
 
-    def __init__(self, name: str, aliases: Iterable[str], description: str, params: Sequence[ParamDef]) -> None:
+    def __init__(
+            self, name: str, aliases: Iterable[str], description: str,
+            params: Sequence[ParamDef],
+    ) -> None:
         self.name = name
         self.description = description
         self.params = tuple(params)
         self.aliases = tuple({name, *aliases})
 
     def parse_env_values(self) -> ParamValues:
+        """Parse the environment variables."""
         return parse_env_values(self.params)
 
 
@@ -126,7 +147,7 @@ def setup_argparse(
         api_name: str,
         api_help: str,
         impl_dest: str,
-        impl_params: Iterable[ImplementationParameters]
+        impl_params: Iterable[ImplementationParameters],
 ) -> argparse.ArgumentParser:
     """
     Creates groups of arguments, one per implementation, along with an
@@ -153,7 +174,10 @@ def setup_argparse(
                 help_text += '  Defaults to env value {0}'.format(param.env_name)
             group.add_argument(
                 *[('--' + n) for n in param.arg_names],
-                required=False,  # NOTE!  Never required, because other implementations may not need this.
+
+                # NOTE!  Never required, because other implementations may not need this.
+                required=False,
+
                 dest=param.name,
                 action=param.store_type,
                 help=help_text,
@@ -164,8 +188,10 @@ def setup_argparse(
 
 
 def pull_argparse(
-        results: argparse.Namespace, impl_dest: str, impl_params: Iterable[ImplementationParameters]
+        results: argparse.Namespace, impl_dest: str,
+        impl_params: Iterable[ImplementationParameters],
 ) -> Optional[Tuple[ImplementationParameters, ParamValues]]:
+    """Extracts the implementation parameters and their values."""
     if not hasattr(results, impl_dest):
         return None
     impl_name = getattr(results, impl_dest)

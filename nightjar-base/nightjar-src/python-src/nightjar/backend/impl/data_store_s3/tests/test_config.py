@@ -1,7 +1,9 @@
 
+"""Test the config module"""
+
 import unittest
-from .. import config
+# from .. import config
 
 
 class S3ConfigTest(unittest.TestCase):
-    pass
+    """Tests for the S3 configuration class."""

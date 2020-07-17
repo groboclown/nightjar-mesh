@@ -1,4 +1,6 @@
 
+"""Local file data store configuration."""
+
 from typing import Optional
 from ...api.params import ParamDef, ParamValues, ImplementationParameters
 
@@ -15,11 +17,12 @@ LOCAL_PARAMETERS = ImplementationParameters(
     'local', ('local-wide',), 'data store which saves each purpose into its own file',
     (
         PARAM__LOCAL_BASE_PATH,
-    )
+    ),
 )
 
 
 class LocalEnvConfig:
+    """Configuration for the local files."""
     __base_path: str = DEFAULT_BASE_PATH
     __loaded = False
 
@@ -28,11 +31,13 @@ class LocalEnvConfig:
             self.load(values)
 
     def load(self, values: ParamValues) -> 'LocalEnvConfig':
+        """Load the configuration with the parameter values."""
         self.__base_path = PARAM__LOCAL_BASE_PATH.get_value(values) or DEFAULT_BASE_PATH
         self.__loaded = True
         return self
 
     @property
     def base_path(self) -> str:
+        """Base path for the files."""
         assert self.__loaded
         return self.__base_path

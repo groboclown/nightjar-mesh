@@ -3,7 +3,7 @@
 Manage the reading and writing of local files.
 """
 
-from typing import Iterable, Tuple, Dict, Optional, Any
+from typing import Iterable, Tuple, List, Dict, Optional, Any
 import os
 import json
 from ...backend.api.data_store import (
@@ -28,7 +28,9 @@ def find_templates(src_dir: str) -> Iterable[Tuple[TemplateEntity, str]]:
     """
     if not os.path.isdir(src_dir):
         warn("Not a directory: {s}", s=src_dir)
-        return []
+        return tuple()
+
+    ret: List[Tuple[TemplateEntity, str]] = []
     for name in os.listdir(src_dir):
         if name.startswith('.'):
             continue
@@ -43,10 +45,14 @@ def find_templates(src_dir: str) -> Iterable[Tuple[TemplateEntity, str]]:
             warn('Invalid template description file: {f}', f=description_filename)
             continue
         for res in collect_template_files(base_entity, dir_name):
-            yield res
+            ret.append(res)
+    return ret
 
 
-def collect_template_files(base_entity: TemplateEntity, directory: str) -> Iterable[Tuple[TemplateEntity, str]]:
+def collect_template_files(
+        base_entity: TemplateEntity, directory: str,
+) -> Iterable[Tuple[TemplateEntity, str]]:
+    """Collect all the entity files from the directory, and parse them."""
     ns = as_namespace_template_entity(base_entity)
     sc = as_service_color_template_entity(base_entity)
     assert ns or sc
@@ -64,7 +70,10 @@ def collect_template_files(base_entity: TemplateEntity, directory: str) -> Itera
             yield ServiceColorTemplateEntity(sc.namespace, sc.service, sc.color, name), contents
 
 
-def write_namespace_template_entity(base_dir: str, entity: NamespaceTemplateEntity, contents: str) -> None:
+def write_namespace_template_entity(
+        base_dir: str, entity: NamespaceTemplateEntity, contents: str,
+) -> None:
+    """Write the entity to a file."""
     sub_dir_name = 'namespace-{n}-{p}'.format(
         n=entity.namespace or 'default',
         p=get_protection_part_name(entity.protection)
@@ -84,8 +93,13 @@ def write_namespace_template_entity(base_dir: str, entity: NamespaceTemplateEnti
         f.write(contents)
 
 
-def write_gateway_config_entity(base_dir: str, entity: GatewayConfigEntity, contents: str) -> None:
-    sub_dir_name = 'gateway-{n}-{p}'.format(n=entity.namespace_id, p=get_protection_part_name(entity.protection))
+def write_gateway_config_entity(
+        base_dir: str, entity: GatewayConfigEntity, contents: str,
+) -> None:
+    """Write the entity to a file."""
+    sub_dir_name = 'gateway-{n}-{p}'.format(
+        n=entity.namespace_id, p=get_protection_part_name(entity.protection),
+    )
     out_dir = os.path.join(base_dir, sub_dir_name)
     os.makedirs(out_dir, exist_ok=True)
     description_file = os.path.join(out_dir, CONFIG_DESCRIPTION_FILENAME)
@@ -101,7 +115,10 @@ def write_gateway_config_entity(base_dir: str, entity: GatewayConfigEntity, cont
         f.write(contents)
 
 
-def write_service_id_config_entity(base_dir: str, entity: ServiceIdConfigEntity, contents: str) -> None:
+def write_service_id_config_entity(
+        base_dir: str, entity: ServiceIdConfigEntity, contents: str,
+) -> None:
+    """Write the entity to a file."""
     sub_dir_name = 'service_id-{n}-{sid}-{s}-{c}'.format(
         n=entity.namespace_id, sid=entity.service_id,
         s=entity.service, c=entity.color,
@@ -123,7 +140,10 @@ def write_service_id_config_entity(base_dir: str, entity: ServiceIdConfigEntity,
         f.write(contents)
 
 
-def write_service_color_template_entity(base_dir: str, entity: ServiceColorTemplateEntity, contents: str) -> None:
+def write_service_color_template_entity(
+        base_dir: str, entity: ServiceColorTemplateEntity, contents: str,
+) -> None:
+    """Write the entity contents to a file."""
     sub_dir_name = 'service-{n}-{s}-{c}'.format(
         n=entity.namespace or 'default',
         s=entity.service or 'default', c=entity.color or 'default',
@@ -170,6 +190,7 @@ def read_template_description(filename: str) -> Optional[TemplateEntity]:
 
 
 def parse_protection(data: Dict[str, Any]) -> Optional[RouteProtection]:
+    """Figure out the protection level from the dictionary of values."""
     protection = data.get('protection', None)
     if protection in (None, 'default'):
         return None
@@ -177,4 +198,5 @@ def parse_protection(data: Dict[str, Any]) -> Optional[RouteProtection]:
 
 
 def get_protection_part_name(protection: Optional[RouteProtection]) -> str:
+    """The protection name, replaced with the default if None."""
     return protection or 'default'

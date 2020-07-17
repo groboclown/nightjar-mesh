@@ -1,4 +1,6 @@
 
+"""Data store definitions for an envoy proxy."""
+
 from typing import Iterable, Tuple, Optional
 from .abc_backend import (
     AbcDataStoreBackend,
@@ -27,7 +29,7 @@ class EnvoyProxyDataStore:
         self.__version = None
 
     def get_gateway_envoy_files(
-            self, namespace_id: str, protection: RouteProtection
+            self, namespace_id: str, protection: RouteProtection,
     ) -> Iterable[Tuple[str, Optional[str]]]:
         """
         Returns the list of (purpose, contents) for the dynamic envoy files of the namespace.
@@ -36,7 +38,7 @@ class EnvoyProxyDataStore:
         """
         assert self.__version is not None
         for entity in self.backend.get_gateway_config_entities(
-                self.__version, namespace=namespace_id, protection=protection
+                self.__version, namespace=namespace_id, protection=protection,
         ):
             yield entity.purpose, self.backend.download(self.__version, entity)
 
@@ -47,5 +49,8 @@ class EnvoyProxyDataStore:
         content, then it must be returned with None data.
         """
         assert self.__version is not None
-        for entity in self.backend.get_service_id_config_entities(self.__version, service_id=service_id):
+        entity_items = self.backend.get_service_id_config_entities(
+            self.__version, service_id=service_id,
+        )
+        for entity in entity_items:
             yield entity.purpose, self.backend.download(self.__version, entity)

@@ -1,5 +1,6 @@
 
-from typing import Optional
+"""Configuration for docker's deployment map."""
+
 from ...api import ParamValues, ImplementationParameters, ParamDef
 
 
@@ -15,7 +16,7 @@ PARAM__DOCKER_HOST = ParamDef[str](
     help_text="The connection to the docker daemon.",
     default_value='unix:///var/run/docker.sock',
     var_type=str,
-    required=False
+    required=False,
 )
 
 PARAM__DOCKER_TLS_CERT = ParamDef[str](
@@ -25,7 +26,7 @@ PARAM__DOCKER_TLS_CERT = ParamDef[str](
     help_text="Use TLS, and trust certs signed only by this CA.",
     default_value=None,
     var_type=str,
-    required=False
+    required=False,
 )
 
 PARAM__DOCKER_TLS_KEY = ParamDef[str](
@@ -35,7 +36,7 @@ PARAM__DOCKER_TLS_KEY = ParamDef[str](
     help_text="Path to the TLS key.",
     default_value=None,
     var_type=str,
-    required=False
+    required=False,
 )
 
 
@@ -44,11 +45,12 @@ DOCKER_PARAMETERS = ImplementationParameters(
     description="Reads the service ports from the running docker instances",
     params=(
         PARAM__DOCKER_HOST, PARAM__DOCKER_TLS_CERT, PARAM__DOCKER_TLS_KEY,
-    )
+    ),
 )
 
 
 class DockerConfig:
+    """The docker configuration."""
     __slots__ = ('host', 'tls_cert', 'tls_key', 'use_tls', 'tls_verify')
 
     def __init__(self) -> None:
@@ -59,6 +61,7 @@ class DockerConfig:
         self.tls_verify = False
 
     def load(self, params: ParamValues) -> 'DockerConfig':
+        """Load the configuration values from the parameters"""
         self.host = PARAM__DOCKER_HOST.get_value(params)
         self.tls_cert = PARAM__DOCKER_TLS_CERT.get_value(params)
         self.tls_key = PARAM__DOCKER_TLS_KEY.get_value(params)

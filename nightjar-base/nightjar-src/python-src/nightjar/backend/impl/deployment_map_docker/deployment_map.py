@@ -1,3 +1,8 @@
+
+"""
+Deployment map implementation for docker.
+"""
+
 from typing import Iterable, Dict
 
 from .discover_services import AbcDiscoverServices
@@ -14,6 +19,7 @@ from ...api.deployment_map.abc_depoyment_map import ServiceDef
 
 
 class DockerDeploymentMap(AbcDeploymentMap):
+    """Docker's deployment map implementation."""
     def __init__(self, discovery: AbcDiscoverServices) -> None:
         self.discovery = discovery
 

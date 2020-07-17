@@ -1,3 +1,6 @@
+
+"""Mock handlers for the collector datastore backends."""
+
 from typing import List, Dict, Set, Optional, Iterable
 
 from .. import ConfigEntity
@@ -12,11 +15,13 @@ from ..abc_backend import (
     as_gateway_config_entity,
     ServiceColorTemplateEntity,
     as_service_color_template_entity,
-    TemplateEntity)
+    TemplateEntity,
+)
 from .....protect import RouteProtection
 
 
 class MockBackend(AbcDataStoreBackend):
+    """Back-end data store mock object."""
     active_versions: Set[str]
     namespace_entities: Dict[NamespaceTemplateEntity, str]
     service_color_entities: Dict[ServiceColorTemplateEntity, str]
@@ -98,9 +103,9 @@ class MockBackend(AbcDataStoreBackend):
 
     def get_namespace_template_entities(
             self, version: str, namespace: Optional[str] = None,
-            protection: Optional[RouteProtection] = None, purpose: Optional[str] = None
+            protection: Optional[RouteProtection] = None, purpose: Optional[str] = None,
     ) -> Iterable[NamespaceTemplateEntity]:
-        for entity in self.namespace_entities.keys():
+        for entity in self.namespace_entities:
             if (
                     (namespace is None or namespace == entity.namespace)
                     and (protection is None or protection == entity.protection)
@@ -110,9 +115,9 @@ class MockBackend(AbcDataStoreBackend):
 
     def get_gateway_config_entities(
             self, version: str, namespace: Optional[str] = None,
-            protection: Optional[RouteProtection] = None, purpose: Optional[str] = None
+            protection: Optional[RouteProtection] = None, purpose: Optional[str] = None,
     ) -> Iterable[GatewayConfigEntity]:
-        for entity in self.gateway_entities.keys():
+        for entity in self.gateway_entities:
             if (
                     (namespace is None or namespace == entity.namespace_id)
                     and (protection is None or protection == entity.protection)
@@ -123,9 +128,9 @@ class MockBackend(AbcDataStoreBackend):
     def get_service_color_template_entities(
             self, version: str, namespace: Optional[str] = None,
             service: Optional[str] = None, color: Optional[str] = None,
-            purpose: Optional[str] = None
+            purpose: Optional[str] = None,
     ) -> Iterable[ServiceColorTemplateEntity]:
-        for entity in self.service_color_entities.keys():
+        for entity in self.service_color_entities:
             if (
                     (namespace is None or namespace == entity.namespace)
                     and (service is None or service == entity.service)
@@ -137,9 +142,9 @@ class MockBackend(AbcDataStoreBackend):
     def get_service_id_config_entities(
             self, version: str, namespace_id: Optional[str] = None,
             service_id: Optional[str] = None, service: Optional[str] = None,
-            color: Optional[str] = None, purpose: Optional[str] = None
+            color: Optional[str] = None, purpose: Optional[str] = None,
     ) -> Iterable[ServiceIdConfigEntity]:
-        for entity in self.service_id_entities.keys():
+        for entity in self.service_id_entities:
             if (
                     (namespace_id is None or namespace_id == entity.namespace_id)
                     and (service_id is None or service_id == entity.service_id)

@@ -1,0 +1,4 @@
+
+"""
+The central configurator process.
+"""

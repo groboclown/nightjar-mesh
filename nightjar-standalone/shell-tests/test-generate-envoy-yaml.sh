@@ -3,7 +3,7 @@
 mkdir /tmp/${TESTFILE}
 
 
-cp ${SRC_DIR}/generate-envoy-yaml.sh /tmp/${TESTFILE}/.
+cp ${SUITE_DIR}/envoy-docker/nightjar-src/generate-envoy-yaml.sh /tmp/${TESTFILE}/.
 cp ${TEST_DIR}/mock-generate-data1.py /tmp/${TESTFILE}/generate_template_input_data.py
 mkdir -p /tmp/${TESTFILE}/bin
 cp ${TEST_DIR}/mock-script2.sh /tmp/${TESTFILE}/bin/pystache

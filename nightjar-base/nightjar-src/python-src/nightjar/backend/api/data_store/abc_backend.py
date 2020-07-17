@@ -17,6 +17,7 @@ SUPPORTED_ACTIVITIES = (
 
 
 class BaseEntity:
+    """Base class for entity types."""
     __slots__ = ('__activity', '__purpose')
 
     def __init__(self, activity: str, purpose: str) -> None:
@@ -25,10 +26,12 @@ class BaseEntity:
 
     @property
     def activity(self) -> str:
+        """The kind of activity the entity is associated with."""
         return self.__activity
 
     @property
     def purpose(self) -> str:
+        """The prupose of the entity."""
         return self.__purpose
 
 
@@ -39,31 +42,39 @@ class NamespaceTemplateEntity(BaseEntity):
     """
     __slots__ = ('__namespace', '__protection')
 
-    def __init__(self, namespace: Optional[str], protection: Optional[RouteProtection], purpose: str) -> None:
+    def __init__(
+            self,
+            namespace: Optional[str],
+            protection: Optional[RouteProtection], purpose: str,
+    ) -> None:
         BaseEntity.__init__(self, ACTIVITY_TEMPLATE_DEFINITION, purpose)
         self.__namespace = namespace
         self.__protection = protection
 
     @property
     def namespace(self) -> Optional[str]:
+        """Namespace for this entity.  None means the default namespace."""
         return self.__namespace
 
     def is_default_namespace(self) -> bool:
+        """Is this the default namespace?"""
         return self.namespace is None
 
     @property
     def protection(self) -> Optional[RouteProtection]:
+        """Protection for this namespace. None means default protection level."""
         return self.__protection
 
     def is_default_protection(self) -> bool:
+        """Is this the default protection level?"""
         return self.__protection is None
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, NamespaceTemplateEntity):
             return False
         return (
-            self.__namespace == other.__namespace
-            and self.__protection == other.__protection
+            self.__namespace == other.namespace
+            and self.__protection == other.protection
             and self.purpose == other.purpose
             and self.activity == other.activity
         )
@@ -72,12 +83,17 @@ class NamespaceTemplateEntity(BaseEntity):
         return not self.__eq__(other)
 
     def __hash__(self) -> int:
-        return hash(self.__namespace) + hash(self.__protection) + hash(self.purpose) + hash(self.activity)
+        return (
+            hash(self.__namespace) +
+            hash(self.__protection) +
+            hash(self.purpose) +
+            hash(self.activity)
+        )
 
     def __repr__(self) -> str:
         return (
-            'NamespaceTemplateEntity(namespace={namespace}, protection={protection}, activity={activity}, '
-            'purpose={purpose})'
+            'NamespaceTemplateEntity(namespace={namespace}, protection={protection}, '
+            'activity={activity}, purpose={purpose})'
         ).format(
             namespace=repr(self.__namespace),
             protection=repr(self.__protection),
@@ -100,18 +116,20 @@ class GatewayConfigEntity(BaseEntity):
 
     @property
     def namespace_id(self) -> str:
+        """Opaque ID for this gateway's namespace."""
         return self.__namespace_id
 
     @property
     def protection(self) -> RouteProtection:
+        """Protection level for the gateway."""
         return self.__protection
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, GatewayConfigEntity):
             return False
         return (
-            self.__namespace_id == other.__namespace_id
-            and self.__protection == other.__protection
+            self.__namespace_id == other.namespace_id
+            and self.__protection == other.protection
             and self.purpose == other.purpose
             and self.activity == other.activity
         )
@@ -120,12 +138,17 @@ class GatewayConfigEntity(BaseEntity):
         return not self.__eq__(other)
 
     def __hash__(self) -> int:
-        return hash(self.__namespace_id) + hash(self.__protection) + hash(self.purpose) + hash(self.activity)
+        return (
+            hash(self.__namespace_id) +
+            hash(self.__protection) +
+            hash(self.purpose) +
+            hash(self.activity)
+        )
 
     def __repr__(self) -> str:
         return (
-            'GatewayConfigEntity(namespace_id={namespace_id}, protection={protection}, activity={activity}, '
-            'purpose={purpose})'
+            'GatewayConfigEntity(namespace_id={namespace_id}, protection={protection}, '
+            'activity={activity}, purpose={purpose})'
         ).format(
             namespace_id=repr(self.__namespace_id),
             protection=repr(self.__protection),
@@ -135,10 +158,13 @@ class GatewayConfigEntity(BaseEntity):
 
 
 class ServiceColorTemplateEntity(BaseEntity):
+    """Entity for service/color templates."""
     __slots__ = ('__namespace', '__service', '__color',)
 
     def __init__(
-            self, namespace: Optional[str], service: Optional[str], color: Optional[str], purpose: str
+            self, namespace: Optional[str],
+            service: Optional[str],
+            color: Optional[str], purpose: str,
     ) -> None:
         BaseEntity.__init__(self, ACTIVITY_TEMPLATE_DEFINITION, purpose)
         self.__namespace = namespace
@@ -147,34 +173,40 @@ class ServiceColorTemplateEntity(BaseEntity):
 
     @property
     def namespace(self) -> Optional[str]:
+        """Namespace for the service/color."""
         return self.__namespace
 
     def is_default_namespace(self) -> bool:
+        """Is this the default namespace?"""
         return self.namespace is None
 
     @property
     def service(self) -> Optional[str]:
+        """Name for the service."""
         return self.__service
 
     def is_default_service(self) -> bool:
+        """Is this the default service?"""
         return self.__service is None
 
     @property
     def color(self) -> Optional[str]:
+        """Service color."""
         return self.__color
 
     def is_default_color(self) -> bool:
+        """Is this the default service color?"""
         return self.__color is None
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, ServiceColorTemplateEntity):
             return False
         return (
-                self.__namespace == other.__namespace
-                and self.__service == other.__service
-                and self.__color == other.__color
-                and self.purpose == other.purpose
-                and self.activity == other.activity
+            self.__namespace == other.namespace
+            and self.__service == other.service
+            and self.__color == other.color
+            and self.purpose == other.purpose
+            and self.activity == other.activity
         )
 
     def __ne__(self, other: Any) -> bool:
@@ -182,8 +214,8 @@ class ServiceColorTemplateEntity(BaseEntity):
 
     def __hash__(self) -> int:
         return (
-                hash(self.__namespace) + hash(self.__service) + hash(self.__color) +
-                hash(self.purpose) + hash(self.activity)
+            hash(self.__namespace) + hash(self.__service) + hash(self.__color) +
+            hash(self.purpose) + hash(self.activity)
         )
 
     def __repr__(self) -> str:
@@ -200,10 +232,11 @@ class ServiceColorTemplateEntity(BaseEntity):
 
 
 class ServiceIdConfigEntity(BaseEntity):
+    """Specific instance of a service."""
     __slots__ = ('__namespace_id', '__service_id', '__service', '__color',)
 
     def __init__(
-            self, namespace_id: str, service_id: str, service: str, color: str, purpose: str
+            self, namespace_id: str, service_id: str, service: str, color: str, purpose: str,
     ) -> None:
         BaseEntity.__init__(self, ACTIVITY_PROXY_CONFIGURATION, purpose)
         self.__namespace_id = namespace_id
@@ -213,30 +246,34 @@ class ServiceIdConfigEntity(BaseEntity):
 
     @property
     def namespace_id(self) -> str:
+        """Opaque namespace ID."""
         return self.__namespace_id
 
     @property
     def service_id(self) -> str:
+        """Opaque service ID."""
         return self.__service_id
 
     @property
     def service(self) -> str:
+        """Associated service."""
         return self.__service
 
     @property
     def color(self) -> str:
+        """Associated color."""
         return self.__color
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, ServiceIdConfigEntity):
             return False
         return (
-                self.__namespace_id == other.__namespace_id
-                and self.__service_id == other.__service_id
-                and self.__service == other.__service
-                and self.__color == other.__color
-                and self.purpose == other.purpose
-                and self.activity == other.activity
+            self.__namespace_id == other.namespace_id
+            and self.__service_id == other.service_id
+            and self.__service == other.service
+            and self.__color == other.color
+            and self.purpose == other.purpose
+            and self.activity == other.activity
         )
 
     def __ne__(self, other: Any) -> bool:
@@ -244,8 +281,8 @@ class ServiceIdConfigEntity(BaseEntity):
 
     def __hash__(self) -> int:
         return (
-                hash(self.__service_id) + hash(self.__service) + hash(self.__color) +
-                hash(self.purpose) + hash(self.activity)
+            hash(self.__service_id) + hash(self.__service) + hash(self.__color) +
+            hash(self.purpose) + hash(self.activity)
         )
 
     def __repr__(self) -> str:
@@ -261,42 +298,51 @@ class ServiceIdConfigEntity(BaseEntity):
         )
 
 
-Entity = Union[NamespaceTemplateEntity, GatewayConfigEntity, ServiceColorTemplateEntity, ServiceIdConfigEntity]
+Entity = Union[
+    NamespaceTemplateEntity, GatewayConfigEntity,
+    ServiceColorTemplateEntity, ServiceIdConfigEntity,
+]
 TemplateEntity = Union[NamespaceTemplateEntity, ServiceColorTemplateEntity]
 ConfigEntity = Union[GatewayConfigEntity, ServiceIdConfigEntity]
 
 
 def as_template_entity(entity: Entity) -> Optional[TemplateEntity]:
+    """Converts this to a template style entity, or None if not one of them."""
     if isinstance(entity, (NamespaceTemplateEntity, ServiceColorTemplateEntity)):
         return entity
     return None
 
 
 def as_config_entity(entity: Entity) -> Optional[ConfigEntity]:
+    """Converts this to a config style entity, or None if not one of them."""
     if isinstance(entity, (GatewayConfigEntity, ServiceIdConfigEntity)):
         return entity
     return None
 
 
 def as_namespace_template_entity(entity: Entity) -> Optional[NamespaceTemplateEntity]:
+    """Converts this to a namespace template entity, or None if not one."""
     if isinstance(entity, NamespaceTemplateEntity):
         return entity
     return None
 
 
 def as_gateway_config_entity(entity: Entity) -> Optional[GatewayConfigEntity]:
+    """Converts this to a gateway config entity, or None if not one."""
     if isinstance(entity, GatewayConfigEntity):
         return entity
     return None
 
 
 def as_service_color_template_entity(entity: Entity) -> Optional[ServiceColorTemplateEntity]:
+    """Converts this to a service/color template entity, or None if not one."""
     if isinstance(entity, ServiceColorTemplateEntity):
         return entity
     return None
 
 
 def as_service_id_config_entity(entity: Entity) -> Optional[ServiceIdConfigEntity]:
+    """Converts this to a service ID configuration entity, or None if not one."""
     if isinstance(entity, ServiceIdConfigEntity):
         return entity
     return None
@@ -364,8 +410,8 @@ class AbcDataStoreBackend(abc.ABC):
             purpose: Optional[str] = None,
     ) -> Iterable[NamespaceTemplateEntity]:
         """
-        Get the entities that match the namespace and purpose.  If either is None, then it acts as a
-        wild-card.
+        Get the entities that match the namespace and purpose.  If either is None, then it acts
+        as a wild-card.
         """
         raise NotImplementedError()
 

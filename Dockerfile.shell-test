@@ -10,7 +10,7 @@ RUN echo "start" \
 COPY / /nightjar-root
 
 RUN echo "start" \
-    && chmod +x /nightjar-root/nightjar-base/run-shell-tests.sh \
+    && chmod +x /nightjar-root/run-shell-tests.sh \
     && echo "end"
 
-CMD ["/bin/bash", "/nightjar-root/nightjar-base/run-shell-tests.sh", "docker-based-test"]
+CMD ["/bin/bash", "/nightjar-root/run-shell-tests.sh", "nightjar-central", "nightjar-standalone"]

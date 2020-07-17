@@ -1,4 +1,6 @@
 
+"""Content data generator."""
+
 from typing import Iterable, Dict, Tuple, Union, Any
 import pystache  # type: ignore
 from ...backend.api.data_store import (
@@ -38,8 +40,8 @@ def generate_content(
 class ContentDiff:
     """
     Stores content from previous and new versions of the configuration data.
-    Storage is currently in memory, because we're estimating that the total size of the data is going to be
-    small.  If this ends up being wrong, we can switch this over to temporary files.
+    Storage is currently in memory, because we're estimating that the total size of the data is
+    going to be small.  If this ends up being wrong, we can switch this over to temporary files.
     """
     previous_entity_content: Dict[ConfigEntity, str]
     current_entity_content: Dict[ConfigEntity, str]
@@ -49,27 +51,35 @@ class ContentDiff:
         self.current_entity_content = {}
 
     def load_previous_entity_content(self, reader: ConfigurationReaderDataStore) -> None:
+        """Load the previous entity's content."""
         for n_entity in reader.list_config_entities():
             content = reader.download_entity_content(n_entity)
             if content:
                 self.previous_entity_content[n_entity] = content
 
     def add_current_namespace_content(
-            self, namespace: str, protection: RouteProtection, purpose: str, content: str
+            self, namespace: str, protection: RouteProtection, purpose: str, content: str,
     ) -> None:
+        """Add the current namespace's content."""
         entity = GatewayConfigEntity(namespace, protection, purpose)
         self.current_entity_content[entity] = content
 
     def add_current_service_id_content(
-            self, namespace_id: str, service_id: str, service_color: Tuple[str, str], purpose: str, content: str
+            self, namespace_id: str, service_id: str,
+            service_color: Tuple[str, str], purpose: str, content: str,
     ) -> None:
-        entity = ServiceIdConfigEntity(namespace_id, service_id, service_color[0], service_color[1], purpose)
+        """Add the current service ID's content."""
+        entity = ServiceIdConfigEntity(
+            namespace_id, service_id, service_color[0], service_color[1], purpose,
+        )
         self.current_entity_content[entity] = content
 
     def has_changed(self) -> bool:
+        """Check if the current content is different from the previous content."""
         return self.previous_entity_content != self.current_entity_content
 
     def write_if_different(self, writer: ConfigurationWriterDataStore) -> bool:
+        """If there is a difference, write the updates."""
         if not self.has_changed():
             note("No changes found between active version and current state")
             writer.no_change()
@@ -98,8 +108,9 @@ def generate_namespace_content(
         collector: CollectorDataStore,
         diff: ContentDiff,
         namespace_data: Iterable[Tuple[str, EnvoyConfig]],
-        protections: Iterable[RouteProtection]
+        protections: Iterable[RouteProtection],
 ) -> None:
+    """Generate the content for the namespace."""
     namespace_configs = {}
     for namespace, config in namespace_data:
         for protection in protections:
@@ -108,7 +119,7 @@ def generate_namespace_content(
     for match, template in template_data:
         config = namespace_configs[(match.namespace_id, match.protection)]
         content, content_purpose = render_content(
-            match, template, config.get_context('gateway', 'gateway', None)
+            match, template, config.get_context('gateway', 'gateway', None),
         )
         diff.add_current_namespace_content(match.namespace_id, match.protection, content_purpose, content)
 
@@ -133,23 +144,24 @@ def generate_service_color_content(
             match, template, config.get_context(
                 match.namespace_id,
                 '{0}-{1}'.format(match.service, match.color),
-                None
-            )
+                None,
+            ),
         )
         diff.add_current_service_id_content(
             match.namespace_id, match.service_id,
-            (match.service, match.color), content_purpose, content
+            (match.service, match.color), content_purpose, content,
         )
 
 
 def render_content(
         match: Union[MatchedServiceColorTemplate, MatchedNamespaceTemplate],
-        template: str, config: Dict[str, Any]
+        template: str, config: Dict[str, Any],
 ) -> Tuple[str, str]:
+    """Create the content for the matching templates."""
     # TODO should the transformation happen for ALL content, or just
     #   .mustache template purposes?
     content = pystache.render(template, config)
-    content_purpose = match.purpose
-    if match.purpose.endswith('.mustache'):
+    content_purpose: str = match.purpose
+    if content_purpose.endswith('.mustache'):
         content_purpose = match.purpose[:-9]
     return content, content_purpose

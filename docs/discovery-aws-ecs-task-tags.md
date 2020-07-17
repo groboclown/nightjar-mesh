@@ -1,2 +1,2 @@
-# Discovery Map Implementation: AWS CloudMap
+# Discovery Map Implementation: AWS ECS Task Tags
 

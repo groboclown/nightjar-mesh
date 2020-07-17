@@ -14,7 +14,7 @@ export PID_FILE1=/tmp/${TESTFILE}/pid
 test -f "${SUCCESS_FILE1}" && rm "${SUCCESS_FILE1}"
 test -f "${ARGS_FILE1}" && rm "${ARGS_FILE1}"
 export MOCK_EXIT_CODE1=0
-DEBUG_CONTAINER=0 /bin/sh ${ROOT_DIR}/entrypoint-nightjar.sh
+DEBUG_CONTAINER=0 /bin/sh ${SUITE_DIR}/envoy-docker/nightjar-src/entrypoint.sh
 ec=$?
 if [ ${ec} -ne 0 ]; then
   echo "non-zero exit code: ${ec}" >> ${ERROR_DIR}/${TESTFILE}-1.txt
@@ -33,7 +33,7 @@ export ARGS_FILE1=/tmp/${TESTFILE}/2-args.txt
 test -f "${SUCCESS_FILE1}" && rm "${SUCCESS_FILE1}"
 test -f "${ARGS_FILE1}" && rm "${ARGS_FILE1}"
 export MOCK_EXIT_CODE1=0
-DEBUG_CONTAINER=1 /bin/sh ${ROOT_DIR}/entrypoint-nightjar.sh ${TEST_DIR}/mock-script1.sh a b c
+DEBUG_CONTAINER=1 /bin/sh ${SUITE_DIR}/envoy-docker/nightjar-src/entrypoint.sh ${TEST_DIR}/mock-script1.sh a b c
 ec=$?
 if [ ${ec} -ne 0 ]; then
   echo "non-zero exit code: ${ec}" >> ${ERROR_DIR}/${TESTFILE}-2.txt
@@ -56,7 +56,7 @@ export ARGS_FILE1=/tmp/${TESTFILE}/2-args.txt
 test -f "${SUCCESS_FILE1}" && rm "${SUCCESS_FILE1}"
 test -f "${ARGS_FILE1}" && rm "${ARGS_FILE1}"
 export MOCK_EXIT_CODE1=15
-DEBUG_CONTAINER=0 /bin/sh ${ROOT_DIR}/entrypoint-nightjar.sh a b c
+DEBUG_CONTAINER=0 /bin/sh ${SUITE_DIR}/envoy-docker/nightjar-src/entrypoint.sh a b c
 ec=$?
 if [ ${ec} -ne 15 ]; then
   echo "non-zero exit code: ${ec}" >> ${ERROR_DIR}/${TESTFILE}-3.txt

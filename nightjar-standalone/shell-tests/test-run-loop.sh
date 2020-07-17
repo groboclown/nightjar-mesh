@@ -1,8 +1,8 @@
 #!/bin/bash
 
-mkdir /tmp/${TESTFILE}
+mkdir -p /tmp/${TESTFILE}
 
-cp ${SRC_DIR}/run-loop.sh /tmp/${TESTFILE}/.
+cp ${SUITE_DIR}/envoy-docker/nightjar-src/run-loop.sh /tmp/${TESTFILE}/.
 cp ${TEST_DIR}/mock-script1.sh /tmp/${TESTFILE}/restart-envoy.sh
 cp ${TEST_DIR}/mock-loop-script.sh /tmp/${TESTFILE}/generate-envoy-yaml.sh
 

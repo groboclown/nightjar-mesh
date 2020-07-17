@@ -1,4 +1,8 @@
 
+"""
+The deployment map implementation for AWS cloudmap service discovery
+"""
+
 from typing import List, Iterable, Dict, Optional, Tuple
 from .config import AwsCloudmapConfig
 from .service_discovery import (
@@ -41,7 +45,9 @@ class ServiceDiscoveryDeploymentMap(AbcDeploymentMap):
         set_aws_config(config)
         self.namespace_cache = load_namespaces(namespaces, [])[1]
 
-    def load_services_in_namespaces(self, namespaces: Iterable[str]) -> Dict[str, Iterable[ServiceDef]]:
+    def load_services_in_namespaces(
+            self, namespaces: Iterable[str],
+    ) -> Dict[str, Iterable[ServiceDef]]:
         loaded_namespaces, new_cache = load_namespaces(namespaces, self.namespace_cache)
         self.namespace_cache = new_cache
         ret: Dict[str, Iterable[ServiceDef]] = {}
@@ -79,16 +85,17 @@ class ServiceDiscoveryDeploymentMap(AbcDeploymentMap):
         if not local_service:
             # TODO better exception?
             raise ValueError(
-                'Could not find service {0}?  Could be a changed configuration after request.'.format(
-                    service_id_port[0]
-                )
+                (
+                    'Could not find service {0}?  Could be a changed configuration after request.'
+                ).format(service_id_port[0]),
             )
         if not local_namespace:
             # TODO better exception?
             raise ValueError(
-                'Could not find service namespace {0}?  Could be a changed configuration after request.'.format(
-                    local_service.namespace_id
-                )
+                (
+                    'Could not find service namespace {0}?  Could be a changed '
+                    'configuration after request.'
+                ).format(local_service.namespace_id),
             )
 
         # -------------------------------------------------------------------
@@ -107,7 +114,7 @@ class ServiceDiscoveryDeploymentMap(AbcDeploymentMap):
                 warn(
                     "Cluster {s}-{c} has no discovered instances",
                     s=service_color.group_service_name,
-                    c=service_color.group_color_name
+                    c=service_color.group_color_name,
                 )
             endpoints = []
             for sci in service_color.instances:
@@ -197,7 +204,10 @@ class ServiceDiscoveryDeploymentMap(AbcDeploymentMap):
                     if sci.ipv4:
                         endpoints.append(EnvoyClusterEndpoint(sci.ipv4, sci.port_str))
                 cluster = EnvoyCluster(
-                    '{0}-{1}'.format(service_color.group_service_name, service_color.group_color_name),
+                    '{0}-{1}'.format(
+                        service_color.group_service_name,
+                        service_color.group_color_name,
+                    ),
                     service_color.uses_http2, endpoints,
                 )
                 if service_color.path_protect_weights:
@@ -246,7 +256,9 @@ class ServiceDiscoveryDeploymentMap(AbcDeploymentMap):
         #         names, load those namespaces.  This could be joined into the existing
         #         DiscoveryServiceNamespace code.
 
-        requested_ns, all_known_ns = load_namespaces(remaining_external.keys(), self.namespace_cache)
+        requested_ns, all_known_ns = load_namespaces(
+            remaining_external.keys(), self.namespace_cache,
+        )
         self.namespace_cache = all_known_ns
 
         #   Second phase:
@@ -300,7 +312,9 @@ class ServiceDiscoveryDeploymentMap(AbcDeploymentMap):
 
         if remaining_external:
             # Search again; these were extra namespaces not originally given to us.
-            other_services, all_known_ns = load_namespaces(remaining_external.keys(), self.namespace_cache)
+            other_services, all_known_ns = load_namespaces(
+                remaining_external.keys(), self.namespace_cache,
+            )
             self.namespace_cache = all_known_ns
 
             for disco_namespace in other_services.values():

@@ -1,4 +1,8 @@
 
+"""
+Cloudmap service discovery.
+"""
+
 from typing import List, Iterable, Dict, Set, Optional, Callable, Tuple, TypeVar, Union, Any
 import time
 import datetime
@@ -52,12 +56,14 @@ PROTECT_RE = re.compile(r'^\[([0-9a-zA-Z][0-9a-zA-Z_\-]*)\](/.*)$')
 
 
 def set_refresh_limit(delta: datetime.timedelta) -> None:
+    """Set the limit for refreshing the cache."""
     global REQUIRE_REFRESH_LIMIT
     REQUIRE_REFRESH_LIMIT = delta
 
 
 # ---------------------------------------------------------------------------
 class DiscoveryServiceInstance:
+    """An instance of the service discovery cache."""
     __slots__ = ('instance_id', 'attributes', 'cache_load_time', 'ec2_instance_id', 'ipv4', 'port_str',)
 
     def __init__(self, instance_id: str, attributes: Dict[str, str]) -> None:
@@ -70,6 +76,7 @@ class DiscoveryServiceInstance:
 
 
 class DiscoveryServiceColor:
+    """A service color."""
     __slots__ = (
         'instances', 'group_service_name', 'group_color_name', 'path_protect_weights', 'cache_load_time',
         'service_arn', 'service_id', 'namespace_id', 'discovery_service_name', 'uses_http2',
@@ -99,6 +106,7 @@ class DiscoveryServiceColor:
         self.cache_load_time = None
 
     def load_instances(self, refresh_cache: bool) -> None:
+        """Load instances in this service/color."""
         if skip_reload(self.cache_load_time, refresh_cache):
             return
         group_service_name: Optional[str] = self.group_service_name
@@ -113,8 +121,8 @@ class DiscoveryServiceColor:
         try:
             for page in page_iterator:
                 for instance in dt_list_dict(page, 'Instances'):
-                    # instance ID is the assigned-to name of the instance, which is unique only for the
-                    # service.
+                    # instance ID is the assigned-to name of the instance, which is unique only
+                    # for the service.
                     instance_id = dt_str(instance, 'Id')
                     attributes = dt_dict(instance, 'Attributes')
                     if instance_id == SERVICE_SETTINGS_INSTANCE_ID:
@@ -126,13 +134,16 @@ class DiscoveryServiceColor:
                             elif key == COLOR_NAME_ATTRIBUTE_KEY:
                                 group_color_name = value.strip()
                             elif key == USES_HTTP2_ATTRIBUTE_KEY:
-                                self.uses_http2 = value.strip().lower() in USES_HTTP2_AFFIRMATIVE_VALUES
+                                self.uses_http2 = (
+                                        value.strip().lower() in USES_HTTP2_AFFIRMATIVE_VALUES
+                                )
                             elif key not in AWS_STANDARD_ATTRIBUTES and key[0] in '/*[':
                                 try:
                                     weight = int(value.strip())
                                 except ValueError:
                                     warn(
-                                        "Not integer path weight for service {s}, instance {i}, path {p}, value [{v}]",
+                                        "Not integer path weight for service {s}, instance {i}, "
+                                        "path {p}, value [{v}]",
                                         s=self.service_id,
                                         i=instance_id,
                                         p=key,
@@ -157,6 +168,7 @@ class DiscoveryServiceColor:
 
     @staticmethod
     def from_resp(resp: Dict[str, Any]) -> 'DiscoveryServiceColor':
+        """Load the color from the response data."""
         # _note("Fetched discovery service {0}", resp)
         if 'Service' in resp:
             resp = resp['Service']
@@ -169,6 +181,7 @@ class DiscoveryServiceColor:
 
     @staticmethod
     def from_resp_list(resp: Dict[str, Any], namespace_id: str) -> List['DiscoveryServiceColor']:
+        """Load the list of colors from the response list"""
         ret: List[DiscoveryServiceColor] = []
         for raw in dt_list_dict(resp, 'Services'):
             raw['NamespaceId'] = namespace_id
@@ -177,6 +190,7 @@ class DiscoveryServiceColor:
 
     @staticmethod
     def from_single_id(service_id: str) -> Optional['DiscoveryServiceColor']:
+        """LOad a color from a service ID, if found."""
         # API INVOCATIONS: service_color_count * 1
         client = get_servicediscovery_client()
         try:
@@ -187,6 +201,7 @@ class DiscoveryServiceColor:
 
 
 class DiscoveryServiceNamespace:
+    """A service namespace."""
     __slots__ = ('namespace_id', 'namespace_arn', 'namespace_name', 'services', 'cache_load_time',)
 
     services: List[DiscoveryServiceColor]
@@ -206,6 +221,7 @@ class DiscoveryServiceNamespace:
         self.cache_load_time = None
 
     def load_services(self, refresh_cache: bool) -> None:
+        """Load the services, possibly reusing the cache."""
         # Note: list_services can either be run for just one namespace_id, or it
         # can be run for every namespace_id.  A decision was made in this construction
         # to have one query per namespace.  This is because it is assumed that the
@@ -237,6 +253,7 @@ class DiscoveryServiceNamespace:
         self.cache_load_time = datetime.datetime.now()
 
     def find_cached_service_with_id(self, service_id: str) -> Optional[DiscoveryServiceColor]:
+        """Use the cache to find the service."""
         for service in self.services:
             if service.service_id == service_id:
                 return service
@@ -244,6 +261,7 @@ class DiscoveryServiceNamespace:
 
     @staticmethod
     def from_resp(resp: Dict[str, Any]) -> 'DiscoveryServiceNamespace':
+        """Load the namespace from the response data."""
         if 'Namespace' in resp:
             resp = dt_dict(resp, 'Namespace')
         namespace_id = dt_str(resp, 'Id')
@@ -357,11 +375,13 @@ CONFIG: Optional[AwsCloudmapConfig] = None
 
 
 def set_aws_config(config: AwsCloudmapConfig) -> None:
+    """Set the global AWS config."""
     global CONFIG
     CONFIG = config
 
 
 def get_servicediscovery_client() -> Any:
+    """Get the boto3 service discovery client."""
     client_name = 'servicediscovery'
     if client_name not in CLIENTS:
         region = CONFIG and CONFIG.aws_region or None
@@ -378,6 +398,7 @@ def get_servicediscovery_client() -> Any:
 
 
 def perform_client_request(cmd: Callable[..., T], *vargs: Any, **kv_args: Any) -> T:
+    """Perform a boto3 client request with proper retry logic."""
     throttle_err = None
     for retry_count in range(MAX_RETRY_COUNT):
         # Recommended exponential back-off rate.
@@ -399,6 +420,7 @@ def perform_client_request(cmd: Callable[..., T], *vargs: Any, **kv_args: Any) -
 
 
 def dt_get(d: Dict[str, Any], *keys: Union[str, int]) -> Any:
+    """dictionary typed get"""
     current: Union[List[Any], Dict[str, Any]] = d
     for k in keys:
         # Ignore the type here, because it *should* be an int -> list
@@ -416,6 +438,7 @@ def dt_get(d: Dict[str, Any], *keys: Union[str, int]) -> Any:
 
 
 def dt_opt_get(d: Dict[str, Any], *keys: Union[str, int]) -> Any:
+    """dictionary typed get"""
     try:
         return dt_get(d, *keys)
     except ValueError:
@@ -423,30 +446,35 @@ def dt_opt_get(d: Dict[str, Any], *keys: Union[str, int]) -> Any:
 
 
 def dt_str(d: Dict[str, Any], *keys: Union[str, int]) -> str:
+    """dictionary typed get"""
     val = dt_get(d, *keys)
     assert isinstance(val, str)
     return val
 
 
 def dt_opt_str(d: Dict[str, Any], *keys: Union[str, int]) -> Optional[str]:
+    """dictionary typed get"""
     val = dt_opt_get(d, *keys)
     assert val is None or isinstance(val, str)
     return val
 
 
 def dt_int(d: Dict[str, Any], *keys: Union[str, int]) -> int:
+    """dictionary typed get"""
     val = dt_get(d, *keys)
     assert isinstance(val, int)
     return val
 
 
 def dt_list_dict(d: Dict[str, Any], *keys: Union[str, int]) -> List[Dict[str, Any]]:
+    """dictionary typed get"""
     val = dt_get(d, *keys)
     assert isinstance(val, list)
     return list(val)
 
 
 def dt_dict(d: Dict[str, Any], *keys: Union[str, int]) -> Dict[str, Any]:
+    """dictionary typed get"""
     val = dt_get(d, *keys)
     assert isinstance(val, dict)
     return val
@@ -454,4 +482,5 @@ def dt_dict(d: Dict[str, Any], *keys: Union[str, int]) -> Dict[str, Any]:
 
 # ---------------------------------------------------------------------------
 def skip_reload(cache_load_time: Optional[datetime.datetime], refresh_cache: bool) -> bool:
+    """Skip reloading the cache?"""
     return abc_depoyment_map.skip_reload(cache_load_time, refresh_cache, REQUIRE_REFRESH_LIMIT)

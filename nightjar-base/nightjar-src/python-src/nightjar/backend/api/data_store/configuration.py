@@ -1,4 +1,6 @@
 
+"""Base configuration for the data store types."""
+
 from typing import Iterable, Optional
 from .abc_backend import (
     AbcDataStoreBackend,
@@ -36,7 +38,8 @@ class ConfigurationReaderDataStore:
         return self.backend.get_config_entities(self.__version)
 
     def list_service_id_config_entities(self) -> Iterable[ServiceIdConfigEntity]:
-        """Find all service/color content (non-template) entities for the currently active version."""
+        """Find all service/color content (non-template) entities for
+        the currently active version."""
         assert self.__version is not None
         return self.backend.get_service_id_config_entities(self.__version)
 
@@ -48,6 +51,7 @@ class ConfigurationReaderDataStore:
         return self.backend.get_gateway_config_entities(self.__version)
 
     def download_entity_content(self, entity: ConfigEntity) -> Optional[str]:
+        """Download the content for the entity at the current version."""
         assert self.__version is not None
         return self.backend.download(self.__version, entity)
 
@@ -89,7 +93,8 @@ class ConfigurationWriterDataStore:
         self.__version = None
 
     def set_service_id_config_contents(
-            self, _namespace_id: str, service_id: str, service: str, color: str, purpose: str, contents: str
+            self, _namespace_id: str, service_id: str, service: str,
+            color: str, purpose: str, contents: str,
     ) -> None:
         """
         The service/color purpose's file contents.
@@ -98,11 +103,13 @@ class ConfigurationWriterDataStore:
         """
         assert self.__version is not None
         self.backend.upload(
-            self.__version, ServiceIdConfigEntity(_namespace_id, service_id, service, color, purpose), contents
+            self.__version,
+            ServiceIdConfigEntity(_namespace_id, service_id, service, color, purpose),
+            contents,
         )
 
     def set_gateway_config_contents(
-            self, namespace_id: str, protection: RouteProtection, purpose: str, contents: str
+            self, namespace_id: str, protection: RouteProtection, purpose: str, contents: str,
     ) -> None:
         """
         The namespace's purpose's file contents.
@@ -110,7 +117,11 @@ class ConfigurationWriterDataStore:
         This is a configured file, used directly by the envoy proxy servers.
         """
         assert self.__version is not None
-        self.backend.upload(self.__version, GatewayConfigEntity(namespace_id, protection, purpose), contents)
+        self.backend.upload(
+            self.__version,
+            GatewayConfigEntity(namespace_id, protection, purpose),
+            contents,
+        )
 
     def set_entity_contents(self, entity: ConfigEntity, contents: str) -> None:
         """

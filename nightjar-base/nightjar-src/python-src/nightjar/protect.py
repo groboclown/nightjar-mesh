@@ -32,7 +32,8 @@ _SUPPORTED_PROTECTIONS = (
 
 
 def is_valid_route_protection(protection: Any) -> bool:
-    """Checks if the protection text is a valid protection name.  Returns True if valid, False if not."""
+    """Checks if the protection text is a valid protection name.
+    Returns True if valid, False if not."""
     if not isinstance(protection, str):
         return False
     # Once the protection scheme is established, this can be loosened.
@@ -51,14 +52,24 @@ def as_route_protection(protection: Any) -> RouteProtection:
 
 
 def as_optional_route_protection(protection: Optional[str]) -> Optional[RouteProtection]:
-    """Converts the protection text into an optional protection type; raises ValueError if it doesn't conform to
-    the standard."""
+    """Converts the protection text into an optional protection type;
+    raises ValueError if it doesn't conform to the standard."""
     if protection is None:
         return None
     return as_route_protection(protection)
 
 
-def can_use_route(requested_protection: Sequence[RouteProtection], route_protection: RouteProtection) -> bool:
+def can_use_route(
+        requested_protection: Sequence[RouteProtection],
+        route_protection: RouteProtection,
+) -> bool:
+    """
+    Can the list of requested protections access the given route's protection?
+
+    @param requested_protection:
+    @param route_protection:
+    @return:
+    """
     if route_protection == PROTECTION_PUBLIC:
         return True
 

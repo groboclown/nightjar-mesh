@@ -1,4 +1,8 @@
 
+"""
+Configuration parameters for the cloudmap implementation.
+"""
+
 from typing import Optional
 from ...api import ParamValues, ImplementationParameters
 from ..shared_aws import PARAM__AWS_REGION, PARAM__AWS_PROFILE
@@ -6,14 +10,18 @@ from ..shared_aws import PARAM__AWS_REGION, PARAM__AWS_PROFILE
 
 CLOUDMAP_PARAMETERS = ImplementationParameters(
     name='cloud-map', aliases=('service-discovery', 'servicediscovery', 'cloudmap',),
-    description="Reads service registration from the AWS Cloud Map API.  Requires additional service instance; see the documentation for details",
+    description=(
+        "Reads service registration from the AWS Cloud Map API.  Requires "
+        "additional service instance; see the documentation for details"
+    ),
     params=(
         PARAM__AWS_PROFILE, PARAM__AWS_REGION,
-    )
+    ),
 )
 
 
 class AwsCloudmapConfig:
+    """Configuration parameters for cloudmap."""
     aws_region: Optional[str]
     aws_profile: Optional[str]
 
@@ -24,6 +32,7 @@ class AwsCloudmapConfig:
             self.load(params)
 
     def load(self, params: ParamValues) -> 'AwsCloudmapConfig':
+        """Load the configuration with the parameter values."""
         self.aws_region = PARAM__AWS_REGION.get_value(params)
         self.aws_profile = PARAM__AWS_PROFILE.get_value(params)
         return self

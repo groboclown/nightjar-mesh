@@ -1,5 +1,8 @@
 
-import os
+"""
+The main program for the central manager.
+"""
+
 import sys
 import argparse
 import textwrap
@@ -16,11 +19,12 @@ ACTION_NAME__PULL_CONFIGURED = 'pull-configured'
 
 
 def main() -> None:
+    """Central manager main program."""
     parser = argparse.ArgumentParser(
         prog='central_manager',
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=textwrap.dedent("""Tool to upload template files into the backend data store, and read them back.
-For use by the nightjar centralized configurator.
+        description=textwrap.dedent("""Tool to upload template files into the backend data
+store, and read them back.  For use by the nightjar centralized configurator.
 """)
     )
 
@@ -39,14 +43,18 @@ For use by the nightjar centralized configurator.
     # push-template
     parser_push_template = parser_command.add_parser(
         ACTION_NAME__PUSH_TEMPLATES,
-        help=("Push templates in the `source` directory up to the data store.  All the contents are considered a single "
-              "unit, and will be come the next version of the templates.  Any existing templates in the data store "
-              "will no longer be used.  Each child directory in `source` must contain a "
-              "file named {0}, which must be a json-formatted dictionary with keys depending on the kind of template "
-              "this directory represents.  For namespaces, it must have `\"type\":\"namespace\"`, and the keys "
-              "`namespace` (`null` value for the default value) and `is-public` (a boolean which can be `null` for "
-              "the default value).  For service-colors, it must have `\"type\":\"service-color\", and the keys "
-              "`namespace`, `service`, and `color` (null values mean default).".format(TEMPLATE_DESCRIPTION_FILENAME)),
+        help=(
+            "Push templates in the `source` directory up to the data store."
+            "All the contents are considered a single unit, and will be come the next version "
+            "of the templates.  Any existing templates in the data store will no longer be "
+            "used.  Each child directory in `source` must contain a file named {0}, which must "
+            "be a json-formatted dictionary with keys depending on the kind of template this "
+            "directory represents.  For namespaces, it must have `\"type\":\"namespace\"`, "
+            "and the keys `namespace` (`null` value for the default value) and `is-public` (a "
+            "boolean which can be `null` for the default value).  For service-colors, it must "
+            "have `\"type\":\"service-color\", and the keys `namespace`, `service`, and "
+            "`color` (null values mean default)."
+        ).format(TEMPLATE_DESCRIPTION_FILENAME),
     )
     parser_push_template.add_argument(
         'source',
@@ -56,9 +64,11 @@ For use by the nightjar centralized configurator.
     # pull templates
     parser_pull_templates = parser_command.add_parser(
         ACTION_NAME__PULL_TEMPLATES,
-        help="Pull the latest version of the templates from the data store into the output directory.  These are "
-             "collected into directories with auto-assigned names, and an additional file named {0} which describes "
-             "the downloaded files.".format(TEMPLATE_DESCRIPTION_FILENAME),
+        help=(
+            "Pull the latest version of the templates from the data store into the output "
+            "directory.  These are collected into directories with auto-assigned names, and an "
+            "additional file named {0} which describes the downloaded files."
+        ).format(TEMPLATE_DESCRIPTION_FILENAME),
     )
     parser_pull_templates.add_argument(
         'output',
@@ -68,10 +78,12 @@ For use by the nightjar centralized configurator.
     # pull configured
     parser_pull_configured = parser_command.add_parser(
         ACTION_NAME__PULL_CONFIGURED,
-        help="Pull the latest version of the configured files from the data store into the output directory.  Used "
-             "to verify the generated content of the envoy proxy files.  The files are "
-             "collected into directories with auto-assigned names, and an additional file named {0} which describes "
-             "the downloaded files.".format(TEMPLATE_DESCRIPTION_FILENAME),
+        help=(
+            "Pull the latest version of the configured files from the data store into the "
+            "output directory.  Used to verify the generated content of the envoy proxy "
+            "files.  The files are collected into directories with auto-assigned names, and an "
+            "additional file named {0} which describes the downloaded files."
+        ).format(TEMPLATE_DESCRIPTION_FILENAME),
     )
     parser_pull_configured.add_argument(
         'output',

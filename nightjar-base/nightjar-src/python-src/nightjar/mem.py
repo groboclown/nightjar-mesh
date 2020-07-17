@@ -1,4 +1,8 @@
 
+"""
+Memory usage functions.
+"""
+
 import sys
 
 
@@ -14,6 +18,7 @@ def get_current_memory_usage() -> int:
 
 
 def report_current_memory_usage() -> None:
+    """Report to stderr the current memory usage."""
     mem_usage = get_current_memory_usage()
     if mem_usage >= 0:
         sys.stderr.write('-- Current memory usage: {0} kB\n'.format(mem_usage))

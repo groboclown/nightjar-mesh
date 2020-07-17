@@ -9,23 +9,29 @@ if [ $UID -ne 0 ]; then
 fi
 
 export ROOT_DIR=$( dirname $0 )
-export SRC_DIR="${ROOT_DIR}/nightjar-src"
+export SRC_DIR="${ROOT_DIR}/nightjar-base/nightjar-src"
 
 
-for TEST_DIR in "$*" ; do
-
-export TEST_DIR
-export ERROR_DIR=/tmp/errors
-mkdir -p ${ERROR_DIR}
-
-for tf in ${TEST_DIR}/test-*.sh ; do
+for TEST_SUITE in "$@" ; do
+  export SUITE_DIR="${ROOT_DIR}/${TEST_SUITE}"
+  export TEST_DIR="${ROOT_DIR}/${TEST_SUITE}/shell-tests"
   echo ""
   echo ""
-  echo "Running test ${tf}"
-  echo "==========================================="
-  export TESTFILE=$( basename ${tf} .sh )
-  timeout 30 /bin/bash ${TEST_DIR}/${TESTFILE}.sh
+  echo "***********************************************************************"
+  echo "Test Suite ${TEST_SUITE}"
+  export ERROR_DIR=/tmp/errors/${TEST_SUITE}
+  mkdir -p ${ERROR_DIR} || exit 1
 
+  for tf in ${TEST_DIR}/test-*.sh ; do
+    echo ""
+    echo ""
+    echo "Running test ${tf}"
+    echo "==========================================="
+    export TEST_NAME=$( basename ${tf} .sh )
+    export TESTFILE="${TEST_SUITE}-${TEST_NAME}"
+    timeout 30 /bin/bash -x "${tf}"
+
+  done
 done
 
 echo ""

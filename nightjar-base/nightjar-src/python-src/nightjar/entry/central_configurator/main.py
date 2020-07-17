@@ -1,4 +1,8 @@
 
+"""
+Main program for the central configurator.
+"""
+
 from typing import Iterable
 import os
 import time
@@ -29,6 +33,7 @@ def main_loop(
         exit_on_failure: bool,
         one_pass: bool
 ) -> None:
+    """Infinite loop for the central configurator."""
     while True:
         try:
             debug("Starting template processing.")
@@ -49,6 +54,7 @@ def main_loop(
 
 
 def get_data_store() -> AbcDataStoreBackend:
+    """Gets the configured data store implementation."""
     data_store_params = get_data_store_params()
     data_store_name = os.environ['DATASTORE'].strip().lower()
     for param in data_store_params:
@@ -58,6 +64,7 @@ def get_data_store() -> AbcDataStoreBackend:
 
 
 def get_deployment_map(namespace_names: Iterable[str]) -> AbcDeploymentMap:
+    """Gets the deployment map implementation."""
     deployment_map_params = get_deployment_map_params()
     deployment_map_name = os.environ['DEPLOYMENTMAP'].strip().lower()
     for param in deployment_map_params:
@@ -67,6 +74,7 @@ def get_deployment_map(namespace_names: Iterable[str]) -> AbcDeploymentMap:
 
 
 def main() -> None:
+    """Program entry point."""
     loop_sleep_time = int(os.environ.get('REFRESH_TIME', '30'))
     exit_on_failure = os.environ.get('EXIT_ON_FAILURE', 'false').strip().lower() in (
         'true', 'yes', 'on', 'enabled', 'active', '1',

@@ -1,4 +1,8 @@
 
+"""
+Data types for the service.
+"""
+
 from typing import List, Iterable, Dict, Union, Optional, Any
 from ....msg import fatal, note
 
@@ -10,7 +14,7 @@ class EnvoyRoute:
     __slots__ = ('path_prefix', 'cluster_weights', 'total_weight',)
 
     def __init__(
-            self, path_prefix: str, cluster_weights: Dict[str, int]
+            self, path_prefix: str, cluster_weights: Dict[str, int],
     ) -> None:
         """
         Create a weighted route.
@@ -31,6 +35,7 @@ class EnvoyRoute:
         self.total_weight = sum(cluster_weights.values())
 
     def get_context(self) -> Optional[Dict[str, Any]]:
+        """Get the JSON context data for this route."""
         cluster_count = len(self.cluster_weights)
         if cluster_count <= 0:
             return None
@@ -58,6 +63,7 @@ class EnvoyListener:
         self.routes = list(routes)
 
     def get_route_contexts(self) -> List[Dict[str, Any]]:
+        """Get each route's JSON context data."""
         ret: List[Dict[str, Any]] = []
         for route in self.routes:
             ctx = route.get_context()
@@ -66,6 +72,7 @@ class EnvoyListener:
         return ret
 
     def get_context(self) -> Dict[str, Any]:
+        """Get the JSON context for this listener, including its routes."""
         return {
             'has_mesh_port': self.port is not None,
             'mesh_port': self.port,
@@ -105,16 +112,18 @@ class EnvoyCluster:
             self,
             cluster_name: str,
             uses_http2: bool,
-            instances: Iterable[EnvoyClusterEndpoint]
+            instances: Iterable[EnvoyClusterEndpoint],
     ) -> None:
         self.cluster_name = cluster_name
         self.uses_http2 = uses_http2
         self.instances: List[EnvoyClusterEndpoint] = list(instances)
 
     def endpoint_count(self) -> int:
+        """Count the number of endpoints."""
         return len(self.instances)
 
     def get_context(self) -> Dict[str, Any]:
+        """Get the JSON context for this cluster."""
         instances = self.instances
         if not instances:
             # We need something here, otherwise the route will say the cluster doesn't exist.
@@ -130,6 +139,7 @@ class EnvoyCluster:
 
 
 class EnvoyConfig:
+    """An entire configuration data schema for use to import into a mustache template."""
     __slots__ = ('listeners', 'clusters',)
 
     def __init__(
@@ -142,8 +152,9 @@ class EnvoyConfig:
 
     def get_context(
             self, network_name: str, service_member: str,
-            admin_port: Optional[int]
+            admin_port: Optional[int],
     ) -> Dict[str, Any]:
+        """Get the JSON context for this configuration."""
         if not self.listeners:
             fatal('No listeners; cannot be a proxy.')
         cluster_endpoint_count = sum([c.endpoint_count() for c in self.clusters])
@@ -159,6 +170,7 @@ class EnvoyConfig:
 
     @staticmethod
     def join(configs: Iterable['EnvoyConfig']) -> 'EnvoyConfig':
+        """Join multiple configurations into a single configuration."""
         clusters: Dict[str, EnvoyCluster] = {}
         listeners: List[EnvoyListener] = []
         for config in configs:
@@ -172,7 +184,9 @@ class EnvoyConfig:
                         i += 1
                         new_name = cluster.cluster_name + '_' + str(i)
                     remapped_cluster_names[cluster.cluster_name] = new_name
-                    clusters[new_name] = EnvoyCluster(new_name, cluster.uses_http2, cluster.instances)
+                    clusters[new_name] = EnvoyCluster(
+                        new_name, cluster.uses_http2, cluster.instances,
+                    )
                 else:
                     clusters[cluster.cluster_name] = cluster
             for listener in config.listeners:
