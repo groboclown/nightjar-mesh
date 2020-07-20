@@ -3,6 +3,8 @@
 Tests for the abc_backend module.
 """
 
+# pylint: disable=R0124, C0121
+
 import unittest
 from .. import abc_backend as abcb
 from .....protect import PROTECTION_PUBLIC, PROTECTION_PRIVATE
@@ -78,6 +80,7 @@ class NamespaceTemplateEntityTest(unittest.TestCase):
         self.assertTrue(nte1 != nte5)
 
     def test_hash(self) -> None:
+        """Test the hash function"""
         nte1 = abcb.NamespaceTemplateEntity(None, None, 'z')
         nte2 = abcb.NamespaceTemplateEntity(None, None, 'z')
         nte3 = abcb.NamespaceTemplateEntity('N1', PROTECTION_PUBLIC, 'y')
@@ -123,6 +126,7 @@ class GatewayConfigEntityTest(unittest.TestCase):
         self.assertTrue(gce1 != gce5)
 
     def test_hash(self) -> None:
+        """Test the hash function"""
         gce3 = abcb.GatewayConfigEntity('N1', PROTECTION_PUBLIC, 'y')
         gce4 = abcb.GatewayConfigEntity('N1', PROTECTION_PRIVATE, 'x')
         self.assertEqual(hash(gce3), hash(gce3))
@@ -209,6 +213,7 @@ class ServiceColorTemplateEntityTest(unittest.TestCase):
         self.assertTrue(scte1 != scte6)
 
     def test_hash(self) -> None:
+        """Test the hash function"""
         nte1 = abcb.ServiceColorTemplateEntity(None, None, None, 'z')
         nte2 = abcb.ServiceColorTemplateEntity(None, None, None, 'z')
         nte3 = abcb.ServiceColorTemplateEntity('N1', 's1', 'c1', 'y')
@@ -266,6 +271,7 @@ class ServiceIdConfigEntityTest(unittest.TestCase):
         self.assertTrue(sice1 != sice7)
 
     def test_hash(self) -> None:
+        """Test the hash function"""
         sice2 = abcb.ServiceIdConfigEntity('N1', 'si1', 's1', 'c1', 'x')
         sice3 = abcb.ServiceIdConfigEntity('N1', 'si1', 's1', 'c1', 'x')
         sice4 = abcb.ServiceIdConfigEntity('N2', 'si1', 's1', 'c1', 'x')
