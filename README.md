@@ -10,7 +10,7 @@ Yet Another Control Plane with Envoy Proxy (currently focused on supporting AWS 
 
 ## About
 
-[Nightjar](https://en.wikipedia.org/wiki/Nightjar) is a *control plane* for [Envoy Proxy](https://envoyproxy.github.io/envoy/) that uses a file-based approach to allow for transparency in the envoy configuration.
+[Nightjar](https://en.wikipedia.org/wiki/Nightjar) is a low-level *control plane* for [Envoy Proxy](https://envoyproxy.github.io/envoy/) that uses a file-based approach to allow for transparency in the envoy configuration.
 
 ![2 services communicating through nightjar + Envoy Proxy](docs/2-service-traffic.svg)
 
@@ -29,14 +29,14 @@ The construction of the proxy configuration comes from these layers of data:
     1. Which services and other meshes are available to each service and gateway?
     1. Which routes for those services should this allow access to?
 1. Envoy configuration.  *Defined in the envoy configuration templates.*
-    1. Default envoy configurations, and able to define configurations on a per service, deployment color, or service-mesh basis.
+    1. Envoy configuration template files, which can be defined at a high level, or specialized on a per service, deployment color, or service-mesh basis.
 
-The services call out to other by sending a request to the Envoy proxy directly, rather than to a DNS name that Envoy reroutes through ip table changes.  This makes the Envoy setup require fewer permissions.
+The services call out to other by sending a request to the Envoy proxy directly, rather than to a DNS name that Envoy reroutes through ip table changes.  This makes the Envoy container setup require fewer permissions.
 
 
 ## Supported Infrastructure
 
-Nightjar has abstraction layers that allow it to run with any number of backing technology.
+Nightjar has a series of well defined data formats that allow it to run with any number of backing technology.  It uses [extension points](docs/extension-points.md), programs with a well-defined interface, to provide integration with other technologies.
 
 ### AWS - Cloud Map
 
@@ -46,11 +46,9 @@ Currently, nightjar only supports reading the service configuration defined in [
 
 **In progress - an extension that uses the tags on tasks in an ECS cluster.  This has the same benefits of the cloud-map, but with none of the associated costs.  When this is further along in development, the documentation here will change around to reflect the additional discovery method.**
 
-
 ### AWS - App Mesh
 
 AWS provides their [App Mesh](https://aws.amazon.com/app-mesh/) tooling, but it involves many limitations that some deployments cannot work around, or should not work around.  Nightjar acts as a low-level intermediary between the AWS API and the Envoy Proxy to make deployments in EC2 or Fargate possible, with little fuss.  It even works without `awsvpc` networks, and takes advantage of ephemeral ports.  Additionally, the envoy configuration Nightar generates is completely configurable, which gives you flexibility to take advantage of many Envoy features without needing to wait for AWS to support them.
-
 
 ### Others
 

@@ -1,0 +1,11 @@
+
+"""
+Auto-generated validation code.
+"""
+
+from .service_mesh_map import validate_service_mesh_map_schema_yaml as validate_service_mesh_map
+from .fetched_template_data_store import validate_fetched_template_data_store_schema_yaml as validate_fetched_template_data_store
+from .fetched_configuration_data_store import validate_fetched_configuration_data_store_schema_yaml as validate_fetched_configuration_data_store
+from .commit_configuration_data_store import validate_commit_configuration_data_store_schema_yaml as validate_commit_configuration_data_store
+from .commit_template_data_store import validate_commit_template_data_store_schema_yaml as validate_commit_template_data_store
+from .service_data import validate_service_data_schema_yaml as validate_service_data

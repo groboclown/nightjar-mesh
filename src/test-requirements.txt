@@ -1,0 +1,13 @@
+mypy>=0.782
+boto3-stubs>=1.14.24.0
+mypy-boto3>=1.14.24.0
+mypy-boto3-s3>=1.14.24.0
+mypy-boto3-dynamodb>=1.14.24.0
+mypy-boto3-servicediscovery>=1.14.24.0
+mypy-boto3-ecs>=1.14.24.0
+mypy-boto3-ec2>=1.14.24.0
+coverage>=5.2
+jsonschema>=3.2.0
+pyyaml>=5.3.1
+pylint>=2.5.3
+fastjsonschema >= 2.14.4

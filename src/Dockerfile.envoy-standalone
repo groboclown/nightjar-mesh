@@ -1,0 +1,38 @@
+FROM envoyproxy/envoy-alpine:v1.14-latest
+
+# Runs both Envoy and the Standalone Loop.
+
+# Add standalone loop runner and its dependencies.
+ADD py-common/nightjar_common /usr/nightjar/nightjar_common
+ADD py-common/requirements.txt /tmp/requirements-01.txt
+ADD py-entry-standalone/nightjar_standalone /usr/nightjar/nightjar_standalone
+ADD py-entry-standalone/requirements.txt /tmp/requirements-02.txt
+ADD schema /usr/nightjar/schema
+
+# Add Extensions
+ADD py-dm-aws-ecs-tags/nightjar_dm_aws_ecs_tags /usr/nightjar/nightjar_dm_aws_ecs_tags
+ADD py-dm-aws-ecs-tags/requirements.txt /tmp/requirements-50.txt
+ADD py-dm-aws-service-discovery/nightjar_dm_aws_service_discovery /usr/nightjar/nightjar_dm_aws_service_discovery
+ADD py-dm-aws-service-discovery/requirements.txt /tmp/requirements-51.txt
+ADD py-dm-local/nightjar_dm_local /usr/nightjar/nightjar_dm_local
+ADD py-dm-local/requirements.txt /tmp/requirements-52.txt
+
+ADD py-ds-aws-s3/nightjar_ds_aws_s3 /usr/nightjar/nightjar_ds_aws_s3
+ADD py-ds-aws-s3/requirements.txt /tmp/requirements-60.txt
+ADD py-ds-local/nightjar_ds_local /usr/nightjar/nightjar_ds_local
+ADD py-ds-local/requirements.txt /tmp/requirements-61.txt
+
+
+
+RUN echo "Start install..." \
+    && apk upgrade \
+    && apk add --update python3 py-pip curl unzip \
+    && python3 -m pip install --upgrade pip \
+    && cat /tmp/requirements-*.txt | sort | uniq > /tmp/requirements.txt \
+    && python3 -m pip install -r /tmp/requirements.txt \
+    && rm -r /tmp/* \
+    && echo "Completed install."
+
+USER 1337
+WORKDIR /usr/nightjar
+CMD ["/usr/bin/python3", "-m", "nightjar_standalone"]

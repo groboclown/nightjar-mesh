@@ -1,0 +1,4 @@
+[run]
+
+omit =
+    nightjar_dm_aws_ecs_tags/__main__.py

@@ -7,24 +7,16 @@ services:
   - docker
 
 install:
-  - pip install -r nightjar-base/nightjar-src/python-src/requirements.txt
-  - pip install -r nightjar-base/nightjar-src/python-src/test-requirements.txt
+  - for i in src/*/requirements.txt ; do pip install -r $i ; done
+  - pip install -r src/test-requirements.txt
 
 script:
-  - echo "==========================================================="
-  - echo "Type Checking Python Source"
-  - ( cd nightjar-base/nightjar-src/python-src && python3 -m mypy -p nightjar )
-  - echo "==========================================================="
-  - echo "Linting Python Source"
-  - ( cd nightjar-base/nightjar-src/python-src && PYTHONPATH=. python3 -m pylint --load-plugins nightjar.tests.trailing_commas nightjar )
-  - echo "==========================================================="
-  - echo "Unit Testing Python Source"
-  - ( cd nightjar-base/nightjar-src/python-src && python3 -m coverage run --source . -m unittest discover )
-  - ( cd nightjar-base/nightjar-src/python-src && python3 -m coverage report -m --fail-under 95 )
-  # TODO grab the coverage measurement, and ensure it hasn't gone down.
-  - echo "==========================================================="
-  - echo "Unit Testing Shell Scripts"
-  - ( docker build -t my/nightjar-test -f Dockerfile.shell-test . && docker run -it --rm my/nightjar-test )
-  - echo "==========================================================="
-  - echo "Testing Docker Image Construction"
-  - ./build-docker-images.sh
+  - ./src/build-support/check-requirements.sh
+  - ./src/build-support/test-src-dir.sh ./src/py-common
+  - ./src/build-support/test-src-dir.sh ./src/py-dm-aws-ecs-tags
+  - ./src/build-support/test-src-dir.sh ./src/py-dm-aws-service-discovery
+  - ./src/build-support/test-src-dir.sh ./src/py-dm-local
+  - ./src/build-support/test-src-dir.sh ./src/py-ds-aws-s3
+  - ./src/build-support/test-src-dir.sh ./src/py-ds-local
+  - ./src/build-support/test-src-dir.sh ./src/py-entry-standalone
+  - ( cd src && docker build -t local/nightjar-envoy-standalone -f Dockerfile.envoy-standalone . )

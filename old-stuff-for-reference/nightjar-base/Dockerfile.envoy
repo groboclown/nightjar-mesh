@@ -1,0 +1,25 @@
+FROM envoyproxy/envoy-alpine:v1.13.0
+
+# This assumes that the .sh files have the correct Unix line-endings on your system
+# before running.
+
+# This file is broken into chunks to allow faster build times
+# if you modify the source files.
+
+COPY nightjar-src/python-src/requirements.txt /tmp/requirements.txt
+RUN echo "start" \
+    && apk upgrade \
+    && apk add --update python3 py-pip curl unzip \
+    && python3 -m pip install --upgrade pip \
+    && python3 -m pip install -r /tmp/requirements.txt \
+    && rm /tmp/requirements.txt \
+    && mv /etc/envoy/envoy.yaml /etc/envoy/envoy-example.yaml \
+    && echo "end"
+
+COPY version.txt /
+COPY nightjar-src/ /nightjar-src/
+COPY entrypoint-nightjar.sh /entrypoint-nightjar.sh
+
+USER 1337
+
+ENTRYPOINT ["/bin/sh", "/entrypoint-nightjar.sh"]
