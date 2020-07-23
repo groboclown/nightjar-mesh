@@ -1,4 +1,4 @@
 [run]
 
 omit =
-    nightjar_dm_aws_service_discovery/__main__.py
+    nightjar_dm_local/__main__.py

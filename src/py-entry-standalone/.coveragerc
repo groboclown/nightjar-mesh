@@ -1,0 +1,4 @@
+[run]
+
+omit =
+    nightjar_standalone/__main__.py

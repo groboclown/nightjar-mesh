@@ -7,7 +7,6 @@ ADD py-common/nightjar_common /usr/nightjar/nightjar_common
 ADD py-common/requirements.txt /tmp/requirements-01.txt
 ADD py-entry-standalone/nightjar_standalone /usr/nightjar/nightjar_standalone
 ADD py-entry-standalone/requirements.txt /tmp/requirements-02.txt
-ADD schema /usr/nightjar/schema
 
 # Add Extensions
 ADD py-dm-aws-ecs-tags/nightjar_dm_aws_ecs_tags /usr/nightjar/nightjar_dm_aws_ecs_tags
