@@ -12,11 +12,11 @@ install:
 
 script:
   - ./src/build-support/check-requirements.sh
-  - ./src/build-support/test-src-dir.sh ./src/py-common
-  - ./src/build-support/test-src-dir.sh ./src/py-dm-aws-ecs-tags
-  - ./src/build-support/test-src-dir.sh ./src/py-dm-aws-service-discovery
-  - ./src/build-support/test-src-dir.sh ./src/py-dm-local
-  - ./src/build-support/test-src-dir.sh ./src/py-ds-aws-s3
-  - ./src/build-support/test-src-dir.sh ./src/py-ds-local
-  - ./src/build-support/test-src-dir.sh ./src/py-entry-standalone
+  - ./src/build-support/test-src-dir.sh py-common
+  - ./src/build-support/test-src-dir.sh py-dm-aws-ecs-tags
+  - ./src/build-support/test-src-dir.sh py-dm-aws-service-discovery
+  - ./src/build-support/test-src-dir.sh py-dm-local
+  - ./src/build-support/test-src-dir.sh py-ds-aws-s3
+  - ./src/build-support/test-src-dir.sh py-ds-local
+  - ./src/build-support/test-src-dir.sh py-entry-standalone
   - ( cd src && docker build -t local/nightjar-envoy-standalone -f Dockerfile.envoy-standalone . )
