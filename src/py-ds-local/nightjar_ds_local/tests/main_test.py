@@ -5,7 +5,7 @@ import unittest
 import os
 import tempfile
 import shutil
-from . import main
+from .. import main
 
 
 class MainTest(unittest.TestCase):
