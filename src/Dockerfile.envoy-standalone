@@ -2,6 +2,8 @@ FROM envoyproxy/envoy-alpine:v1.14-latest
 
 # Runs both Envoy and the Standalone Loop.
 
+ENV PYTHONPATH /usr/nightjar
+
 # Add standalone loop runner and its dependencies.
 ADD py-common/nightjar_common /usr/nightjar/nightjar_common
 ADD py-common/requirements.txt /tmp/requirements-01.txt

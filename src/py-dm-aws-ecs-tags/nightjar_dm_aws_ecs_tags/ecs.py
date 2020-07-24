@@ -29,10 +29,11 @@ class EcsTask:
     """
     __slots__ = (
         'task_name', 'task_arn', 'taskdef_arn', 'container_instance_arn',
-        'host_ipv4', 'container_host_ports', 'tags',
+        'host_ipv4', 'container_host_ports',
+        'task_tags', 'taskdef_tags', 'task_env', 'taskdef_env',
     )
 
-    def __init__(
+    def __init__(  # pylint: disable=R0913
             self,
             task_name: str,
             task_arn: str,
@@ -40,7 +41,10 @@ class EcsTask:
             container_instance_arn: Optional[str],
             host_ipv4: str,
             container_host_ports: Dict[str, int],
-            tags: Dict[str, str],
+            task_tags: Dict[str, str],
+            taskdef_tags: Dict[str, str],
+            task_env: Dict[str, str],
+            taskdef_env: Dict[str, str],
     ) -> None:
         self.task_name = task_name
         self.task_arn = task_arn
@@ -48,7 +52,10 @@ class EcsTask:
         self.container_instance_arn = container_instance_arn
         self.host_ipv4 = host_ipv4
         self.container_host_ports = dict(container_host_ports)
-        self.tags = dict(tags)
+        self.task_tags = dict(task_tags)
+        self.taskdef_tags = dict(taskdef_tags)
+        self.task_env = dict(task_env)
+        self.taskdef_env = dict(taskdef_env)
 
     def __repr__(self) -> str:
         return (
@@ -59,8 +66,51 @@ class EcsTask:
             f'container_instance_arn={repr(self.container_instance_arn)}, '
             f'host_ipv4={repr(self.host_ipv4)}, '
             f'container_host_ports={repr(sorted(list(self.container_host_ports.items())))}, '
-            f'tags={repr(sorted(list(self.tags.items())))})'
+            f'tags={repr(sorted(list(self.get_tags().items())))})'
         )
+
+    def get_tags(self) -> Dict[str, str]:
+        """Fetch the current 'tags', which is a combination of tags and environment variables,
+        pulled in a specific order.
+        """
+        ret: Dict[str, str] = dict(self.taskdef_env)
+        ret.update(self.task_env)
+        ret.update(self.taskdef_tags)
+        ret.update(self.task_tags)
+        return ret
+
+    def get_tag_keys(self) -> Set[str]:
+        """Get all the keys in the 'tags'."""
+        ret = set(self.task_env.keys())
+        ret.update(self.task_tags.keys())
+        ret.update(self.taskdef_env.keys())
+        ret.update(self.taskdef_tags.keys())
+        return ret
+
+    def get_tag_with(self, key: str, default_value: str) -> str:
+        """Get a tag with a default value."""
+        res = self.get_tag(key, default_value)
+        assert res is not None
+        return res
+
+    def get_tag(self, key: str, default_value: Optional[str] = None) -> Optional[str]:
+        """Get the 'tag' using correct ordering.
+
+        Search order:
+            - task tag (these can change during runtime)
+            - taskdef tags (these can change during runtime)
+            - task override env.  Note that each container can have its own set of overrides.
+                The order is non-determinant.
+            - taskdef env
+        """
+        val = self.task_tags.get(key)
+        if not val:
+            val = self.taskdef_tags.get(key)
+            if not val:
+                val = self.task_env.get(key)
+                if not val:
+                    val = self.taskdef_env.get(key, default_value)
+        return val
 
     def get_namespace(self) -> str:
         """The namespace, or default if not given."""
@@ -68,11 +118,11 @@ class EcsTask:
 
     def get_namespace_tag(self) -> Optional[str]:
         """The optional namespace tag on the task."""
-        return self.tags.get('NAMESPACE')
+        return self.get_tag('NAMESPACE')
 
     def get_protocol(self) -> str:
         """The optional protocol defined for this service."""
-        protocol = self.tags.get('PROTOCOL', PROTOCOL__HTTP1_1)
+        protocol = self.get_tag_with('PROTOCOL', PROTOCOL__HTTP1_1)
         if protocol.upper() in SUPPORTED_PROTOCOLS:
             return protocol.upper()
         return PROTOCOL__HTTP1_1
@@ -83,11 +133,11 @@ class EcsTask:
 
     def get_service_name_tag(self) -> Optional[str]:
         """The service name tag, if given."""
-        return self.tags.get('SERVICE_NAME')
+        return self.get_tag('SERVICE_NAME')
 
     def get_color(self) -> str:
         """The color for this service."""
-        return self.tags.get('COLOR') or 'default'
+        return self.get_tag('COLOR') or 'default'
 
     def get_service_id(self) -> str:
         """The opaque ID for this service instance."""
@@ -105,9 +155,9 @@ class EcsTask:
         Returns (container port, host port).  Container port is 0 if it is
             not a valid value.
         """
-        container_port_str = self.tags.get('PORT_' + str(index))
+        container_port_str = self.get_tag('PORT_' + str(index))
         if not container_port_str:
-            container_port_str = self.tags.get('PORT')
+            container_port_str = self.get_tag('PORT')
         if not container_port_str:
             # Return the first host port.  If it isn't an integer,
             # then the default value is returned.
@@ -122,14 +172,14 @@ class EcsTask:
             self, index: int,
     ) -> Tuple[Optional[str], int, RouteProtection]:
         """Get the route, weight, and protection for the route at the given index."""
-        route = self.tags.get('ROUTE_' + str(index))
+        route = self.get_tag('ROUTE_' + str(index))
         if not route:
             return None, 0, PROTECTION_PRIVATE
         protection = PROTECTION_PUBLIC
         if route[0] == '!':
             route = route[1:]
             protection = PROTECTION_PRIVATE
-        weight_str = self.tags.get('WEIGHT_' + str(index))
+        weight_str = self.get_tag('WEIGHT_' + str(index))
         if weight_str:
             try:
                 weight = int(weight_str)
@@ -142,7 +192,7 @@ class EcsTask:
     def get_route_indicies(self) -> Iterable[int]:
         """Find all the route indicies in the tags."""
         ret: List[int] = []
-        for tag_name in self.tags.keys():
+        for tag_name in self.get_tag_keys():
             match = ROUTE_TAG_MATCHER.match(tag_name)
             if match:
                 try:
@@ -165,24 +215,40 @@ def load_tasks_for_namespace(
     """
     ret: List[EcsTask] = []
     for cluster_name in cluster_names:
-        for task in load_tasks_for_cluster(cluster_name):
-            if required_tag_name:
-                if required_tag_name in task.tags:
-                    value = task.tags[required_tag_name]
-                    if required_tag_value and value != required_tag_value:
-                        # Due to the way the Python interpreter runs, the "continue" can be skipped
-                        # even though the block is entered.
-                        continue  # pragma no cover
-                    # If no value is required, then we don't check it.
-                else:
-                    # Due to the way the Python interpreter runs, the "continue" can be skipped
-                    # even though the block is entered.
-                    continue  # pragma no cover
-            if task.get_namespace() != namespace or not task.get_color():
-                # Due to the way the Python interpreter runs, the "continue" can be skipped
-                # even though the block is entered.
-                continue  # pragma no cover
-            ret.append(task)
+        ret.extend(filter_tasks(
+            load_tasks_for_cluster(cluster_name),
+            namespace,
+            required_tag_name,
+            required_tag_value,
+        ))
+    return ret
+
+
+def filter_tasks(
+        tasks: Iterable[EcsTask],
+        namespace: str,
+        required_tag_name: Optional[str],
+        required_tag_value: Optional[str],
+) -> Iterable[EcsTask]:
+    """Filter out tasks that do not meet the requirements for being in the mesh."""
+    ret: List[EcsTask] = []
+    for task in tasks:
+        if required_tag_name:
+            value = task.get_tag(required_tag_name, None)
+            if (
+                    # the tag is not set (value is None)
+                    value is None
+                    or
+                    # the tag is set to a value, a specific value is required, and the tag's
+                    # value does not correspond to that required value.
+                    (required_tag_value and value != required_tag_value)
+            ):
+                continue
+            # Else, the tag is assigned to a value, and either
+            # the value doesn't matter, or the value matches the required value.
+        if task.get_namespace() != namespace or not task.get_color():
+            continue
+        ret.append(task)
     return ret
 
 
@@ -207,7 +273,9 @@ def get_task_arns_in_cluster(cluster_name: str) -> Iterable[str]:
     return ret
 
 
-def load_tasks_by_arns(cluster_name: str, task_arns: Iterable[str]) -> List[EcsTask]:
+def load_tasks_by_arns(
+        cluster_name: str, task_arns: Iterable[str]
+) -> List[EcsTask]:
     """
     Reads the definition for these tasks.
     """
@@ -229,37 +297,21 @@ def load_tasks_by_arns(cluster_name: str, task_arns: Iterable[str]) -> List[EcsT
         # own port mappings.  There is a possibility for overlap, but this shouldn't
         # matter, because of the PORT tag should reference a unique container port.
         container_host_ports: Dict[str, int] = {}
+        container_env: Dict[str, str] = {}
         for task in response['tasks']:
             service_name = ''
             host_ipv4 = ''
             for container in task['containers']:
-                container_name = dt_str(container, 'name')
-                if not service_name:
-                    service_name = container_name
-                for binding in container.get('networkBindings', []):
-                    # Ignore all but 'tcp' protocols.
-                    if dt_str(binding, 'protocol') != 'tcp':
-                        continue
-                    binding_ip = dt_str(binding, 'bindIP')
-                    if binding_ip == '127.0.0.1':
-                        # Ignore localhost stuff.  This probably won't ever happen.
-                        continue
-                    if binding_ip != '0.0.0.0':
-                        # This is the IP address that the port is listening on.
-                        host_ipv4 = binding_ip
-                    # If there's an overlap with an existing registration, overwrite it.
-                    container_port = dt_int(binding, 'containerPort')
-                    host_port = dt_int(binding, 'hostPort')
-                    container_host_ports['{0}:{1}'.format(
-                        container_name, container_port
-                    )] = host_port
-                    container_host_ports[str(container_port)] = host_port
-                if not host_ipv4:
-                    # See if there's an awsvpc network, which will be the case in fargate instances.
-                    for interface in container.get('networkInterfaces', []):
-                        interface_ip = dt_str(interface, 'privateIpv4Address')
-                        if interface_ip not in ('127.0.0.1', '0.0.0.0',):
-                            host_ipv4 = interface_ip
+                service_name, host_ipv4 = process_task_container(
+                    container, container_host_ports,
+                    service_name, host_ipv4,
+                )
+            if 'overrides' in task and 'containerOverrides' in task['overrides']:
+                for override in task['overrides']['containerOverrides']:
+                    # NOTE: This does not check environmentFiles.
+                    if 'environment' in override:
+                        for env in override['environment']:
+                            container_env[dt_str(env, 'name')] = dt_str(env, 'value')
 
             discovered_tasks.append(EcsTask(
                 task_name=service_name,
@@ -271,12 +323,53 @@ def load_tasks_by_arns(cluster_name: str, task_arns: Iterable[str]) -> List[EcsT
 
                 host_ipv4=host_ipv4,
                 container_host_ports=container_host_ports,
-                tags={
+                task_tags={
                     dt_str(tag, 'key'): dt_str(tag, 'value')
                     for tag in task['tags']
                 },
+                task_env=container_env,
+
+                taskdef_tags={},
+                taskdef_env={},
             ))
     return discovered_tasks
+
+
+def process_task_container(
+        container: Dict[str, Any],
+        container_host_ports: Dict[str, int],
+        prev_service_name: Optional[str],
+        prev_host_ipv4: str,
+) -> Tuple[str, str]:
+    """Perform processing of the task container result."""
+    container_name = dt_str(container, 'name')
+    service_name = prev_service_name or container_name
+    host_ipv4 = prev_host_ipv4
+    for binding in container.get('networkBindings', []):
+        # Ignore all but 'tcp' protocols.
+        if dt_str(binding, 'protocol') != 'tcp':
+            continue
+        binding_ip = dt_str(binding, 'bindIP')
+        if binding_ip == '127.0.0.1':
+            # Ignore localhost stuff.  This probably won't ever happen.
+            continue
+        if binding_ip != '0.0.0.0':
+            # This is the IP address that the port is listening on.
+            host_ipv4 = binding_ip
+        # If there's an overlap with an existing registration, overwrite it.
+        container_port = dt_int(binding, 'containerPort')
+        host_port = dt_int(binding, 'hostPort')
+        container_host_ports['{0}:{1}'.format(
+            container_name, container_port
+        )] = host_port
+        container_host_ports[str(container_port)] = host_port
+    if not host_ipv4:
+        # See if there's an awsvpc network, which will be the case in fargate instances.
+        for interface in container.get('networkInterfaces', []):
+            interface_ip = dt_str(interface, 'privateIpv4Address')
+            if interface_ip not in ('127.0.0.1', '0.0.0.0',):
+                host_ipv4 = interface_ip
+    return service_name, host_ipv4
 
 
 def populate_ec2_ip_for_tasks(cluster_name: str, tasks: Iterable[EcsTask]) -> None:
@@ -370,23 +463,39 @@ def load_ec2_host_ip_by_info(
 def add_taskdef_tags(tasks: Iterable[EcsTask]) -> None:
     """Add all taskdef defined tags to the tasks, but only if the task itself doesn't
     set that tag."""
+    taskdef_envs: Dict[str, Dict[str, str]] = {}
     taskdef_tags: Dict[str, Dict[str, str]] = {}
+
     for task in tasks:
         if task.taskdef_arn not in taskdef_tags:
-            taskdef_tags[task.taskdef_arn] = load_taskdef_tags(task.taskdef_arn)
-        # Add only missing tags; don't overwrite task tags.
-        for key, value in taskdef_tags[task.taskdef_arn].items():
-            if key not in task.tags:
-                task.tags[key] = value
+            tags, envs = load_taskdef_tags_env(task.taskdef_arn)
+            taskdef_tags[task.taskdef_arn] = tags
+            taskdef_envs[task.taskdef_arn] = envs
+        task.taskdef_tags.update(taskdef_tags[task.taskdef_arn])
+        task.taskdef_env.update(taskdef_envs[task.taskdef_arn])
 
 
-def load_taskdef_tags(taskdef_arn: str) -> Dict[str, str]:
-    """Load the tags for the given taskdef arn"""
-    res = get_ecs_client().list_tags_for_resource(resourceArn=taskdef_arn)
-    return {
-        dt_str(val, 'key'): dt_str(val, 'value')
-        for val in res['tags']
+def load_taskdef_tags_env(
+        taskdef_arn: str,
+) -> Tuple[Dict[str, str], Dict[str, str]]:
+    """Load the tags and env values for the given taskdef arns."""
+
+    res = get_ecs_client().describe_task_definition(
+        taskDefinition=taskdef_arn,
+        include=['TAGS'],
+    )
+    env: Dict[str, str] = {}
+    # Join all the container envs together.
+    for container in res['taskDefinition']['containerDefinitions']:
+        # NOTE: Ignores environmentFiles
+        for val in container.get('environment', []):
+            env[dt_str(val, 'name')] = dt_str(val, 'value')
+    tags = {
+        # Note: 'key' here.
+        dt_str(tag, 'key'): dt_str(tag, 'value')
+        for tag in res['tags']
     }
+    return tags, env
 
 
 # ---------------------------------------------------------------------------

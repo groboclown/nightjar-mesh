@@ -18,15 +18,17 @@ class EcsTaskTest(unittest.TestCase):
         task_full = ecs.EcsTask(
             task_name='t1', task_arn='a1', taskdef_arn='ta', container_instance_arn='',
             host_ipv4='', container_host_ports={},
-            tags={
-                'NAMESPACE': 'n1', 'PROTOCOL': 'HTTP2',
-                'SERVICE_NAME': 's1', 'COLOR': 'c1',
-            },
+
+            # tag/env order priority: task tag, taskdef tag, task env, taskdef env
+            task_tags={'NAMESPACE': 'n1'},
+            task_env={'PROTOCOL': 'HTTP2'},
+            taskdef_tags={'SERVICE_NAME': 's1'},
+            taskdef_env={'COLOR': 'c1', 'NAMESPACE': 'n2'},
         )
         task_empty = ecs.EcsTask(
             task_name='t2', task_arn='a2', taskdef_arn='ta', container_instance_arn='',
             host_ipv4='', container_host_ports={},
-            tags={},
+            task_tags={}, task_env={}, taskdef_tags={}, taskdef_env={},
         )
         self.assertEqual('n1', task_full.get_namespace_tag())
         self.assertIsNone(task_empty.get_namespace_tag())
@@ -54,7 +56,7 @@ class EcsTaskTest(unittest.TestCase):
         task = ecs.EcsTask(
             task_name='t1', task_arn='a1', taskdef_arn='ta', container_instance_arn='',
             host_ipv4='', container_host_ports={'8080': 2021, 's1:8080': 2021},
-            tags={
+            task_tags={
                 # And for coverage, an invalid protocol...
                 'PROTOCOL': 'tcp',
 
@@ -70,7 +72,7 @@ class EcsTaskTest(unittest.TestCase):
                 'PORT_22': 's1:8080',
 
                 'ROUTE_XYZ': 'invalid',
-            },
+            }, task_env={}, taskdef_tags={}, taskdef_env={},
         )
 
         # Coverage based checks...
@@ -501,14 +503,14 @@ class EcsTest(unittest.TestCase):
         }])
 
         # Then get the resource tags for the taskdefs.
-        mecs.mk_resource_tags('aws:ecs:c1_taskdef1', {
+        mecs.mk_describe_task_definition('aws:ecs:c1_taskdef1', {
             'ROUTE_11': '/my/path',
             'NAMESPACE': 'namespace1',
-        })
-        mecs.mk_resource_tags('aws:ecs:c1_taskdef2', {
+        }, {})
+        mecs.mk_describe_task_definition('aws:ecs:c1_taskdef2', {}, {'x': {
             'NAMESPACE': 'namespace1',
-        })
-        mecs.mk_resource_tags('aws:ecs:c1_taskdef3', {})
+        }})
+        mecs.mk_describe_task_definition('aws:ecs:c1_taskdef3', {}, {})
 
         # Do the same thing with the second cluster.  This one contains only Fargate instances.
         mecs.mk_list_tasks('cluster2', ('aws:ecs:c2_task1',))
@@ -613,12 +615,12 @@ class EcsTest(unittest.TestCase):
         }])
 
         # Then, because all the host IPs are known, it skips directly to finding the taskdef tags.
-        mecs.mk_resource_tags('aws:ecs:taskdef_3', {
+        mecs.mk_describe_task_definition('aws:ecs:taskdef_3', {
             'tag-r1': 'v1',
             'ROUTE_6': '!/a/b/c',
             'WEIGHT_6': '12',
             'NAMESPACE': 'namespace1',
-        })
+        }, {})
 
         with mecs:
             tasks = ecs.load_tasks_for_namespace(
@@ -646,8 +648,8 @@ class EcsTest(unittest.TestCase):
     def test_add_taskdef_tags(self) -> None:
         """Test add_taskdef_tags"""
         mecs = MockEcs()
-        mecs.mk_resource_tags('ecs-taskdef-1', {'k1': 'v1'})
-        mecs.mk_resource_tags('ecs-taskdef-2', {'k2': 'v2'})
+        mecs.mk_describe_task_definition('ecs-taskdef-1', {'k1': 'v1'}, {})
+        mecs.mk_describe_task_definition('ecs-taskdef-2', {'k2': 'v2'}, {'abc': {'k3': 'v3'}})
         tasks = [
             ecs.EcsTask(
                 task_name='t1',
@@ -656,7 +658,7 @@ class EcsTest(unittest.TestCase):
                 container_instance_arn='',
                 host_ipv4='',
                 container_host_ports={},
-                tags={'k': 'v'},
+                task_tags={'k': 'v'}, task_env={}, taskdef_env={}, taskdef_tags={},
             ),
             ecs.EcsTask(
                 task_name='t2',
@@ -665,7 +667,7 @@ class EcsTest(unittest.TestCase):
                 container_instance_arn='',
                 host_ipv4='',
                 container_host_ports={},
-                tags={'k1': 'other', 'k': 'v'},
+                task_tags={'k1': 'other', 'k': 'v'}, task_env={}, taskdef_env={}, taskdef_tags={},
             ),
             ecs.EcsTask(
                 task_name='t1',
@@ -674,25 +676,33 @@ class EcsTest(unittest.TestCase):
                 container_instance_arn='',
                 host_ipv4='',
                 container_host_ports={},
-                tags={},
+                task_tags={}, task_env={}, taskdef_env={}, taskdef_tags={},
             ),
         ]
         with mecs:
             ecs.add_taskdef_tags(tasks)
 
-        self.assertEqual(tasks[0].tags, {'k': 'v', 'k1': 'v1'})
-        self.assertEqual(tasks[1].tags, {'k': 'v', 'k1': 'other'})
-        self.assertEqual(tasks[2].tags, {'k2': 'v2'})
+        self.assertEqual(tasks[0].get_tags(), {'k': 'v', 'k1': 'v1'})
+        self.assertEqual(tasks[1].get_tags(), {'k': 'v', 'k1': 'other'})
+        self.assertEqual(tasks[2].get_tags(), {'k2': 'v2', 'k3': 'v3'})
 
     def test_load_taskdef_tags(self) -> None:
         """Test the load_taskdef_tags method"""
         mecs = MockEcs()
-        mecs.mk_resource_tags('aws:ecs:us-east-1:12347890/taskdef/x', {'a': 'b'})
+        mecs.mk_describe_task_definition(
+            'aws:ecs:us-east-1:12347890/taskdef/x',
+            {'a': 'b'},
+            {'x': {'c': 'd'}, 'y': {'e': 'f'}},
+        )
         with mecs:
-            results = ecs.load_taskdef_tags('aws:ecs:us-east-1:12347890/taskdef/x')
+            tags, env = ecs.load_taskdef_tags_env('aws:ecs:us-east-1:12347890/taskdef/x')
         self.assertEqual(
             {'a': 'b'},
-            results,
+            tags,
+        )
+        self.assertEqual(
+            {'c': 'd', 'e': 'f'},
+            env,
         )
 
     def test_set_aws_config(self) -> None:
@@ -717,7 +727,9 @@ class EcsTest(unittest.TestCase):
             # self.assertIsNotNone(session)
             # self.assertEqual('my-aws-profile-does-not-exist', session.profile_name)
             # self.assertEqual('us-west-2', session.region_name)
-            self.fail('Should have raised an error due to profile could not be found.')
+            self.fail(
+                'Should have raised an error due to profile could not be found.'
+            )  # pragma no cover
         except botocore.exceptions.ProfileNotFound:
             pass
 
@@ -776,14 +788,88 @@ class MockEcs:
     #         service_error_code='ClusterNotFound',
     #     )
 
-    def mk_resource_tags(self, resource_arn: str, tags: Dict[str, str]) -> None:
+    def mk_describe_task_definition(
+            self, taskdef_arn: str,
+            tags: Dict[str, str], container_envs: Dict[str, Dict[str, str]],
+    ) -> None:
         """Add a service-not-found response."""
-        self.ecs_stubber.add_response('list_tags_for_resource', {
+        self.ecs_stubber.add_response('describe_task_definition', {
+            'taskDefinition': {
+                'taskDefinitionArn': taskdef_arn,
+                'containerDefinitions': [
+                    {
+                        'name': container_name,
+                        'image': container_name + '-image',
+                        # 'repositoryCredentials': { ... },
+                        'cpu': 123,
+                        'memory': 123,
+                        'memoryReservation': 123,
+                        'links': [],
+                        'portMappings': [],
+                        'essential': True,
+                        'entryPoint': [],
+                        'command': [],
+                        'environment': [
+                            {
+                                'name': key,
+                                'value': val,
+                            }
+                            for key, val in container_env.items()
+                        ],
+                        'environmentFiles': [],
+                        'mountPoints': [],
+                        'volumesFrom': [],
+                        # 'linuxParameters': { ... },
+                        'secrets': [],
+                        'dependsOn': [],
+                        'startTimeout': 123,
+                        'stopTimeout': 123,
+                        'hostname': container_name,
+                        'user': 'user',
+                        'workingDirectory': '/',
+                        'disableNetworking': False,
+                        'privileged': False,
+                        'readonlyRootFilesystem': False,
+                        'dnsServers': [],
+                        'dnsSearchDomains': [],
+                        'extraHosts': [],
+                        'dockerSecurityOptions': [],
+                        'interactive': False,
+                        'pseudoTerminal': False,
+                        # 'dockerLabels': { ... },
+                        'ulimits': [],
+                        # 'logConfiguration': { ... },
+                        # 'healthCheck': { ... },
+                        'systemControls': [],
+                        'resourceRequirements': [],
+                        # 'firelensConfiguration': { ... },
+                    }
+                    for container_name, container_env in container_envs.items()
+                ],
+                'family': 'string',
+                'taskRoleArn': 'string',
+                'executionRoleArn': 'string',
+                'networkMode': 'bridge',  # could force this to be aws or bridge.
+                'revision': 123,
+                'volumes': [],
+                'status': 'ACTIVE',
+                'requiresAttributes': [],
+                'placementConstraints': [],
+                'compatibilities': ['EC2', 'FARGATE'],
+                'requiresCompatibilities': ['EC2', 'FARGATE'],
+                'cpu': 'string',
+                'memory': 'string',
+                'inferenceAccelerators': [],
+                'pidMode': 'host',
+                'ipcMode': 'host',
+                # 'proxyConfiguration': { ... },
+            },
+
             'tags': [
                 {'key': key, 'value': val}
                 for key, val in tags.items()
             ],
-        }, {'resourceArn': resource_arn})
+        }, {'taskDefinition': taskdef_arn, 'include': ['TAGS']})
 
     def mk_list_tasks(
             self, cluster: str, task_arns: Sequence[str],

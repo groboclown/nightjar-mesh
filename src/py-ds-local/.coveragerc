@@ -1,4 +1,4 @@
 [run]
 
 omit =
-    nightjar_ds_local/__main__
+    nightjar_ds_local/__main__.py
