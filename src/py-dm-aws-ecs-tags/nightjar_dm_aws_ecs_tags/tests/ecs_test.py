@@ -161,6 +161,11 @@ class EcsTest(unittest.TestCase):
                     'tags': [
                         {'key': 'tag-r1', 'value': 'v1'},
                     ],
+                    'overrides': {
+                        'containerOverrides': [{
+                            'environment': [{'name': 'env_1', 'value': 'env_1_val'}],
+                        }],
+                    },
                     'containers': [{
                         'containerArn': 'aws:ecs:c1_container',
                         'taskArn': 'aws:ecs:c1_task1',
@@ -198,7 +203,6 @@ class EcsTest(unittest.TestCase):
                     'lastStatus': 'RUNNING',
                     'launchType': 'EC2',
                     'memory': '32',
-                    'overrides': {},
                     'platformVersion': '100',
                     'pullStartedAt': datetime.datetime(2015, 1, 1),
                     'pullStoppedAt': datetime.datetime(2015, 1, 1),
@@ -256,8 +260,8 @@ class EcsTest(unittest.TestCase):
                     'inferenceAccelerators': [],
                     'lastStatus': 'RUNNING',
                     'launchType': 'EC2',
-                    'memory': '32',
                     'overrides': {},
+                    'memory': '32',
                     'platformVersion': '12',
                     'pullStartedAt': datetime.datetime(2015, 1, 1),
                     'pullStoppedAt': datetime.datetime(2015, 1, 1),
@@ -632,8 +636,8 @@ class EcsTest(unittest.TestCase):
                     "taskdef_arn='aws:ecs:c1_taskdef1', "
                     "container_instance_arn='aws:ecs:c1_instance', host_ipv4='1.2.3.4', "
                     "container_host_ports=[('9080', 32769), ('c1_task1:9080', 32769)], "
-                    "tags=[('NAMESPACE', 'namespace1'), ('ROUTE_11', '/my/path'), ('tag-r1', "
-                    "'v1')])",
+                    "tags=[('NAMESPACE', 'namespace1'), ('ROUTE_11', '/my/path'), ('env_1', "
+                    "'env_1_val'), ('tag-r1', 'v1')])",
 
                     "EcsTask(task_name='service_1', task_arn='aws:ecs:c2_task1', "
                     "taskdef_arn='aws:ecs:taskdef_3', container_instance_arn='aws:ecs:fargate-1', "
@@ -732,6 +736,17 @@ class EcsTest(unittest.TestCase):
             )  # pragma no cover
         except botocore.exceptions.ProfileNotFound:
             pass
+
+    def test_filter_tasks_color_not_set(self) -> None:
+        """Test filter_tasks if the color is not set."""
+        tasks = [ecs.EcsTask(
+            task_name='tn1', task_arn='ta1', taskdef_arn='tda1',
+            container_instance_arn='cia1', host_ipv4='1.2.3.4',
+            container_host_ports={}, task_tags={}, taskdef_tags={}, task_env={},
+            taskdef_env={'namespace': 'n1'},
+        )]
+        filtered = ecs.filter_tasks(tasks, 'n1', None, None)
+        self.assertEqual([], filtered)
 
 
 class MockEcs:

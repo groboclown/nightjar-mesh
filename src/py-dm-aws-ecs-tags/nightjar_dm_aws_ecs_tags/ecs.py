@@ -246,9 +246,8 @@ def filter_tasks(
                 continue
             # Else, the tag is assigned to a value, and either
             # the value doesn't matter, or the value matches the required value.
-        if task.get_namespace() != namespace or not task.get_color():
-            continue
-        ret.append(task)
+        if task.get_namespace() == namespace and task.get_color() is not None:
+            ret.append(task)
     return ret
 
 

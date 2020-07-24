@@ -7,6 +7,7 @@ from typing import Dict, Sequence, Callable, Optional
 import shlex
 import shutil
 import time
+from .exceptions import ConfigurationError
 
 
 def get_env_executable_cmd(
@@ -24,13 +25,11 @@ def get_env_executable_cmd(
     """
     exec_env_value = env.get(env_name, default)
     if not exec_env_value:
-        raise Exception('No environment variable `{0}`'.format(env_name))
+        raise ConfigurationError(env_name, 'environment variable not defined')
     cmd = shlex.split(exec_env_value)
     executable = shutil.which(cmd[0])
     if executable is None:
-        raise Exception('No such executable: {0} (from environment variable {1})'.format(
-            cmd[0], env_name,
-        ))
+        raise ConfigurationError(env_name, 'No such executable: `{0}`'.format(cmd[0]))
     return executable, *cmd[1:]
 
 

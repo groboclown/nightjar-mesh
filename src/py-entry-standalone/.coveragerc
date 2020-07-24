@@ -1,4 +1,5 @@
 [run]
 
 omit =
-    nightjar_standalone/__main__.py
+    nightjar_standalone/__main__.py,
+    nightjar_standalone/tests/runnable.py

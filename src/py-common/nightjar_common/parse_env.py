@@ -1,6 +1,6 @@
 
 """
-
+Environment value parsers.
 """
 
 from typing import Dict
@@ -19,6 +19,25 @@ def env_as_int(
         except ValueError:
             warning(
                 'Environment variable {key} must be an integer, '
+                'but found {value}; using {default} instead.',
+                key=key,
+                value=value,
+                default=default,
+            )
+    return default
+
+
+def env_as_float(
+        env: Dict[str, str], key: str, default: float,
+) -> float:
+    """Convert an environment value to a float."""
+    value = env.get(key)
+    if value:
+        try:
+            return float(value)
+        except ValueError:
+            warning(
+                'Environment variable {key} must be a number, '
                 'but found {value}; using {default} instead.',
                 key=key,
                 value=value,

@@ -16,7 +16,7 @@ Nightjar strives to:
 
 ## Style Guidelines
 
-For Python, conform to the PEP8 style where possible.  Also, use mypy-conformant typing.
+The automated build enforces a specific mypy type-safe and pylint style. 
 
 Shell scripts and yaml files use 2 spaces for indenting, while Python uses 4 spaces.
 
@@ -25,24 +25,15 @@ Keep the functionality in the right place.  Where possible, have tools that do o
 
 ## Pass All Criteria
 
-The code must:
-
-* Pass mypy checks.
-    * `cd nightjar-base/nightjar-src/python-src && mypy -p nightjar`
-* Pass Python unit tests.
-    * `cd nightjar-base/nightjar-src/python-src && python3 -m coverage run --source . -m unittest discover`
-* And code coverage must not go down.
-    * `cd nightjar-base/nightjar-src/python-src && python3 -m coverage report`
-    * Major refactoring can be excluded from this rule.
-* Pass shell script tests.
-    * `docker build -t my/nightjar-test -f Dockerfile.shell-test . && docker run -it --rm my/nightjar-test`
-    * These are being rewritten.
+* Pass automated builds.
+    * `./src/run-over.sh ./src/build-support/test-src-dir.sh`
+    * For just one package, run `./src/build-support/test-src-dir.sh py-entry-standalone`
 * The docker images construct without failures.
     * `./build-docker-images.sh`
-* Python files must "pass" linting:
-    * `cd nightjar-base/nightjar-src/python-src && PYTHONPATH=. python3 -m pylint --load-plugins nightjar.tests.trailing_commas nightjar`
 
 You will need to install the required Python modules to run the Python tests.  See the development environment section below to help get them installed.
+
+Note that the automated build requires a *minimum* of 99% coverage.  There are circumstances where that is very, very difficult to attain.  If absolutely necessary, a `pragma no coverage` can be set.  Some trivially simple files, such as `__main__.py`, can be ignored, or pure test-support files that are never run.  Note that even unit tests must be included in this coverage, as it helps identify incorrectly written tests.
 
 
 ## Submission

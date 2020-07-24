@@ -6,22 +6,13 @@ Test the run_cmd module.
 from typing import Dict, List, Tuple, Union
 import unittest
 import os
+import platform
 from .. import run_cmd
+from ..exceptions import ConfigurationError
 
 
 class RunCmdTest(unittest.TestCase):
     """Test the run_cmd functions."""
-
-    def setUp(self) -> None:
-        self._env = dict(os.environ)
-
-    def tearDown(self) -> None:
-        existing = list(os.environ.keys())
-        for key in existing:
-            if key not in self._env:
-                del os.environ[key]
-        for key, value in self._env.items():
-            os.environ[key] = value
 
     def test_get_env_executable_cmd__no_value(self) -> None:
         """Test get_env_executable_cmd with no env value set."""
@@ -30,8 +21,9 @@ class RunCmdTest(unittest.TestCase):
         try:
             run_cmd.get_env_executable_cmd(env, 'blah_blah_blah')
             self.fail("Did not raise exception")  # pragma no cover
-        except Exception as err:  # pylint: disable=W0703
-            self.assertEqual("Exception('No environment variable `blah_blah_blah`')", repr(err))
+        except ConfigurationError as err:
+            self.assertEqual('blah_blah_blah', err.source)
+            self.assertEqual('environment variable not defined', err.problem)
 
     def test_get_env_executable_cmd__not_found(self) -> None:
         """Test get_env_executable_cmd with a non-executable file."""
@@ -40,21 +32,29 @@ class RunCmdTest(unittest.TestCase):
 
         try:
             run_cmd.get_env_executable_cmd(env, 'blah_blah_blah')
-        except Exception as err:  # pylint: disable=W0703
+        except ConfigurationError as err:
+            self.assertEqual('blah_blah_blah', err.source)
             self.assertEqual(
-                "Exception('No such executable: "
-                "/this/is/not-an-executable-file.txt (from environment variable blah_blah_blah)')",
-                repr(err),
+                "No such executable: `/this/is/not-an-executable-file.txt`",
+                err.problem,
             )
 
+    @unittest.skipIf(
+        platform.system() == 'Windows',
+        "The code is written for Linux, and can't be correctly run from windows."
+    )
     def test_get_env_executable_cmd__parts_parsed(self) -> None:
         """Test get_env_executable_cmd with a list of command arguments."""
-        env = {'blah_blah_blah': '/bin/ls -lA /tmp "/tmp/some file.txt"'}
-        self.assertTrue(os.path.isfile('/bin/ls'))
+
+        print(platform.system())
+
+        cmd = '/bin/ls'
+        env = {'blah_blah_blah': cmd + ' -lA /tmp "/tmp/some file.txt"'}
+        self.assertTrue(os.path.isfile(cmd))
 
         result = run_cmd.get_env_executable_cmd(env, 'blah_blah_blah')
         self.assertEqual(
-            ['/bin/ls', '-lA', '/tmp', '/tmp/some file.txt'],
+            [cmd, '-lA', '/tmp', '/tmp/some file.txt'],
             list(result),
         )
 

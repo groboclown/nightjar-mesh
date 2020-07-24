@@ -31,6 +31,27 @@ class ParseEnvTest(unittest.TestCase):
             parse_env.env_as_int({'koi': '123'}, 'koi', 5),
         )
 
+    def test_env_as_float__not_set(self) -> None:
+        """env value not set"""
+        self.assertEqual(
+            -10.5,
+            parse_env.env_as_float({}, 'tuna', -10.5),
+        )
+
+    def test_env_as_float__not_float(self) -> None:
+        """env value not a float"""
+        self.assertEqual(
+            100.9,
+            parse_env.env_as_float({'tuna': 'fish'}, 'tuna', 100.9),
+        )
+
+    def test_env_as_float__float(self) -> None:
+        """env value is a float"""
+        self.assertEqual(
+            123.4,
+            parse_env.env_as_float({'koi': '123.4'}, 'koi', 5),
+        )
+
     def test_env_as_bool__not_set(self) -> None:
         """env value is not set"""
         self.assertTrue(

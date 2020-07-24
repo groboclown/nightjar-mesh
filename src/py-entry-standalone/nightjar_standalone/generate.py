@@ -16,14 +16,16 @@ class Generator:
     """The generic generator class."""
     def generate_file(self) -> int:
         """Runs the generation process.  Returns 0 on no error."""
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma no cover
 
 
 def create_generator(config: Config) -> Generator:
     """Create the appropriate generator."""
     if config.is_service_proxy_mode():
         return GenerateServiceConfiguration(config)
-    return GenerateGatewayConfiguration(config)
+    if config.is_gateway_proxy_mode():
+        return GenerateGatewayConfiguration(config)
+    return MockGenerator(config)
 
 
 class GenerateGatewayConfiguration(Generator):
@@ -53,7 +55,7 @@ class GenerateGatewayConfiguration(Generator):
         namespace_templates: Dict[str, str] = {}
         for gateway_template in all_templates['gateway-templates']:
             if gateway_template['protection'] == 'public':
-                namespace = gateway_template['namespace']
+                namespace = gateway_template['namespace'] or DEFAULT_NAMESPACE
                 purpose = gateway_template['purpose']
                 if namespace == self._config.namespace:
                     namespace_templates[purpose] = gateway_template['template']
@@ -85,11 +87,14 @@ class GenerateServiceConfiguration(Generator):
     def get_templates(self) -> Dict[str, str]:
         """Get the right templates for this mode (purpose -> template)."""
         all_templates = self._data_store.fetch_templates()
-        possible_templates: Dict[Tuple[str, str, str], Dict[str, str]] = {}
-        for service_template in all_templates['gateway-templates']:
-            namespace = service_template['namespace']
-            service = service_template['service']
-            color = service_template['color']
+        possible_templates: Dict[Tuple[str, str, str], Dict[str, str]] = {
+            # Ensure defaults are always present...
+            (DEFAULT_NAMESPACE, DEFAULT_SERVICE, DEFAULT_COLOR): {},
+        }
+        for service_template in all_templates['service-templates']:
+            namespace = service_template['namespace'] or DEFAULT_NAMESPACE
+            service = service_template['service'] or DEFAULT_SERVICE
+            color = service_template['color'] or DEFAULT_COLOR
             if self.is_possible_match(namespace, service, color):
                 purpose = service_template['purpose']
                 key = (namespace, service, color,)
@@ -126,5 +131,23 @@ class GenerateServiceConfiguration(Generator):
             +
             (3 if key[1] == self._config.service else 0)
             +
-            (1 if key[2] == self._config.service else 0)
+            (1 if key[2] == self._config.color else 0)
         )
+
+
+class MockGenerator(Generator):
+    """A test-based generator.  It uses static variables, so watch out for cleanup."""
+    __slots__ = ('config',)
+
+    RETURN_CODE = 0
+    PASSES_BEFORE_EXIT_CREATION = 0
+
+    def __init__(self, config: Config) -> None:
+        self.config = config
+
+    def generate_file(self) -> int:
+        MockGenerator.PASSES_BEFORE_EXIT_CREATION -= 1
+        if MockGenerator.PASSES_BEFORE_EXIT_CREATION == 0:
+            with open(self.config.trigger_stop_file, 'w') as f:
+                f.write('stop')
+        return MockGenerator.RETURN_CODE

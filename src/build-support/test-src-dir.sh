@@ -2,6 +2,9 @@
 
 cd $( dirname "$0" )
 export PYTHONPATH="$(pwd):$(pwd)/../py-common"
+if [ ! -d "../$1" ] ; then
+  echo "No such package: $1 ($(pwd)/../$1)"
+fi
 cd "../$1"
 
 mypy_packages=""
@@ -34,6 +37,6 @@ echo "--------------------------------------------------------------------------
 echo "$1 - Unit Test"
 python3 -m coverage run --source . -m unittest discover -p "*_test.py"
 unit_test_res=$?
-python3 -m coverage report -m --fail-under 95 || exit 1
+python3 -m coverage report -m --fail-under 99 || exit 1
 
 exit $unit_test_res

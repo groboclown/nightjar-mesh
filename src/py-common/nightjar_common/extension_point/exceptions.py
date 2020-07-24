@@ -2,6 +2,17 @@
 """Common extension point exceptions"""
 
 
+class ConfigurationError(Exception):
+    """There was a problem with the configuration."""
+    def __init__(self, source: str, problem: str) -> None:
+        Exception.__init__(
+            self,
+            '{0}: Incorrect configuration: {1}'.format(source, problem),
+        )
+        self.source = source
+        self.problem = problem
+
+
 class ExtensionPointRuntimeError(Exception):
     """Running the extension point generated an error."""
     def __init__(self, source: str, action: str, exit_code: int) -> None:

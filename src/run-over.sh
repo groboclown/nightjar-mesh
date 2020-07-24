@@ -2,9 +2,10 @@
 
 set -e
 
-cd $( dirname "$0" )
-for i in py-* ; do
-  if [ -d "$i" ] ; then
+_here=$( dirname "$0" )
+for n in "${_here}"/py-* ; do
+  if [ -d "$n" ] ; then
+    i=$( basename "$n" )
     "$@" $i
   fi
 done
