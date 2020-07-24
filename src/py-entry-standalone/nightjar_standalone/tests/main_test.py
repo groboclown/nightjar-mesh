@@ -12,4 +12,4 @@ class MainTest(unittest.TestCase):
 
     def test_main__no_arguments(self) -> None:
         """Stupid simple invocation."""
-        self.assertEqual(0, main.main([]))
+        self.assertEqual(0, main.main(['main.py']))

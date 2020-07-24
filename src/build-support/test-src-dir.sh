@@ -1,7 +1,7 @@
 #!/bin/bash
 
 cd $( dirname "$0" )
-export PYTHONPATH=$(pwd)
+export PYTHONPATH="$(pwd):$(pwd)/../py-common"
 cd "../$1"
 
 mypy_packages=""

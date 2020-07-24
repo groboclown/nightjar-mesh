@@ -53,7 +53,8 @@ class MainTest(unittest.TestCase):
         ret = main.main([
             'main.py', '--output-file=' + self._out, '--mode=mesh', '--api-version=1',
         ])
-        self.assertEqual(1, ret)
+        # No source file means it could, eventually, exist.
+        self.assertEqual(31, ret)
 
     def test_main_mesh__valid(self) -> None:
         """Invoke main with mesh"""
@@ -70,7 +71,8 @@ class MainTest(unittest.TestCase):
         ret = main.main([
             'main.py', '--output-file=' + self._out, '--mode=gateway', '--api-version=1',
         ])
-        self.assertEqual(1, ret)
+        # No source file means it could, eventually, exist.
+        self.assertEqual(31, ret)
 
     def test_main_gateway__has_namespace(self) -> None:
         """Invoke main with gateway"""
@@ -116,7 +118,8 @@ class MainTest(unittest.TestCase):
         ret = main.main([
             'main.py', '--output-file=' + self._out, '--mode=service', '--api-version=1',
         ])
-        self.assertEqual(1, ret)
+        # No source file means it could, eventually, exist.
+        self.assertEqual(31, ret)
 
     def test_main_service__all_defaults(self) -> None:
         """Invoke main with service"""

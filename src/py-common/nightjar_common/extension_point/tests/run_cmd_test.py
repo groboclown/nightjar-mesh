@@ -3,7 +3,7 @@
 Test the run_cmd module.
 """
 
-from typing import List, Tuple, Union
+from typing import Dict, List, Tuple, Union
 import unittest
 import os
 from .. import run_cmd
@@ -25,22 +25,21 @@ class RunCmdTest(unittest.TestCase):
 
     def test_get_env_executable_cmd__no_value(self) -> None:
         """Test get_env_executable_cmd with no env value set."""
-        if 'blah_blah_blah' in os.environ:
-            del os.environ['blah_blah_blah']  # pragma no cover
+        env: Dict[str, str] = {}
 
         try:
-            run_cmd.get_env_executable_cmd('blah_blah_blah')
+            run_cmd.get_env_executable_cmd(env, 'blah_blah_blah')
             self.fail("Did not raise exception")  # pragma no cover
         except Exception as err:  # pylint: disable=W0703
             self.assertEqual("Exception('No environment variable `blah_blah_blah`')", repr(err))
 
     def test_get_env_executable_cmd__not_found(self) -> None:
         """Test get_env_executable_cmd with a non-executable file."""
-        os.environ['blah_blah_blah'] = '/this/is/not-an-executable-file.txt'
-        self.assertFalse(os.path.isfile(os.environ['blah_blah_blah']))
+        env = {'blah_blah_blah': '/this/is/not-an-executable-file.txt'}
+        self.assertFalse(os.path.isfile(env['blah_blah_blah']))
 
         try:
-            run_cmd.get_env_executable_cmd('blah_blah_blah')
+            run_cmd.get_env_executable_cmd(env, 'blah_blah_blah')
         except Exception as err:  # pylint: disable=W0703
             self.assertEqual(
                 "Exception('No such executable: "
@@ -50,10 +49,10 @@ class RunCmdTest(unittest.TestCase):
 
     def test_get_env_executable_cmd__parts_parsed(self) -> None:
         """Test get_env_executable_cmd with a list of command arguments."""
-        os.environ['blah_blah_blah'] = '/bin/ls -lA /tmp "/tmp/some file.txt"'
+        env = {'blah_blah_blah': '/bin/ls -lA /tmp "/tmp/some file.txt"'}
         self.assertTrue(os.path.isfile('/bin/ls'))
 
-        result = run_cmd.get_env_executable_cmd('blah_blah_blah')
+        result = run_cmd.get_env_executable_cmd(env, 'blah_blah_blah')
         self.assertEqual(
             ['/bin/ls', '-lA', '/tmp', '/tmp/some file.txt'],
             list(result),

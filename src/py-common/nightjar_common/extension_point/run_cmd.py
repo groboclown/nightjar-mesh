@@ -3,23 +3,26 @@
 Extension point common utilities.
 """
 
-from typing import Sequence, Callable
-import os
+from typing import Dict, Sequence, Callable, Optional
 import shlex
 import shutil
 import time
 
 
-def get_env_executable_cmd(env_name: str) -> Sequence[str]:
+def get_env_executable_cmd(
+        env: Dict[str, str], env_name: str, default: Optional[str] = None,
+) -> Sequence[str]:
     """
     Gets the executable command list from the environment variable with the given name.
     If the environment variable is not set, or the executable (first argument of the string)
     is not found, an Exception is raised.
 
+    @param env: environment
     @param env_name: environment variable name.
+    @param default: optional default value.
     @return:
     """
-    exec_env_value = os.environ.get(env_name)
+    exec_env_value = env.get(env_name, default)
     if not exec_env_value:
         raise Exception('No environment variable `{0}`'.format(env_name))
     cmd = shlex.split(exec_env_value)
@@ -28,7 +31,7 @@ def get_env_executable_cmd(env_name: str) -> Sequence[str]:
         raise Exception('No such executable: {0} (from environment variable {1})'.format(
             cmd[0], env_name,
         ))
-    return (executable, *cmd[1:],)
+    return executable, *cmd[1:]
 
 
 def run_with_backoff(
