@@ -9,6 +9,8 @@ import pystache  # type: ignore
 from nightjar_common import log
 from nightjar_common.extension_point.data_store import DataStoreRunner
 from nightjar_common.extension_point.discovery_map import DiscoveryMapRunner
+from nightjar_common.transform_discovery_map.gateway import create_gateway_proxy_input
+from nightjar_common.transform_discovery_map.service import create_service_color_proxy_input
 from .config import Config, DEFAULT_NAMESPACE, DEFAULT_SERVICE, DEFAULT_COLOR
 
 
@@ -40,7 +42,10 @@ class GenerateGatewayConfiguration(Generator):
 
     def generate_file(self) -> int:
         """Runs the generation process."""
-        mapping = self._discovery_map.get_gateway()
+        discovery_map = self._discovery_map.get_mesh()
+        if isinstance(discovery_map, int):
+            return discovery_map
+        mapping = create_gateway_proxy_input(discovery_map, self._config.namespace)
         for purpose, template in self.get_templates().items():
             purpose_file = os.path.join(self._config.envoy_config_dir, purpose)
             log.debug("Generating configuration file {purpose_file}", purpose_file=purpose_file)
@@ -76,7 +81,12 @@ class GenerateServiceConfiguration(Generator):
 
     def generate_file(self) -> int:
         """Runs the generation process."""
-        mapping = self._discovery_map.get_service()
+        discovery_map = self._discovery_map.get_mesh()
+        if isinstance(discovery_map, int):
+            return discovery_map
+        mapping = create_service_color_proxy_input(
+            discovery_map, self._config.namespace, self._config.service, self._config.color,
+        )
         for purpose, template in self.get_templates().items():
             purpose_file = os.path.join(self._config.envoy_config_dir, purpose)
             log.debug("Generating configuration file {purpose_file}", purpose_file=purpose_file)

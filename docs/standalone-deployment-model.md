@@ -1,5 +1,7 @@
 # nightjar-mesh in Standalone Mode
 
+**TODO This needs updating.**
+
 Standalone mode for nightjar-mesh has each service in the service mesh equipped with a nightjar-standalone sidecar container.  The nightjar-standalone container includes an Envoy proxy, which the nightjar tools dynamically configure from within the container.
 
 You will still need the required [Cloud Map](https://docs.aws.amazon.com/cloud-map/latest/dg) namespace and service registration that nightjar-mesh uses, but there are no additional containers you need to run, and all services are eventually convergent on the configuration.

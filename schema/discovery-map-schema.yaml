@@ -1,0 +1,288 @@
+# The data returned by a discovery-map extension point.
+
+# See https://json-schema.org/
+
+"$schema": "https://json-schema.org/draft-07/schema"
+
+description: Data output from the discovery-map extension point.  It describes the entire mesh.
+type: object
+required:
+  - version
+  - namespaces
+properties:
+  version:
+    description: Version of this document's schema.  The value must be the string value "v1".
+    const: "v1"
+  namespaces:
+    description: >
+      Collection of all the namespaces and their services, colors, and routes.  This will be
+      transformed by the entry point into the correct proxy configuration.
+    type: array
+    items:
+      description: A single namespace and its configuration properties.
+      type: object
+      required:
+        - namespace
+        - network-id
+        - gateways
+        - service-colors
+      properties:
+        namespace:
+          description: The namespace name.  Each must be unique.
+          type: string
+        network-id:
+          description: The network ID.  This can be the same as the namespace name.
+          type: string
+        gateways:
+          description: Collection of gateway proxies that send traffic into the namespace.
+          type: object
+          required:
+            - instances
+            - prefer-gateway
+          properties:
+            prefer-gateway:
+              description: >
+                Whether services outside this namespace should prefer to send requests to
+                the gateway proxy (true) or use direct access (false).  Some network topologies
+                require inter-namespace access to go through a gateway.
+              type: boolean
+            instances:
+              description: Collection of host/ports that proxy requests into the namespace.
+              type: array
+              items:
+                $ref: "#/definitions/host-port"
+        service-colors:
+          description: >
+            List of all the service-colors.  Each running instance for a service-color
+            must share the routing information.  If two instances have the same service-color
+            information but different routing or weights, then the discovery map must distinguish
+            the color between them.
+          type: array
+          items:
+            description: A service-color description, which has 1 or more instances associated with it.
+            type: object
+            required:
+              - service
+              - color
+              - routes
+              - instances
+              - namespace-egress
+            properties:
+              service:
+                description: Service name.
+                type: string
+              color:
+                description: >
+                  The service "color", which indicates different deployment characteristics
+                  of the service.
+                type: string
+              protocol:
+                description: >
+                  The communication protocol.  If not given, this assumes HTTP 1.1.  Currently
+                  supported values are "HTTP1.1" and "HTTP2".
+                type: string
+              routes:
+                description: Collection of URL routes that the service-color serves.
+                type: array
+                items:
+                  description: A service route.
+                  type: object
+                  required:
+                    - path-match
+                    - weight
+                    - namespace-protection
+                    - default-protection
+                  properties:
+                    path-match:
+                      oneOf:
+                        - description: The URI path-part that handles the route.  This must be unique within the service-color.
+                          type: object
+                          required:
+                            - prefix
+                          properties:
+                            prefix:
+                              type: string
+                        - description: The URI path-part that handles the route.  This must be unique within the service-color.
+                          type: object
+                          required:
+                            - regex
+                          properties:
+                            regex:
+                              type: string
+                        - description: The URI path-part that handels the route.
+                          required:
+                            - exact
+                          properties:
+                            exact:
+                              type: string
+                    path-case-sensitive:
+                      description: Is the path case sensitive?  Defaults to True
+                      type: boolean
+                    weight:
+                      description: Weight to give the handling of this route.  A higher number means more traffic is directed to it.
+                      type: integer
+                      minimum: 1
+                      maximum: 32767
+                    headers:
+                      description: >
+                        Optional list of request header fields that must also be fulfilled to pass
+                        network traffic to this route.
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - header-name
+                          - match-type
+                          - value
+                        properties:
+                          header-name:
+                            type: string
+                          match-type:
+                            description: >
+                              Describes how the value is interpreted.
+                              "exact" - exact matching of the value.
+                              "regex" - regular expression.
+                              "prefix" - header value starts with this.
+                              "suffix" - header value ends with this.
+                              "present" - header needs to just be present.  The "value" is ignored.
+                            type: string
+                          value:
+                            type: string
+                          invert:
+                            description: If true, then the match is reversed.  Defaults to false.
+                            type: boolean
+                          case-sensitive:
+                            type: boolean
+                    query-parameters:
+                      description: query parameter filters
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - parameter-name
+                          - match-type
+                          - value
+                        properties:
+                          header-name:
+                            type: string
+                          match-type:
+                            description: >
+                              Describes how the value is interpreted.
+                              "exact" - exact matching of the value.
+                              "regex" - regular expression.
+                              "prefix" - parameter value starts with this.
+                              "suffix" - parameter value ends with this.
+                              "present" - parameter needs to just be present.  The "value" is ignored.
+                            type: string
+                          value:
+                            type: string
+                          case-sensitive:
+                            type: boolean
+                    default-protection:
+                      description: >
+                        Default protection level for any namespace not specified.
+                        Also, gateways only look at this protection level to determine whether
+                        a route is generally public or not.
+                      oneOf:
+                        - const: public
+                          description: Allow access only to public routes.
+                        - const: private
+                          description: Allow access to all public and private routes.
+                        - const: none
+                          description: Allow no access to any routes.
+                    namespace-protection:
+                      description: >
+                        Collection of each namespace's allowed access.
+                        If a namespace exists that is not given here, then the
+                        default-protection is used for that namespace.
+                      type: array
+                      items:
+                        description: A namespace protection level.
+                        type: object
+                        required:
+                          - namespace
+                          - protection
+                        properties:
+                          namespace:
+                            description: The namespace protection to grant access.
+                            type: string
+                          protection:
+                            description: Protection level for the namespace.
+                            oneOf:
+                              - const: public
+                                description: Allow access only to public routes.
+                              - const: private
+                                description: Allow access to all public and private routes.
+                              - const: none
+                                description: Allow no access to any routes.
+              instances:
+                description: Collection of IP and listening ports for handlers of this service-color routes.
+                type: array
+                items:
+                  $ref: '#/definitions/host-port'
+              namespace-egress:
+                description: The host and port that this service-color sends requests to access each namespace.
+                type: array
+                items:
+                  description: >
+                    A host and port that describes the URI this service-color sends requests to
+                    for access to a namespace's routes.  That namespace's protections will be
+                    applied.  This should be an interface on the local, sidecar proxy.
+                  type: object
+                  required:
+                    - namespace
+                    - interface
+                  properties:
+                    namespace:
+                      description: The namespace that this interface servces.
+                      type: string
+                    interface:
+                      $ref: "#/definitions/host-port"
+
+definitions:
+  host-port:
+    oneOf:
+      - description: An IPv4 and listening port.
+        type: object
+        required:
+          - ipv4
+          - port
+        properties:
+          ipv4:
+            description: IPv4 address.
+            type: string
+            format: ipv4
+          port:
+            description: Listening port.
+            type: integer
+            minimum: 1
+            maximum: 65535
+      - description: An IPv6 and listening port for a handler of this service-color's routes.
+        type: object
+        required:
+          - ipv6
+          - port
+        properties:
+          ipv6:
+            description: IPv6 address for this service-color instance.
+            type: string
+            format: ipv6
+          port:
+            description: Listening port that services the routes.
+            type: integer
+            minimum: 1
+            maximum: 65535
+      - description: A DNS resolvable hostname and listening port for a handler of this service-color's routes.
+        type: object
+        required:
+          - hostname
+          - port
+        properties:
+          hostname:
+            description: hostname address for this service-color instance.
+            type: string
+          port:
+            description: Listening port that services the routes.
+            type: integer
+            minimum: 1
+            maximum: 65535

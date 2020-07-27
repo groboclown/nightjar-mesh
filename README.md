@@ -22,21 +22,23 @@ Nightjar works both for network traffic entering the data plane and for traffic 
 
 The construction of the proxy configuration comes from these layers of data:
 
-1. The network definition.  *Defined through the deployment map abstraction.*
+1. The network definition.  *Defined through the discovery map extension point.*
     1. Which services to use, and where are they?
     1. What URI paths do they respond to, and how should they be weighted?
 1. Access definition.  *Defined in the construction of the service data.*
     1. Which services and other meshes are available to each service and gateway?
     1. Which routes for those services should this allow access to?
-1. Envoy configuration.  *Defined in the envoy configuration templates.*
+1. Envoy configuration.  *Defined in the envoy configuration templates, accessed through the data store extension point.*
     1. Envoy configuration template files, which can be defined at a high level, or specialized on a per service, deployment color, or service-mesh basis.
 
-The services call out to other by sending a request to the Envoy proxy directly, rather than to a DNS name that Envoy reroutes through ip table changes.  This makes the Envoy container setup require fewer permissions.
+The services call out to other by sending a request to the Envoy proxy directly, rather than to a DNS name that Envoy reroutes through ip table changes.  This makes the Envoy container setup require fewer docker permissions.
 
 
 ## Supported Infrastructure
 
 Nightjar has a series of well defined data formats that allow it to run with any number of backing technology.  It uses [extension points](docs/extension-points.md), programs with a well-defined interface, to provide integration with other technologies.
+
+**TODO This needs a fixin'**
 
 ### AWS - Cloud Map
 
@@ -65,10 +67,12 @@ Envoy manages the **data plane**, which refers to the control of the flow of net
 
 The **control plane** manages the configuration of the data plane.
 
-**Nightjar** refers to the control plane tool, while **nightjar-mesh** refers to the Nightjar docker sidecar, the network topology, and the AWS resources used in the construction of the mesh.  Nightjar, additionally, provides two deployment implementations, **standalone** and**centralized** modes.
+**Nightjar** refers to the control plane tool, while **nightjar-mesh** refers to the Nightjar docker sidecar, the network topology, and the AWS resources used in the construction of the mesh.  Nightjar, additionally, provides two deployment implementations, **standalone** and **centralized** modes.
 
 
 ## How It Works
+
+**TODO This needs a fixin'.  The high level ideas are right, but the details are all different now.**
 
 You add the Nightjar container to an [ECS Task Definition](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html), along with your existing service container.  The Nightjar container runs the Envoy proxy, and is considered a "sidecar" container here.  The service must be configured to send all traffic to other services in the service mesh to the Nightjar container.  Inbound traffic to the service comes from the Nightjar containers running in the other services.
 

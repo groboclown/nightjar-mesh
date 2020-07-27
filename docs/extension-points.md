@@ -9,7 +9,6 @@ Discovery Map extension point executables are defined in the `DISCOVERY_MAP_EXEC
 The executable takes these arguments:
 
 * `--output-file=(filename)` The filename that the executable must generate to contain the JSON-formatted results.  See below for details about the format.
-* `--mode=(gateway / mesh / service)` The contents of the output must be filled with content oriented for one of these configurations.  See below for details.
 * `--api-version=1` Indicates the extension point interface version to use.
 
 For future compatibility, other arguments may be passed in, but must be ignored.
@@ -21,25 +20,10 @@ The environment variables used to launch the main nightjar program will be passe
 If the extension point returns a recoverable error exit code, then the nightjar parent program will begin an exponential back-off retry scheme to call the extension point again.
 
 
-### Discovery Map Execution Modes
+### Returned Data
 
-Depending on the [execution mode](execution-modes.md), the discovery map will be invoked with different `--mode=` arguments.  The discovery map extension must correctly change the output to match the given mode.
+The discovery map extension point must generate json-formatted data to the given output file argument the complete mesh topology as specified in the [discovery-map schema](../schema/discovery-map-schema.yaml).  The entry point that calls the discovery map will transform that data into a format appropriate for consumption by the data store template and according to the current instance's role.
 
-#### Service
-
-In `service` mode, the discovery map must generate a configuration for a single service / color / namespace.  The specific values of each of those must be discovered by the extension point itself, using whatever means it can.  This is primarily used by the stand-alone execution mode.  The extension point may require the end-user to define environmental variables to help discover the values.
-
-The container must provide environment variables `SERVICE_NAME`, `NAMESPACE_NAME`, and `COLOR_NAME`.  The extension point generates a JSON-formatted [service data](#service-data) output file.  The extension may require additional information specified in the environment variables, which the container must provide.
-
-#### Gateway
-
-In `gateway` mode, the discovery map must generate a configuration for a single gateway to a namespace.  The specific value must be discovered by the extension point itself.  This is primarily used to create the gateway endpoint in stand-alone execution mode.
-
-The container must provide the environment variable `NAMESPACE_NAME`.  The extension point generates a JSON-formatted [service data](#service-data) output file.  The extension may require additional information specified in the environment variables, which the container must provide.
-
-#### Mesh
-
-In `mesh` mode, the discovery map must generate a complete [service mesh map](#service-mesh-map) for the network.  This includes each gateway and each service.
 
 ## Data Store
 
@@ -65,20 +49,28 @@ If the extension point returns a recoverable error exit code, then the nightjar 
 
 The data store either runs in fetch or commit modes.
 
+#### Atomic Operations
+
+Because there are multiple files per active configuration, these must be written and accessed in an atomic manner.  An envoy proxy configuration must not have some files from one configuration and some from another.
+
+To support this, the data store provides versions of the different "activity" files (these are currently template and generated configurations).  The data store will receive commands to read from an existing version, or write to a not-yet-created version.
+
+The "version" should support redundant services running.  The use case for the centralized Nightjar model allows for redundancy, meaning multiple writes can happen simultaneously.  Because of this, there may be a race condition where multiple "commits" happen at a relatively close time.  Indeed, there may be a situation where the start/commit happens while another process is in the middle of the start/commit phase.  The data store shouldn't block for another to finish, because of partial failure states, where one service starts a process but dies before it can finish it.
+
+The implementation can clean up old versions.  However, care should be taken to allow for services that have started reading a version to finish reading that version, even if a new version was written.  This doesn't need to be a 100% guarantee, but an effort should be taken to allow reasonably new versions to stay around, or, if a new version is written, to keep the older one around to allow the existing reads to finish.
+
+One way to avoid this scenario involves storing the entire version as a single blob.  This makes debugging a little harder, but makes the implementation much easier.
+
 
 ## Output Schemas
 
 The extension points must output files that conform to the published [JSON schema formats](../schema).
 
-### Service Data
+### Discovery Map Data
 
-[Service Data Schema](../schema/service-data-schema.yaml)
+[Discovery Map Schema](../schema/discovery-map-schema.yaml)
 
-### Service Mesh Map
-
-[Service Mesh Map Schema](../schema/service-mesh-map-schema.yaml)
-
-The service mesh map is a consolidated look at all the envoy configurations across the mesh.  At a high level, it is the Service Data for each configuration.
+The discovery map is a consolidated look at all the envoy configurations across the mesh.  At a high level, it is the Service Data for each configuration.
 
 ### Data Store Data
 
@@ -89,3 +81,10 @@ The service mesh map is a consolidated look at all the envoy configurations acro
 [Data Store - Fetch Configurations](../schema/fetched-configuration-data-store-schema.yaml)
 
 [Data Store - Fetch Templates](../schema/fetched-template-data-store-schema.yaml)
+
+
+## Other Kinds of Extension Points
+
+Nightjar has explored the idea of having the Envoy proxy configuration file generation be configurable, so that it can work with more than just Envoy.
+
+This would make the complex logic if transforming the discovery-map output into the envoy template input an extension point, and allow for flexibility in creating different template inputs and template types.  However, it would also make the logic around maintaining and signaling the proxy system more complex.  This might become a future extension point if some of the difficulties here are worked out.

@@ -26,4 +26,4 @@ The Nightjar sidecar container that controls the Envoy proxy configuration uses 
 
 The Nightjar gateway container controls the Envoy proxy configuration for ingress into the mesh, and uses these environment variables:
 
-* `NAMESPACE` - the mesh namespace which this gateway proxies.
+* `NJ_NAMESPACE` - the mesh namespace which this gateway proxies.
