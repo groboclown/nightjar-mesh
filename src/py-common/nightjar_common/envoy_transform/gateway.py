@@ -123,7 +123,7 @@ def create_listeners(
         EnvoyListener(
             listen_port,
             routes,
-        )
+        ),
     ]
 
 
@@ -156,19 +156,13 @@ def group_service_colors_by_route(
 
 def get_route_matcher_key(route_def: Dict[str, Any]) -> RouteMatcher:
     """Create the route grouping key."""
-    path: Optional[str] = None
-    path_match_type: Optional[str] = None
 
     path_match = route_def['path-match']
-    for key in ('prefix', 'regex', 'exact',):
-        if key in path_match:
-            path_match_type = key
-            path = path_match[key]
-
-    if path is None or path_match_type is None:
-        # If one of those keys wasn't present, then the assertion that the
-        # input type is valid is broken.
-        raise RuntimeError('invalid route definition: {0}'.format(route_def))
+    path = RoutePathMatcher(
+        path_match['value'],
+        path_match['match-type'],
+        path_match.get('case-sensitive', True),
+    )
 
     headers: List[HeaderQueryMatcher] = []
     if 'headers' in route_def:
@@ -178,13 +172,9 @@ def get_route_matcher_key(route_def: Dict[str, Any]) -> RouteMatcher:
     query_params: List[HeaderQueryMatcher] = []
     if 'query-parameters' in route_def:
         for query_def in route_def['query-parameters']:
-            headers.append(parse_header_query_matcher(query_def, 'parameter-name', False))
+            query_params.append(parse_header_query_matcher(query_def, 'parameter-name', False))
 
-    return RouteMatcher(
-        RoutePathMatcher(path, path_match_type, route_def.get('path-case-sensitive', True)),
-        headers,
-        query_params,
-    )
+    return RouteMatcher(path, headers, query_params)
 
 
 def parse_header_query_matcher(
@@ -198,7 +188,7 @@ def parse_header_query_matcher(
         match_type=value_def['match-type'],
         case_sensitive=value_def.get('case-sensitive', True),
         match_value=value_def.get('value', None),
-        invert=False if not allow_ignore else value_def.get('invert', False)
+        invert=False if not allow_ignore else value_def.get('invert', False),
     )
 
 
@@ -217,8 +207,6 @@ def get_service_color_instance(data: Dict[str, Any]) -> EnvoyClusterEndpoint:
     # if `hostname` not in the data, then either the schema has changed since this
     # was written, or the data did not conform to the data, which is a violation of the
     # starting requirements.
-    if 'hostname' not in data:
-        raise RuntimeError('Invalid service-color instance data: {data}'.format(data=data))
     return EnvoyClusterEndpoint(data['hostname'], port, 'hostname')
 
 

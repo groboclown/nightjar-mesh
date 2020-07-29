@@ -239,6 +239,7 @@ properties:
           items:
             type: object
             required:
+              # TODO for now, we only support ipv4
               - ipv4
               - port
             properties:

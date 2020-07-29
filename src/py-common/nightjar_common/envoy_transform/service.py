@@ -4,7 +4,7 @@ Transforms the discovery map returned data into a service-color specific data fo
 """
 
 from typing import Dict, Any, Union, Optional
-from ..log import warning
+# from ..log import warning
 
 
 def create_service_color_proxy_input(
@@ -27,7 +27,7 @@ def create_service_color_proxy_input(
     This will return a non-zero integer on failure.
 
     @param admin_port: non-positive means no admin listening port.
-    @param listen_port: positive integer
+    @param listen_port: positive integer for connecting to other services in this namespace.
     @param discovery_map_data:
     @param namespace:
     @param service:
@@ -35,20 +35,18 @@ def create_service_color_proxy_input(
     @return:
     """
 
-    service_color = find_namespace_service(discovery_map_data, namespace, service, color)
-    if service_color is None:
-        # Could be empty, so check for None instead.
-        warning(
-            "No namespace {namespace}, service {service}, color {color} defined in discovery map.",
-            namespace=namespace,
-            service=service,
-            color=color,
-        )
-        return 1
+    # Note that the requested service-color here doesn't have an impact on the routes
+    # created.  That means requests to routes handled by this service-color can be
+    # redirected to another instance, or routed internally.
 
-    # Need to find the routes and their corresponding IP addresses.
-    # Also need to find the outgoing namespace IP / ports.  The IP doesn't matter
-    # for this case, but the port definitely does.
+    # Need to find the routes and their corresponding IP addresses for this namespace.
+
+    # Additionally, each external namespace has its own listener with its own set of
+    # routes.  Those must follow the namespace protection levels.
+    # If the namespace has a "prefer gateway" flag set, then
+    # the listening port will forward to that gateway.  Otherwise, it will create additional
+    # routing to each of that namespace's routes that are available from this namespace.
+
     raise NotImplementedError()
 
 
@@ -66,4 +64,3 @@ def find_namespace_service(
                 if service_color['service'] == service and service_color['color'] == color:
                     return service_color
     return None
-

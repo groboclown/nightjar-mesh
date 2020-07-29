@@ -3,7 +3,7 @@
 Interface for calling out to the discovery map extension point executable.
 """
 
-from typing import Literal, Dict, Sequence, Any
+from typing import Dict, Sequence, Any
 import os
 import subprocess
 import json

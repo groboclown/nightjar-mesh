@@ -4,7 +4,7 @@ Common classes for service and gateway transformation, which makes
 the construction of the expected data map easier.
 """
 
-from typing import Dict, List, Iterable, Literal, Union, Optional, Any
+from typing import Dict, List, Iterable, Sequence, Literal, Optional, Any
 from ..log import debug
 from ..validation import validate_proxy_input
 
@@ -18,7 +18,7 @@ class HeaderQueryMatcher:
             name: str, match_type: str,
             case_sensitive: bool,
             match_value: Optional[str],
-            invert: bool = False
+            invert: bool = False,
     ) -> None:
         self.name = name
         self.match_type = match_type
@@ -39,6 +39,9 @@ class HeaderQueryMatcher:
             'invert_match': self.invert,  # this is ignored for query parameters...
             'case_sensitive': self.case_sensitive,
         }
+
+    def __repr__(self) -> str:
+        return repr(self.get_context())
 
     def __eq__(self, other: Any) -> bool:
         if self is other:
@@ -119,8 +122,8 @@ class RouteMatcher:
     def __init__(
             self,
             path_matcher: RoutePathMatcher,
-            header_matchers: List[HeaderQueryMatcher],
-            query_matchers: List[HeaderQueryMatcher],
+            header_matchers: Sequence[HeaderQueryMatcher],
+            query_matchers: Sequence[HeaderQueryMatcher],
     ) -> None:
         self.path_matcher = path_matcher
         self.header_matchers = tuple(header_matchers)
@@ -135,10 +138,13 @@ class RouteMatcher:
             'path_is_regex': self.path_matcher.is_regex,
             'path_is_case_sensitive': self.path_matcher.case_sensitive,
             'has_header_filters': len(self.header_matchers) > 0,
-            'header_filters': [ matcher.get_context() for matcher in self.header_matchers ],
+            'header_filters': [matcher.get_context() for matcher in self.header_matchers],
             'has_query_filters': len(self.query_matchers) > 0,
-            'query_filters': [ matcher.get_context() for matcher in self.query_matchers ],
+            'query_filters':  [matcher.get_context() for matcher in self.query_matchers],
         }
+
+    def __repr__(self) -> str:
+        return repr(self.get_context())
 
     # This is used as a dictionary key...
     def __eq__(self, other: Any) -> bool:
@@ -148,8 +154,9 @@ class RouteMatcher:
             return False
         return (
             self.path_matcher == other.path_matcher
-            and self.header_matchers == other.header_matchers
-            and self.query_matchers == other.query_matchers
+            # order in the matchers doesn't matter?
+            and set(self.header_matchers) == set(other.header_matchers)
+            and set(self.query_matchers) == set(other.query_matchers)
         )
 
     def __ne__(self, other: Any) -> bool:
@@ -263,22 +270,30 @@ class EnvoyClusterEndpoint:
     """
     __slots__ = ('host', 'port', 'host_format',)
 
-    def __init__(self, host: str, port: Union[int, str], host_format: HostFormat) -> None:
+    def __init__(self, host: str, port: int, host_format: HostFormat) -> None:
         self.host = host
         self.port = port
         self.host_format = host_format
 
     def is_valid(self) -> bool:
         """Checks whether the configuration is valid."""
-        return 0 < self.port <= 65535
+        # Right now, only ipv4 is supported in the proxy input schema.
+        return self.host_format == 'ipv4' and 0 < self.port <= 65535
+
+    def get_context(self) -> Dict[str, Any]:
+        """Create a json context"""
+        return {
+            'ipv4': self.host,
+            'port': self.port,
+        }
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, EnvoyClusterEndpoint):
             return False
         return (
-                self.host == other.host
-                and self.port == other.port
-                and self.host_format == other.host_format
+            self.host == other.host
+            and self.port == other.port
+            and self.host_format == other.host_format
         )
 
     def __ne__(self, other: Any) -> bool:
@@ -328,10 +343,10 @@ class EnvoyCluster:
         return {
             'name': self.cluster_name,
             'uses_http2': self.uses_http2,
-            'endpoints': [{
-                'ipv4': inst.host,
-                'port': str(inst.port),
-            } for inst in instances],
+            'endpoints': [
+                inst.get_context()
+                for inst in instances
+            ],
         }
 
 
@@ -375,44 +390,6 @@ class EnvoyConfig:
             'clusters': [c.get_context() for c in self.clusters],
         }
 
-    @staticmethod
-    def join(configs: Iterable['EnvoyConfig']) -> 'EnvoyConfig':
-        """Join multiple configurations into a single configuration."""
-        clusters: Dict[str, EnvoyCluster] = {}
-        listeners: List[EnvoyListener] = []
-        for config in configs:
-            remapped_cluster_names: Dict[str, str] = {}
-            for cluster in config.clusters:
-                # TODO The cluster names need to be unique if the endpoints are unique.
-                if cluster.cluster_name in clusters:
-                    i = 0
-                    new_name = cluster.cluster_name + '_' + str(i)
-                    while new_name not in clusters:
-                        i += 1
-                        new_name = cluster.cluster_name + '_' + str(i)
-                    remapped_cluster_names[cluster.cluster_name] = new_name
-                    clusters[new_name] = EnvoyCluster(
-                        new_name, cluster.uses_http2, cluster.instances,
-                    )
-                else:
-                    clusters[cluster.cluster_name] = cluster
-            for listener in config.listeners:
-                new_routes: List[EnvoyRoute] = []
-                for route in listener.routes:
-                    new_weights: Dict[str, int] = {}
-                    for cluster_name, weight in route.cluster_weights.items():
-                        if cluster_name in remapped_cluster_names:
-                            new_weights[remapped_cluster_names[cluster_name]] = weight
-                        else:
-                            new_weights[cluster_name] = weight
-                    new_routes.append(EnvoyRoute(
-                        route.path_match_type, route.path, route.case_sensitive,
-                        new_weights,
-                    ))
-                # TODO if the listener ports overlap, then that's an error.
-                listeners.append(EnvoyListener(listener.port, new_routes))
-        return EnvoyConfig(listeners, clusters.values())
-
 
 class EnvoyConfigContext:
     """Configuration context for an envoy instance."""
@@ -433,9 +410,10 @@ class EnvoyConfigContext:
         ret = self.config.get_context(
             self.network_id, self.service, self.admin_port,
         )
+        ret['version'] = 'v1'
         return validate_proxy_input(ret)
 
 
 def is_protocol_http2(protocol: Optional[str]) -> bool:
     """Checks whether the protocol is http2."""
-    return protocol is not None and protocol.strip().lower() == 'HTTP2'
+    return protocol is not None and protocol.strip().upper() == 'HTTP2'

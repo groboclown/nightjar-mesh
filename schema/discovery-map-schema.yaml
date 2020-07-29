@@ -94,30 +94,26 @@ properties:
                     - default-protection
                   properties:
                     path-match:
-                      oneOf:
-                        - description: The URI path-part that handles the route.  This must be unique within the service-color.
-                          type: object
-                          required:
-                            - prefix
-                          properties:
-                            prefix:
-                              type: string
-                        - description: The URI path-part that handles the route.  This must be unique within the service-color.
-                          type: object
-                          required:
-                            - regex
-                          properties:
-                            regex:
-                              type: string
-                        - description: The URI path-part that handels the route.
-                          required:
-                            - exact
-                          properties:
-                            exact:
-                              type: string
-                    path-case-sensitive:
-                      description: Is the path case sensitive?  Defaults to True
-                      type: boolean
+                      description: How the route path is matched.
+                      type: object
+                      required:
+                        - match-type
+                        - value
+                      properties:
+                        match-type:
+                          oneOf:
+                            - description: the starting part of the URI path part.
+                              const: prefix
+                            - description: the value is a matching regular expression.
+                              const: regex
+                            - description: the value must match exactly.
+                              const: exact
+                        value:
+                          description: The URI path-part that handles the route.  This must be unique within the service-color.
+                          type: string
+                        case-sensitive:
+                          description: Is the path case sensitive?  Defaults to True
+                          type: boolean
                     weight:
                       description: Weight to give the handling of this route.  A higher number means more traffic is directed to it.
                       type: integer
@@ -138,14 +134,7 @@ properties:
                           header-name:
                             type: string
                           match-type:
-                            description: >
-                              Describes how the value is interpreted.
-                              "exact" - exact matching of the value.
-                              "regex" - regular expression.
-                              "prefix" - header value starts with this.
-                              "suffix" - header value ends with this.
-                              "present" - header needs to just be present.  The "value" is ignored.
-                            type: string
+                            $ref: "#/definitions/match-type"
                           value:
                             type: string
                           invert:
@@ -157,6 +146,7 @@ properties:
                       description: query parameter filters
                       type: array
                       items:
+                        description: Filter for a query parameter which is part of the routing to this cluster.
                         type: object
                         required:
                           - parameter-name
@@ -166,16 +156,9 @@ properties:
                           header-name:
                             type: string
                           match-type:
-                            description: >
-                              Describes how the value is interpreted.
-                              "exact" - exact matching of the value.
-                              "regex" - regular expression.
-                              "prefix" - parameter value starts with this.
-                              "suffix" - parameter value ends with this.
-                              "present" - parameter needs to just be present.  The "value" is ignored.
-                            type: string
+                            $ref: "#/definitions/match-type"
                           value:
-                            type: string
+                            type: ["string", "null"]
                           case-sensitive:
                             type: boolean
                     default-protection:
@@ -183,13 +166,7 @@ properties:
                         Default protection level for any namespace not specified.
                         Also, gateways only look at this protection level to determine whether
                         a route is generally public or not.
-                      oneOf:
-                        - const: public
-                          description: Allow access only to public routes.
-                        - const: private
-                          description: Allow access to all public and private routes.
-                        - const: none
-                          description: Allow no access to any routes.
+                      $ref: '#/definitions/route-protection'
                     namespace-protection:
                       description: >
                         Collection of each namespace's allowed access.
@@ -207,14 +184,7 @@ properties:
                             description: The namespace protection to grant access.
                             type: string
                           protection:
-                            description: Protection level for the namespace.
-                            oneOf:
-                              - const: public
-                                description: Allow access only to public routes.
-                              - const: private
-                                description: Allow access to all public and private routes.
-                              - const: none
-                                description: Allow no access to any routes.
+                            $ref: '#/definitions/route-protection'
               instances:
                 description: Collection of IP and listening ports for handlers of this service-color routes.
                 type: array
@@ -286,3 +256,24 @@ definitions:
             type: integer
             minimum: 1
             maximum: 65535
+  route-protection:
+    description: Route protection level.
+    oneOf:
+      - const: public
+        description: Allow access only to public routes.
+      - const: private
+        description: Allow access to all public and private routes.
+      - const: none
+        description: Allow no access to any routes.
+  match-type:
+    oneOf:
+      - description: exact matching of the value.
+        const: exact
+      - description: regular expression.
+        const: regex
+      - description: parameter value starts with this.
+        const: prefix
+      - description: parameter value ends with this.
+        const: suffix
+      - description: parameter needs to just be present.  The "value" is ignored.
+        const: present
