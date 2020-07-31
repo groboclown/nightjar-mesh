@@ -5,8 +5,9 @@ services:
   forwarder-f1:
     build:
       context: service-key-forward/.
-    ports:
-      - "3001:3000"
+    # Communication to the services must be done through the gateway.
+    # ports:
+    #   - "3001:3000"
     environment:
       KEYS: f1
       FORWARD_KEYS: f1
@@ -21,8 +22,9 @@ services:
   service-s1:
     build:
       context: service-key-forward/.
-    ports:
-      - "3002:3000"
+    # Communication to the services must be done through the gateway.
+    # ports:
+    #   - "3002:3000"
     environment:
       KEYS: s1
     networks:
