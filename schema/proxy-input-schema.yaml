@@ -111,6 +111,7 @@ properties:
                     - is_regex_match
                     - is_present_match
                     - is_suffix_match
+                    - is_prefix_match
                     - invert_match
                     - case_sensitive
                   properties:
@@ -138,6 +139,10 @@ properties:
                     is_suffix_match:
                       description: >
                         If specified, header match will be performed based on the suffix of the header value.
+                      type: boolean
+                    is_prefix_match:
+                      description: >
+                        If specified, header match will be performed based on the prefix of the header value.
                       type: boolean
                     invert_match:
                       description: If true, the match result will be inverted before checking. Defaults to false.
@@ -159,33 +164,38 @@ properties:
                     - is_regex_match
                     - is_present_match
                     - is_suffix_match
+                    - is_prefix_match
                     - invert_match
                     - case_sensitive
                   properties:
                     name:
-                      description: header name in the request.
+                      description: parameter name in the request.
                       type: string
                     match:
                       description: value to match on.
                       type: string
                     is_exact_match:
-                      description: If specified, header match will be performed based on the value of the header.
+                      description: If specified, parameter match will be performed based on the value of the header.
                       type: boolean
                     is_regex_match:
                       description: >
                         If specified, this regex string is a regular expression rule which implies
-                        the entire request header value must match the regex. The rule will not
-                        match if only a subsequence of the request header value matches the regex.
+                        the entire request parameter value must match the regex. The rule will not
+                        match if only a subsequence of the request parameter value matches the regex.
                       type: boolean
                     is_present_match:
                       description: >
-                        If specified, header match will be performed
-                        based on whether the header is in the request.  The "match" property
+                        If specified, parameter match will be performed
+                        based on whether the parameter is in the request.  The "match" property
                         will be ignored.
                       type: boolean
                     is_suffix_match:
                       description: >
-                        If specified, header match will be performed based on the suffix of the header value.
+                        If specified, parameter match will be performed based on the suffix of the parameter value.
+                      type: boolean
+                    is_prefix_match:
+                      description: >
+                        If specified, parameter match will be performed based on the prefix of the parameter value.
                       type: boolean
                     case_sensitive:
                       type: boolean
@@ -226,6 +236,9 @@ properties:
         - name
         - uses_http2
         - endpoints
+        - hosts_are_ipv4
+        - hosts_are_ipv6
+        - hosts_are_hostname
       properties:
         name:
           description: name of the service
@@ -233,17 +246,25 @@ properties:
         uses_http2:
           description: uses HTTP2 for connections
           type: boolean
+        hosts_are_ipv4:
+          description: All endpoint host values are ipv4.
+          type: boolean
+        hosts_are_ipv6:
+          description: All endpoint host values are ipv6
+          type: boolean
+        hosts_are_hostname:
+          description: All endpoint host values are hostnames
+          type: boolean
         endpoints:
           description: list of connection endpoints
           type: array
           items:
             type: object
             required:
-              # TODO for now, we only support ipv4
-              - ipv4
+              - host
               - port
             properties:
-              ipv4:
+              host:
                 description: IPv4 address of the instance.
                 type: string
               port:

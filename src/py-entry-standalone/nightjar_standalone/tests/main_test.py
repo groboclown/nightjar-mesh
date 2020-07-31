@@ -27,6 +27,8 @@ class MainTest(unittest.TestCase):
         os.environ[config.ENV__DISCOVERY_MAP_EXEC] = cmd
         os.environ[config.ENV__ENVOY_CMD] = cmd
         os.environ[config.ENV__TEMP_DIR] = self._temp_dir
+        os.environ[config.ENV__LISTEN_PORT] = '21'
+        os.environ[config.ENV__ADMIN_PORT] = '22'
         generate.MockGenerator.PASSES_BEFORE_EXIT_CREATION = 0
         generate.MockGenerator.RETURN_CODE = 0
 

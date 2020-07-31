@@ -19,6 +19,113 @@ class GatewayTest(unittest.TestCase):
     which is especially true when the discovery map data format is in flux.
     """
 
+    def test_create_clusters__duplicates(self) -> None:
+        """Test when there are duplicate cluster names."""
+        discovery_map = _mk_doc({
+            'namespaces': [_mk_namespace({
+                'service-colors': [
+                    _mk_service_color({
+                        'instances': [{'ipv6': '::1', 'port': 6}, {'ipv6': '::2', 'port': 7}],
+                    }),
+                    _mk_service_color({
+                        'instances': [{'ipv6': '::3', 'port': 8}],
+                    }),
+                ],
+            })],
+        })
+        clusters = gateway.create_clusters('n1', discovery_map['namespaces'][0]['service-colors'])
+        self.assertEqual(1, len(clusters))
+        self.assertEqual(
+            [
+                common.EnvoyClusterEndpoint('::1', 6, 'ipv6'),
+                common.EnvoyClusterEndpoint('::2', 7, 'ipv6'),
+            ],
+            clusters[0].instances,
+        )
+
+    def test_get_service_color_instances_host_type(self) -> None:
+        """Test get_service_color_instances_host_type"""
+        # Because this is just instances, which are very trivial, we aren't constructing
+        # a whole discovery map.
+        self.assertEqual('ipv4', gateway.get_service_color_instances_host_type([]))
+        self.assertEqual('hostname', gateway.get_service_color_instances_host_type([
+            {'hostname': 'my.host', 'port': 2}, {'hostname': 'other', 'port': 3},
+        ]))
+
+    def test_create_listeners(self) -> None:
+        """Test create_listeners"""
+        route_1a = _mk_route({'path-match': {'match-type': 'prefix', 'value': '/a'}, 'weight': 2})
+        route_1b = _mk_route({'path-match': {'match-type': 'prefix', 'value': '/a'}, 'weight': 4})
+        route_2 = _mk_route({'path-match': {'match-type': 'exact', 'value': '/a'}, 'weight': 3})
+        route_3 = _mk_route({
+            'path-match': {'match-type': 'prefix', 'value': '/a'},
+            'headers': [
+                {'header-name': 'n', 'match-type': 'present', 'value': ''},
+            ],
+            'weight': 6,
+        })
+        discovery_map = _mk_doc({
+            'namespaces': [_mk_namespace({
+                'service-colors': [
+                    _mk_service_color({
+                        'service': 's1', 'color': 'c1',
+                        'routes': [route_1a],
+                    }),
+                    _mk_service_color({
+                        'service': 's1', 'color': 'c2',
+                        'routes': [route_1b, route_2],
+                    }),
+                    _mk_service_color({
+                        'service': 's2', 'color': 'c1',
+                        'routes': [
+                            route_2, route_3,
+                            _mk_route({'default-access': False}),
+                        ],
+                    }),
+                ],
+            })],
+        })
+        listeners = gateway.create_listeners(
+            23, discovery_map['namespaces'][0]['service-colors'],
+        )
+        self.assertEqual(1, len(listeners))
+        listener = listeners[0]
+        self.assertEqual(23, listener.port)
+        self.assertEqual(
+            [
+                common.EnvoyRoute(common.RouteMatcher(
+                    path_matcher=common.RoutePathMatcher(
+                        path='/a', path_type='prefix', case_sensitive=True,
+                    ),
+                    header_matchers=[],
+                    query_matchers=[],
+                ), {
+                    'c-s1-c1': 2,
+                    'c-s1-c2': 4,
+                }).get_context(),
+                common.EnvoyRoute(common.RouteMatcher(
+                    path_matcher=common.RoutePathMatcher(
+                        path='/a', path_type='exact', case_sensitive=True,
+                    ),
+                    header_matchers=[],
+                    query_matchers=[],
+                ), {
+                    'c-s1-c2': 3,
+                    'c-s2-c1': 3,
+                }).get_context(),
+                common.EnvoyRoute(common.RouteMatcher(
+                    path_matcher=common.RoutePathMatcher(
+                        path='/a', path_type='prefix', case_sensitive=True,
+                    ),
+                    header_matchers=[common.HeaderQueryMatcher('n', 'present', True, '', False)],
+                    query_matchers=[],
+                ), {
+                    'c-s2-c1': 6,
+                }).get_context(),
+            ],
+            [route.get_context() for route in listener.routes],
+        )
+
     def test_group_service_colors_by_route(self) -> None:
         """Test group_service_colors_by_route"""
 
@@ -52,7 +159,7 @@ class GatewayTest(unittest.TestCase):
                         'service': 's2', 'color': 'c1',
                         'routes': [
                             route_2, route_3,
-                            _mk_route({'default-protection': 'private'}),
+                            _mk_route({'default-access': False}),
                         ],
                     }),
                 ],
@@ -356,7 +463,7 @@ def _mk_namespace(defaults: Dict[str, Any]) -> Dict[str, Any]:
     ret: Dict[str, Any] = {
         'namespace': 'n1',
         'network-id': 'nk1',
-        'gateways': {'instances': [], 'prefer-gateway': False},
+        'gateways': {'instances': [], 'prefer-gateway': False, 'protocol': 'http1.1'},
         'service-colors': [],
     }
     ret.update(defaults)
@@ -375,8 +482,8 @@ def _mk_route(defaults: Dict[str, Any]) -> Dict[str, Any]:
     ret: Dict[str, Any] = {
         'path-match': {'match-type': 'exact', 'value': '/'},
         'weight': 1,
-        'namespace-protection': [],
-        'default-protection': 'public',
+        'namespace-access': [],
+        'default-access': True,
     }
     ret.update(defaults)
     return ret

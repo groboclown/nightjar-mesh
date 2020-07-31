@@ -28,7 +28,7 @@ def fetch(config: Config, activity: str, dest_file: str, previous_version: str) 
     assert isinstance(data, dict)
     if previous_version and data['commit-version'] == previous_version:
         # print("[nightjar-ds-local] No data updates for activity {0}.".format(activity))
-        return 3
+        return 30
 
     os.makedirs(os.path.dirname(dest_file), exist_ok=True)
     with open(dest_file, 'w') as f:

@@ -6,7 +6,7 @@ Configuration definition and loading.
 from typing import Dict
 import os
 
-ENV__DATA_FILE= 'NJ_DMLOCAL_DATA_FILE'
+ENV__DATA_FILE = 'NJ_DMLOCAL_DATA_FILE'
 DEFAULT_DATA_FILE = '/usr/share/nightjar/discovery-map.json'
 
 

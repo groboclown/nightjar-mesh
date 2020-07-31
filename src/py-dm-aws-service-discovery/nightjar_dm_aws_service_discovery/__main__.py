@@ -4,6 +4,6 @@ Entry point for the discovery map - pulls from AWS Service Discovery implementat
 """
 
 import sys
-from .main import main
+from nightjar_dm_aws_service_discovery.main import main
 
 sys.exit(main(sys.argv))

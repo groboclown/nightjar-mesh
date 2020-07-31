@@ -9,6 +9,7 @@ import os
 import platform
 import shutil
 import json
+from nightjar_common.validation import validate_discovery_map, validate_fetched_template_data_store
 from .. import generate
 from ..config import (
     Config,
@@ -145,33 +146,41 @@ class GeneratorTest(unittest.TestCase):
     def test_gateway_generate_file(self) -> None:
         """Test the gateway generate_file function.  Uses a simple setup."""
         self._config.namespace = 'n1'
-        self._config.data_store_exec = self._get_runnable_cmd(0, {
+        self._config.data_store_exec = self._get_runnable_cmd(
+            0, validate_fetched_template_data_store({
+                'version': 'v1',
+                'activity': 'template',
+                'commit-version': 'x',
+                'service-templates': [],
+                'gateway-templates': [{
+                    'namespace': 'n1',
+                    'purpose': 'out-1.txt',
+                    'template': '1 {{version}} 2 {{has_admin_port}} 3 {{has_clusters}} 4',
+                }, {
+                    'namespace': 'n1',
+                    'purpose': 'out-2.txt',
+                    'template': 'z {{version}} y',
+                }],
+            }),
+        )
+        self._config.discovery_map_exec = self._get_runnable_cmd(0, validate_discovery_map({
             'version': 'v1',
-            'activity': 'template',
-            'commit-version': 'x',
-            'service-templates': [],
-            'gateway-templates': [{
+            'namespaces': [{
                 'namespace': 'n1',
-                'protection': 'public',
-                'purpose': 'out-1.txt',
-                'template': '1 {{version}} 2 {{has_admin_port}} 3 {{has_clusters}} 4',
-            }, {
-                'namespace': 'n1',
-                'protection': 'public',
-                'purpose': 'out-2.txt',
-                'template': 'z {{version}} y',
+                'network-id': 'nk1',
+                'gateways': {'instances': [], 'prefer-gateway': False, 'protocol': 'http1.1'},
+                'service-colors': [{
+                    'service': 's1',
+                    'color': 'c1',
+                    'routes': [],
+                    'instances': [],
+                    'namespace-egress': [],
+                }],
             }],
-        })
-        self._config.discovery_map_exec = self._get_runnable_cmd(0, {
-            'version': 'v1',
-            'has_admin_port': False,
-            'listeners': [],
-            'has_clusters': True,
-            'clusters': [],
-        })
+        }))
 
         gateway = generate.GenerateGatewayConfiguration(self._config)
-        gateway.generate_file()
+        gateway.generate_file(1, 2)
 
         out_file_1 = os.path.join(self._config.envoy_config_dir, 'out-1.txt')
         self.assertTrue(os.path.isfile(out_file_1))
@@ -179,7 +188,7 @@ class GeneratorTest(unittest.TestCase):
         self.assertTrue(os.path.isfile(out_file_2))
 
         with open(out_file_1, 'r') as f:
-            self.assertEqual('1 v1 2 False 3 True 4', f.read())
+            self.assertEqual('1 v1 2 True 3 False 4', f.read())
 
         with open(out_file_2, 'r') as f:
             self.assertEqual('z v1 y', f.read())
@@ -314,35 +323,45 @@ class GeneratorTest(unittest.TestCase):
         self._config.namespace = 'n1'
         self._config.service = 's1'
         self._config.color = 'c1'
-        self._config.data_store_exec = self._get_runnable_cmd(0, {
+        self._config.data_store_exec = self._get_runnable_cmd(
+            0, validate_fetched_template_data_store({
+                'version': 'v1',
+                'activity': 'template',
+                'commit-version': 'x',
+                'gateway-templates': [],
+                'service-templates': [{
+                    'namespace': 'n1',
+                    'service': 's1',
+                    'color': 'c1',
+                    'purpose': 'out-1.txt',
+                    'template': '1 {{version}} 2 {{has_admin_port}} 3 {{has_clusters}} 4',
+                }, {
+                    'namespace': 'n1',
+                    'service': 's1',
+                    'color': 'c1',
+                    'purpose': 'out-2.txt',
+                    'template': 'z {{version}} y',
+                }],
+            })
+        )
+        self._config.discovery_map_exec = self._get_runnable_cmd(0, validate_discovery_map({
             'version': 'v1',
-            'activity': 'template',
-            'commit-version': 'x',
-            'gateway-templates': [],
-            'service-templates': [{
+            'namespaces': [{
                 'namespace': 'n1',
-                'service': 's1',
-                'color': 'c1',
-                'purpose': 'out-1.txt',
-                'template': '1 {{version}} 2 {{has_admin_port}} 3 {{has_clusters}} 4',
-            }, {
-                'namespace': 'n1',
-                'service': 's1',
-                'color': 'c1',
-                'purpose': 'out-2.txt',
-                'template': 'z {{version}} y',
+                'network-id': 'nk1',
+                'gateways': {'instances': [], 'prefer-gateway': True, 'protocol': 'http2'},
+                'service-colors': [{
+                    'service': 's1',
+                    'color': 'c1',
+                    'routes': [],
+                    'instances': [],
+                    'namespace-egress': [],
+                }],
             }],
-        })
-        self._config.discovery_map_exec = self._get_runnable_cmd(0, {
-            'version': 'v1',
-            'has_admin_port': False,
-            'listeners': [],
-            'has_clusters': True,
-            'clusters': [],
-        })
+        }))
 
         gateway = generate.GenerateServiceConfiguration(self._config)
-        gateway.generate_file()
+        gateway.generate_file(3, 4)
 
         out_file_1 = os.path.join(self._config.envoy_config_dir, 'out-1.txt')
         self.assertTrue(os.path.isfile(out_file_1))
@@ -350,7 +369,7 @@ class GeneratorTest(unittest.TestCase):
         self.assertTrue(os.path.isfile(out_file_2))
 
         with open(out_file_1, 'r') as f:
-            self.assertEqual('1 v1 2 False 3 True 4', f.read())
+            self.assertEqual('1 v1 2 True 3 False 4', f.read())
 
         with open(out_file_2, 'r') as f:
             self.assertEqual('z v1 y', f.read())

@@ -1,0 +1,31 @@
+version: '3'
+
+
+services:
+  forwarder-f1:
+    build:
+      context: service-key-forward/.
+    ports:
+      - "3001:3000"
+    environment:
+      KEYS: f1
+      FORWARD_KEYS: f1
+      F1_URL: http://service-s1:3000/key/s1
+    depends_on:
+      - service-s1
+    networks:
+      default:
+        aliases:
+          - forwarder-f1
+
+  service-s1:
+    build:
+      context: service-key-forward/.
+    ports:
+      - "3002:3000"
+    environment:
+      KEYS: s1
+    networks:
+      default:
+        aliases:
+          - service-s1

@@ -1,0 +1,50 @@
+{
+  "version": "v1",
+  "namespaces": [
+    {
+      "namespace": "default",
+      "network-id": "default",
+      "gateways": {
+        "instances": [{ "hostname": "gateway", "port": 4000 }],
+        "prefer-gateway": false,
+        "protocol": "http1.1"
+      },
+      "service-colors": [
+        {
+          "service": "service-s1",
+          "color": "blue",
+          "routes": [
+            {
+              "path-match": {"match-type": "exact", "value": "/key/s1"},
+              "weight": 1,
+              "namespace-access": [],
+              "default-access": true
+            }
+          ],
+          "instances": [{ "hostname": "service-s1", "port": 3000 }],
+          "namespace-egress": []
+        },
+        {
+          "service": "forwarder-f1",
+          "color": "blue",
+          "routes": [
+            {
+              "path-match": {"match-type": "exact", "value": "/forward/f1"},
+              "weight": 1,
+              "namespace-access": [],
+              "default-access": true
+            },
+            {
+              "path-match": {"match-type": "exact", "value": "/key/f1"},
+              "weight": 1,
+              "namespace-access": [],
+              "default-access": true
+            }
+          ],
+          "instances": [{ "hostname": "forwarder-f1", "port": 3000 }],
+          "namespace-egress": []
+        }
+      ]
+    }
+  ]
+}

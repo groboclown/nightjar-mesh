@@ -411,18 +411,18 @@ class EnvoyClusterTest(unittest.TestCase):
 
     def test_validity(self) -> None:
         """Test the is_valid method"""
-        cluster = common.EnvoyCluster('c1', False, [])
+        cluster = common.EnvoyCluster('c1', False, 'hostname', [])
         self.assertTrue(cluster.is_valid())
-        cluster = common.EnvoyCluster('c1', False, [
-            common.EnvoyClusterEndpoint('1.2.3.4', -1, 'ipv4'),
+        cluster = common.EnvoyCluster('c1', False, 'hostname', [
+            common.EnvoyClusterEndpoint('some.host', -1, 'ipv4'),
         ])
         self.assertFalse(cluster.is_valid())
 
     def test_endpoint_count(self) -> None:
         """Test the endpoint_count method"""
-        cluster = common.EnvoyCluster('c1', False, [])
+        cluster = common.EnvoyCluster('c1', False, 'ipv4', [])
         self.assertEqual(0, cluster.endpoint_count())
-        cluster = common.EnvoyCluster('c1', False, [
+        cluster = common.EnvoyCluster('c1', False, 'ipv4', [
             common.EnvoyClusterEndpoint('1.2.3.4', -1, 'ipv4'),
             common.EnvoyClusterEndpoint('1.2.3.4', -1, 'ipv6'),
         ])
@@ -430,25 +430,33 @@ class EnvoyClusterTest(unittest.TestCase):
 
     def test_get_context__no_instances(self) -> None:
         """Test the get_context with no instances."""
-        cluster = common.EnvoyCluster('c1', False, [])
+        cluster = common.EnvoyCluster('c1', False, 'ipv6', [])
         full_doc = _mk_pi_doc({'clusters': [cluster.get_context()]})
         validate_proxy_input(full_doc)
         self.assertEqual(
-            {'name': 'c1', 'uses_http2': False, 'endpoints': []},
+            {
+                'name': 'c1', 'uses_http2': False,
+                'hosts_are_ipv4': False, 'hosts_are_ipv6': True, 'hosts_are_hostname': False,
+                'endpoints': [],
+            },
             cluster.get_context(),
         )
 
     def test_get_context__instances(self) -> None:
         """Test the get_context with no instances."""
-        cluster = common.EnvoyCluster('c1', True, [
+        cluster = common.EnvoyCluster('c1', True, 'ipv4', [
             common.EnvoyClusterEndpoint('1.2.3.4', 12, 'ipv4'),
         ])
         full_doc = _mk_pi_doc({'clusters': [cluster.get_context()]})
         validate_proxy_input(full_doc)
         self.assertEqual(
-            {'name': 'c1', 'uses_http2': True, 'endpoints': [{
-                'ipv4': '1.2.3.4', 'port': 12,
-            }]},
+            {
+                'name': 'c1', 'uses_http2': True,
+                'hosts_are_ipv4': True, 'hosts_are_ipv6': False, 'hosts_are_hostname': False,
+                'endpoints': [{
+                    'host': '1.2.3.4', 'port': 12,
+                }],
+            },
             cluster.get_context(),
         )
 
@@ -460,8 +468,8 @@ class EnvoyConfigTest(unittest.TestCase):
         """Test different forms of validity."""
         valid_listener = common.EnvoyListener(None, [])
         invalid_listener = common.EnvoyListener(-1, [])
-        valid_cluster = common.EnvoyCluster('c1', False, [])
-        invalid_cluster = common.EnvoyCluster('c1', False, [
+        valid_cluster = common.EnvoyCluster('c1', False, 'ipv6', [])
+        invalid_cluster = common.EnvoyCluster('c1', False, 'ipv4', [
             common.EnvoyClusterEndpoint('1.2.3.4', -1, 'ipv4'),
         ])
         self.assertFalse(common.EnvoyConfig([], []).is_valid())
@@ -474,7 +482,7 @@ class EnvoyConfigTest(unittest.TestCase):
         """Test that the context is valid."""
         config = common.EnvoyConfig(
             [common.EnvoyListener(None, [])],
-            [common.EnvoyCluster('c1', False, [
+            [common.EnvoyCluster('c1', False, 'hostname', [
                 # Include a cluster...
                 common.EnvoyClusterEndpoint('a.b.c', 2, 'hostname'),
             ])],
@@ -509,7 +517,7 @@ class EnvoyConfigContextTest(unittest.TestCase):
         config_context = common.EnvoyConfigContext(
             common.EnvoyConfig(
                 [common.EnvoyListener(None, [])],
-                [common.EnvoyCluster('c1', False, [
+                [common.EnvoyCluster('c1', False, 'hostname', [
                     # Include a cluster...
                     common.EnvoyClusterEndpoint('a.b.c', 2, 'hostname'),
                 ])],

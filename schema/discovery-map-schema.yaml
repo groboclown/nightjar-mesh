@@ -39,6 +39,7 @@ properties:
           required:
             - instances
             - prefer-gateway
+            - protocol
           properties:
             prefer-gateway:
               description: >
@@ -51,6 +52,11 @@ properties:
               type: array
               items:
                 $ref: "#/definitions/host-port"
+            protocol:
+              description: >
+                The communication protocol.  If not given, this assumes HTTP 1.1.  Currently
+                supported values are "HTTP1.1" and "HTTP2".
+              type: string
         service-colors:
           description: >
             List of all the service-colors.  Each running instance for a service-color
@@ -90,8 +96,8 @@ properties:
                   required:
                     - path-match
                     - weight
-                    - namespace-protection
-                    - default-protection
+                    - namespace-access
+                    - default-access
                   properties:
                     path-match:
                       description: How the route path is matched.
@@ -161,30 +167,33 @@ properties:
                             type: ["string", "null"]
                           case-sensitive:
                             type: boolean
-                    default-protection:
+                    default-access:
                       description: >
-                        Default protection level for any namespace not specified.
-                        Also, gateways only look at this protection level to determine whether
+                        Default access for any namespace not specified.
+                        Also, gateways only look at this to determine whether
                         a route is generally public or not.
-                      $ref: '#/definitions/route-protection'
-                    namespace-protection:
+                      type: boolean
+                    namespace-access:
                       description: >
                         Collection of each namespace's allowed access.
                         If a namespace exists that is not given here, then the
                         default-protection is used for that namespace.
                       type: array
                       items:
-                        description: A namespace protection level.
+                        description: >
+                          A namespace access grant.  If a namespace is not listed, then
+                          the default-access is used instead.
                         type: object
                         required:
                           - namespace
-                          - protection
+                          - access
                         properties:
                           namespace:
                             description: The namespace protection to grant access.
                             type: string
-                          protection:
-                            $ref: '#/definitions/route-protection'
+                          access:
+                            description: Whether the given namespace is allowed access to this route.
+                            type: boolean
               instances:
                 description: Collection of IP and listening ports for handlers of this service-color routes.
                 type: array
@@ -197,7 +206,8 @@ properties:
                   description: >
                     A host and port that describes the URI this service-color sends requests to
                     for access to a namespace's routes.  That namespace's protections will be
-                    applied.  This should be an interface on the local, sidecar proxy.
+                    applied.  This should be an interface on the local, sidecar proxy.  The
+                    host part of the interface is usually ignored.
                   type: object
                   required:
                     - namespace
@@ -256,15 +266,6 @@ definitions:
             type: integer
             minimum: 1
             maximum: 65535
-  route-protection:
-    description: Route protection level.
-    oneOf:
-      - const: public
-        description: Allow access only to public routes.
-      - const: private
-        description: Allow access to all public and private routes.
-      - const: none
-        description: Allow no access to any routes.
   match-type:
     oneOf:
       - description: exact matching of the value.

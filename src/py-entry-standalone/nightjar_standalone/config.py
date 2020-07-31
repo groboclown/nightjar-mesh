@@ -51,6 +51,9 @@ DEFAULT_SERVICE = 'default'
 ENV__COLOR = 'NJ_COLOR'
 DEFAULT_COLOR = 'default'
 
+ENV__LISTEN_PORT = 'NJ_LISTEN_PORT'
+ENV__ADMIN_PORT = 'NJ_ADMIN_PORT'
+
 
 class Config:  # pylint: disable=R0902
     """Configuration settings"""
@@ -60,6 +63,7 @@ class Config:  # pylint: disable=R0902
 
         'envoy_cmd', 'envoy_log_level', 'envoy_base_id', 'envoy_config_template',
         'envoy_config_dir', 'envoy_config_file', 'envoy_kill_wait_time',
+        'envoy_listen_port', 'envoy_admin_port',
 
         'trigger_stop_file',
         'refresh_time', 'failure_sleep', 'exit_on_generation_failure',
@@ -91,6 +95,8 @@ class Config:  # pylint: disable=R0902
         self.envoy_kill_wait_time = parse_env.env_as_float(
             env, ENV__ENVOY_KILL_WAIT_TIME, DEFAULT_ENVOY_KILL_WAIT_TIME,
         )
+        self.envoy_listen_port = parse_env.env_as_int(env, ENV__LISTEN_PORT, -1)
+        self.envoy_admin_port = parse_env.env_as_int(env, ENV__ADMIN_PORT, -1)
         self.trigger_stop_file = env.get(ENV__TRIGGER_STOP_FILE, DEFAULT_TRIGGER_STOP_FILE)
         self.refresh_time = parse_env.env_as_float(
             env, ENV__REFRESH_TIME, DEFAULT_REFRESH_TIME,
@@ -116,6 +122,23 @@ class Config:  # pylint: disable=R0902
     def is_gateway_proxy_mode(self) -> bool:
         """Is this running in gateway mode?"""
         return self.proxy_mode == GATEWAY_PROXY_MODE
+
+    def is_valid(self) -> bool:
+        """Is this configuration valid?"""
+        ret = True
+        if self.envoy_admin_port <= 0 or self.envoy_admin_port > 65535:
+            log.warning(
+                "Envoy administration port {port}, set by {env}, is invalid.",
+                port=self.envoy_admin_port, env=ENV__ADMIN_PORT,
+            )
+            ret = False
+        if self.envoy_listen_port <= 0 or self.envoy_listen_port > 65535:
+            log.warning(
+                "Envoy listen port {port}, set by {env}, is invalid.",
+                port=self.envoy_listen_port, env=ENV__LISTEN_PORT,
+            )
+            ret = False
+        return ret
 
 
 def create_configuration() -> Config:

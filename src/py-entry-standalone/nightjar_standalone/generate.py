@@ -9,14 +9,14 @@ import pystache  # type: ignore
 from nightjar_common import log
 from nightjar_common.extension_point.data_store import DataStoreRunner
 from nightjar_common.extension_point.discovery_map import DiscoveryMapRunner
-from nightjar_common.transform_discovery_map.gateway import create_gateway_proxy_input
-from nightjar_common.transform_discovery_map.service import create_service_color_proxy_input
+from nightjar_common.envoy_transform.gateway import create_gateway_proxy_input
+from nightjar_common.envoy_transform.service import create_service_color_proxy_input
 from .config import Config, DEFAULT_NAMESPACE, DEFAULT_SERVICE, DEFAULT_COLOR
 
 
 class Generator:
     """The generic generator class."""
-    def generate_file(self) -> int:
+    def generate_file(self, listen_port: int, admin_port: int) -> int:
         """Runs the generation process.  Returns 0 on no error."""
         raise NotImplementedError()  # pragma no cover
 
@@ -40,17 +40,24 @@ class GenerateGatewayConfiguration(Generator):
         self._discovery_map = DiscoveryMapRunner(config.discovery_map_exec, config.temp_dir)
         os.makedirs(config.envoy_config_dir, exist_ok=True)
 
-    def generate_file(self) -> int:
+    def generate_file(self, listen_port: int, admin_port: int) -> int:
         """Runs the generation process."""
         discovery_map = self._discovery_map.get_mesh()
         if isinstance(discovery_map, int):
             return discovery_map
-        mapping = create_gateway_proxy_input(discovery_map, self._config.namespace)
+        mapping = create_gateway_proxy_input(
+            discovery_map, self._config.namespace,
+            listen_port, admin_port,
+        )
         for purpose, template in self.get_templates().items():
             purpose_file = os.path.join(self._config.envoy_config_dir, purpose)
             log.debug("Generating configuration file {purpose_file}", purpose_file=purpose_file)
+            rendered = pystache.render(template, mapping)
+            log.debug('. . . . . . . . . . . . . . . . . .')
+            log.debug_raw(rendered)
+            log.debug('. . . . . . . . . . . . . . . . . .')
             with open(purpose_file, 'w') as f:
-                f.write(pystache.render(template, mapping))
+                f.write(rendered)
         return 0
 
     def get_templates(self) -> Dict[str, str]:
@@ -59,13 +66,12 @@ class GenerateGatewayConfiguration(Generator):
         default_templates: Dict[str, str] = {}
         namespace_templates: Dict[str, str] = {}
         for gateway_template in all_templates['gateway-templates']:
-            if gateway_template['protection'] == 'public':
-                namespace = gateway_template['namespace'] or DEFAULT_NAMESPACE
-                purpose = gateway_template['purpose']
-                if namespace == self._config.namespace:
-                    namespace_templates[purpose] = gateway_template['template']
-                elif namespace == DEFAULT_NAMESPACE:
-                    default_templates[purpose] = gateway_template['template']
+            namespace = gateway_template['namespace'] or DEFAULT_NAMESPACE
+            purpose = gateway_template['purpose']
+            if namespace == self._config.namespace:
+                namespace_templates[purpose] = gateway_template['template']
+            elif namespace == DEFAULT_NAMESPACE:
+                default_templates[purpose] = gateway_template['template']
         return namespace_templates or default_templates
 
 
@@ -79,19 +85,24 @@ class GenerateServiceConfiguration(Generator):
         self._discovery_map = DiscoveryMapRunner(config.discovery_map_exec, config.temp_dir)
         os.makedirs(config.envoy_config_dir, exist_ok=True)
 
-    def generate_file(self) -> int:
+    def generate_file(self, listen_port: int, admin_port: int) -> int:
         """Runs the generation process."""
         discovery_map = self._discovery_map.get_mesh()
         if isinstance(discovery_map, int):
             return discovery_map
         mapping = create_service_color_proxy_input(
             discovery_map, self._config.namespace, self._config.service, self._config.color,
+            listen_port, admin_port,
         )
         for purpose, template in self.get_templates().items():
             purpose_file = os.path.join(self._config.envoy_config_dir, purpose)
             log.debug("Generating configuration file {purpose_file}", purpose_file=purpose_file)
+            rendered = pystache.render(template, mapping)
+            log.debug('. . . . . . . . . . . . . . . . . .')
+            log.debug_raw(rendered)
+            log.debug('. . . . . . . . . . . . . . . . . .')
             with open(purpose_file, 'w') as f:
-                f.write(pystache.render(template, mapping))
+                f.write(rendered)
         return 0
 
     def get_templates(self) -> Dict[str, str]:
@@ -155,7 +166,7 @@ class MockGenerator(Generator):
     def __init__(self, config: Config) -> None:
         self.config = config
 
-    def generate_file(self) -> int:
+    def generate_file(self, listen_port: int, admin_port: int) -> int:
         MockGenerator.PASSES_BEFORE_EXIT_CREATION -= 1
         if MockGenerator.PASSES_BEFORE_EXIT_CREATION == 0:
             with open(self.config.trigger_stop_file, 'w') as f:

@@ -1,0 +1,16 @@
+{
+  "name": "service-key-forward",
+  "version": "1.0.0",
+  "description": "Simple web service that supports a /key and /forward endpoint, configurable through environment variables.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Nightjar",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^0.19.2",
+    "express": "^4.17.1"
+  }
+}

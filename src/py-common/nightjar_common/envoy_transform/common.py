@@ -4,7 +4,7 @@ Common classes for service and gateway transformation, which makes
 the construction of the expected data map easier.
 """
 
-from typing import Dict, List, Iterable, Sequence, Literal, Optional, Any
+from typing import Dict, List, Iterable, Sequence, Literal, Optional, Any, cast
 from ..log import debug
 from ..validation import validate_proxy_input
 
@@ -283,7 +283,7 @@ class EnvoyClusterEndpoint:
     def get_context(self) -> Dict[str, Any]:
         """Create a json context"""
         return {
-            'ipv4': self.host,
+            'host': self.host,
             'port': self.port,
         }
 
@@ -304,21 +304,26 @@ class EnvoyClusterEndpoint:
         return hash(self.host) + hash(self.port)
 
 
+ClusterEndpointHostType = Literal['hostname', 'ipv4', 'ipv6']
+
+
 class EnvoyCluster:
     """
     Defines a cluster within envoy.  It's already been weighted according to the path.
     """
-    __slots__ = ('cluster_name', 'uses_http2', 'instances',)
+    __slots__ = ('cluster_name', 'uses_http2', 'instances', 'host_type',)
 
     def __init__(
             self,
             cluster_name: str,
             uses_http2: bool,
+            host_type: ClusterEndpointHostType,
             instances: Iterable[EnvoyClusterEndpoint],
     ) -> None:
         self.cluster_name = cluster_name
         self.uses_http2 = uses_http2
-        self.instances: List[EnvoyClusterEndpoint] = list(instances)
+        self.host_type = host_type
+        self.instances = list(instances)
 
     def is_valid(self) -> bool:
         """Checks if this cluster is valid."""
@@ -343,6 +348,9 @@ class EnvoyCluster:
         return {
             'name': self.cluster_name,
             'uses_http2': self.uses_http2,
+            'hosts_are_ipv4': self.host_type == 'ipv4',
+            'hosts_are_ipv6': self.host_type == 'ipv6',
+            'hosts_are_hostname': self.host_type == 'hostname',
             'endpoints': [
                 inst.get_context()
                 for inst in instances
@@ -417,3 +425,29 @@ class EnvoyConfigContext:
 def is_protocol_http2(protocol: Optional[str]) -> bool:
     """Checks whether the protocol is http2."""
     return protocol is not None and protocol.strip().upper() == 'HTTP2'
+
+
+def get_service_color_instances_host_type(
+        instances: List[Dict[str, Any]],
+) -> ClusterEndpointHostType:
+    """Figures out the host type for the instances."""
+    ret: Optional[ClusterEndpointHostType] = None
+    for instance in instances:
+        host_type = get_service_color_instance_host_format(instance)
+        if ret is None:
+            ret = host_type
+        assert ret == host_type
+    return ret or 'ipv4'
+
+
+def get_service_color_instance_host_format(data: Dict[str, Any]) -> ClusterEndpointHostType:
+    """Find the host type for the service-color instance."""
+    if 'ipv4' in data:
+        return cast(ClusterEndpointHostType, 'ipv4')
+    if 'ipv6' in data:
+        return cast(ClusterEndpointHostType, 'ipv6')
+    # if `hostname` not in the data, then either the schema has changed since this
+    # was written, or the data did not conform to the data, which is a violation of the
+    # starting requirements.
+    assert 'hostname' in data
+    return cast(ClusterEndpointHostType, 'hostname')

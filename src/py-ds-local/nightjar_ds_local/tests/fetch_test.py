@@ -39,7 +39,7 @@ class FetchTest(unittest.TestCase):
         self._local.write_template({'commit-version': 'prev-1'})
         self.assertFalse(self._local.does_action_file_exist())
         res = fetch.fetch(self._local.config, 'template', self._local.action_file, 'prev-1')
-        self.assertEqual(3, res)
+        self.assertEqual(30, res)
         self.assertFalse(self._local.does_action_file_exist())
 
     def test_not_previous_match(self) -> None:

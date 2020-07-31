@@ -10,6 +10,11 @@ Entry points (like standalone and central-configurator) use these environment va
 * `DISCOVERY_MAP_EXEC` - sets the [Discovery Map](extension-points.md#discovery-maps) extension point executable.  This can be a full execution command, such as `-m my_exension_point "with first argument"`
 * `DATA_STORE_EXEC` - sets the [Data Store](extension-points.md#data-store) extension point executable.  This can be a full execution command, such as `python3 -m my_exension_point "an argument"`
 
+Entry points that include an Envoy proxy (or lay down the files for an Envoy sidecar) include these environment variables:
+
+* `NJ_LISTEN_PORT` - sets the listening port for connections from the local service.
+* `NJ_ADMIN_PORT` - administrative access port for the proxy.
+
 Each entry point will have its own additional environment variables.
 
 

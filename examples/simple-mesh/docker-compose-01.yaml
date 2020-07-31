@@ -1,0 +1,55 @@
+version: '3'
+
+
+services:
+  forwarder-f1:
+    build:
+      context: service-key-forward/.
+    ports:
+      - "3001:3000"
+    environment:
+      KEYS: f1
+      FORWARD_KEYS: f1
+      F1_URL: http://gateway:4000/key/s1
+    depends_on:
+      - service-s1
+    networks:
+      default:
+        aliases:
+          - forwarder-f1
+
+  service-s1:
+    build:
+      context: service-key-forward/.
+    ports:
+      - "3002:3000"
+    environment:
+      KEYS: s1
+    networks:
+      default:
+        aliases:
+          - service-s1
+
+  gateway:
+    build:
+      context: nightjar-standalone-local/.
+    ports:
+      - "4000:4000"
+      - "4001:4001"
+    environment:
+      NJ_PROXY_MODE: gateway
+      NJ_NAMESPACE: default
+      DATA_STORE_EXEC: python3 nightjar_ds_local
+      NJ_DSLOCAL_TEMPLATE_FILE: /nightjar/local/01-templates.json
+      NJ_DSLOCAL_CONFIGURATION_FILE: /nightjar/local/01-configurations.json
+      DISCOVERY_MAP_EXEC: python3 nightjar_dm_local
+      NJ_DMLOCAL_DATA_FILE: /nightjar/local/01-discovery-map.json
+      # The configuration directory must be a writable directory by the nobody user.
+      ENVOY_CONFIGURATION_DIR: /tmp/envoy
+      NJ_LISTEN_PORT: 4000
+      NJ_ADMIN_PORT: 4001
+      DEBUG: "true"
+    networks:
+      default:
+        aliases:
+          - envoy

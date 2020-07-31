@@ -18,9 +18,14 @@ EXIT_ON_GENERATION_FAILURE=false
 # And, as required...
 DATA_STORE_EXEC=???
 DISCOVERY_MAP_EXEC=???
+NJ_LISTEN_PORT=3000
+NJ_ADMIN_PORT=3001
 
 # Optional; see standard-usage.md
 NJ_NAMESPACE=???
 NJ_SERVICE=???
 NJ_COLOR=???
+
+# If set to 'true', then debug logging is enabled
+DEBUG=false
 ```

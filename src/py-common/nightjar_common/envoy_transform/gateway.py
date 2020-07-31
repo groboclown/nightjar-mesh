@@ -14,6 +14,8 @@ from .common import (
     RouteMatcher,
     RoutePathMatcher,
     HeaderQueryMatcher,
+    get_service_color_instances_host_type,
+    get_service_color_instance_host_format,
     is_protocol_http2,
 )
 from ..log import warning
@@ -90,7 +92,8 @@ def create_clusters(namespace: str, service_colors: List[Dict[str, Any]]) -> Lis
 
         ret.append(EnvoyCluster(
             cluster_name=cluster_name,
-            uses_http2=is_protocol_http2(service_color['protocol']),
+            uses_http2=is_protocol_http2(service_color.get('protocol')),
+            host_type=get_service_color_instances_host_type(service_color['instances']),
             instances=[
                 get_service_color_instance(data)
                 for data in service_color['instances']
@@ -144,7 +147,7 @@ def group_service_colors_by_route(
         color = service_color['color']
         for route in service_color['routes']:
             # only use public routes, because this is a gateway.
-            if route['default-protection'] != 'public':
+            if route['default-access'] is not True:
                 continue
             route_group_key = get_route_matcher_key(route)
             if route_group_key not in ret:
@@ -200,14 +203,9 @@ def get_service_color_cluster_name(service: str, color: str) -> str:
 def get_service_color_instance(data: Dict[str, Any]) -> EnvoyClusterEndpoint:
     """Create the endpoint for the service-color instance dictionary."""
     port = int(data['port'])
-    if 'ipv4' in data:
-        return EnvoyClusterEndpoint(data['ipv4'], port, 'ipv4')
-    if 'ipv6' in data:
-        return EnvoyClusterEndpoint(data['ipv6'], port, 'ipv6')
-    # if `hostname` not in the data, then either the schema has changed since this
-    # was written, or the data did not conform to the data, which is a violation of the
-    # starting requirements.
-    return EnvoyClusterEndpoint(data['hostname'], port, 'hostname')
+    host_format = get_service_color_instance_host_format(data)
+    host = data[host_format]
+    return EnvoyClusterEndpoint(host, port, host_format)
 
 
 def find_namespace_services(
