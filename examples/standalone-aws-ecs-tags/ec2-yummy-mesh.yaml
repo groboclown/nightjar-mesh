@@ -1,0 +1,920 @@
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: >
+      The ECS cluster name or ARN in which the image registry
+      task will create.  It will use spot instances to reduce costs.
+
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Description: >
+      The VPC to connect everything to.  It must already exist.
+
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: >
+      The subnets in the VPC for the service to run in.  These must already exist.
+      Be careful of cross-AZ data charges!
+
+  ServiceImage:
+    Type: String
+    Description: >
+      The fully qualified image name for the service.  See the README.md file for
+      instructions on creating and uploading this to ECR.
+
+  StandaloneNightjarImage:
+    Type: String
+    Description: >
+      The fully qualified image name for the standalone nightjar image.  See the
+      README.md file for instructions on creating and uploading this to ECR.
+
+  SshKeyName:
+    Description: Name of the key to use when creating the EC2 instances
+    Type: AWS::EC2::KeyPair::KeyName
+
+  SshSecurityGroup:
+    Description: Security group that allows SSH into the EC2 instances.
+    Type: String
+
+  SpotPrice:
+    Description: Maximum bid price to place on your EC2 instances
+    Type: String
+    # 0.0331 was the lowest number at the time of this writing.
+    Default: '0.0331'
+
+  AmazonAMI:
+    Description: The built-in, AWS controlled, parameter key that defines the EC2 AMI recommended for use in ECS.
+    # See
+    # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/retrieve-ecs-optimized_AMI.html
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id
+
+
+Resources:
+  # =========================================================================
+  # Cluster Definition
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref ClusterName
+
+  ClusterAutoScaling:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: '1'
+      MaxSize: '1'
+      MinSize: '0'
+      HealthCheckType: EC2
+      VPCZoneIdentifier: !Ref Subnets
+      MixedInstancesPolicy:
+        LaunchTemplateSpecification:
+          LaunchConfigurationName: !GetAtt "ClusterLaunchConfiguration.Name"
+          Version: "$Latest"
+        Overrides:
+          # Cross reference:
+          # https://aws.amazon.com/ec2/spot/instance-advisor/
+          # and
+          # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html#AvailableInstanceTypes
+          # These are the free tier instance types.
+          - InstanceType: t2.micro
+          - InstanceType: t3.micro
+
+  ClusterLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      EbsOptimized: false
+      IamInstanceProfile: !Ref "ECSInstanceProfile"
+      ImageId: !Ref "AmazonAMI"
+      InstanceMonitoring: false
+      InstanceType: t2.micro
+      KeyName: !Ref "SshKeyName"
+      SecurityGroups:
+      - !Ref ServiceConnectionSecurityGroup
+      - !Ref InterClusterSecurityGroup
+      - !Ref SshSecurityGroup
+      SpotPrice: !Ref SpotPrice
+
+      UserData:
+        # Run the cfn scripts to use the metadata below.
+        Fn::Base64: !Sub |
+          #!/bin/bash -v
+
+          # the cfn-* tools need to be installed for this to work...
+          yum -y install aws-cfn-bootstrap
+
+          # Run cfn-init
+          /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource EcsLaunchConfiguration --region ${AWS::Region}
+
+    # Note: the only thing that connects an auto-scaling group to a cluster is the
+    # "ECS_CLUSTER=xyz" in the /etc/ecs/ecs.config file, followed by launching the
+    # ecs-agent docker container.
+    Metadata:
+      'AWS::CloudFormation::Init':
+        config:
+          commands:
+            "01_update":
+              command: !Sub |
+                #!/bin/bash
+                yum -y update
+
+          files:
+            "/etc/ecs/ecs.config":
+              content: !Sub |
+                ECS_CLUSTER=${ClusterName}
+                ECS_ENABLE_SPOT_INSTANCE_DRAINING=true
+              owner: root
+              group: root
+              mode: "000444"
+            "/etc/cfn/cfn-hup.conf":
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+              mode: "000400"
+              owner: root
+              group: root
+            "/etc/cfn/hooks.d/cfn-auto-reloader.conf":
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.ContainerInstances.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ContainerInstances --region ${AWS::Region}
+                runas=root
+
+  # Role needed by the EC2 instances so they can interact with ECS services
+  AmazonEC2ContainerServiceForEC2Role:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Sid: ""
+          Effect: "Allow"
+          Principal:
+            Service:
+            - "ec2.amazonaws.com"
+          Action:
+          - "sts:AssumeRole"
+      Path: '/'
+      Policies:
+      - PolicyName: "EC2CanContactECSRole"
+        PolicyDocument:
+          Statement:
+            - Effect: "Allow"
+              Action:
+              - "ec2:*"
+              - "ecs:CreateCluster"
+              - "ecs:DeregisterContainerInstance"
+              - "ecs:DiscoverPollEndpoint"
+              - "ecs:Poll"
+              - "ecs:RegisterContainerInstance"
+              - "ecs:StartTelemetrySession"
+              - "ecs:Submit*"
+              - "ecr:GetAuthorizationToken"
+              - "ecr:BatchCheckLayerAvailability"
+              - "ecr:GetDownloadUrlForLayer"
+              - "ecr:BatchGetImage"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+              # x-ray access is turned off for now.
+              # - "xray:*"
+              Resource: "*"
+
+  # EC2 instances will run using this profile
+  ECSInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref "AmazonEC2ContainerServiceForEC2Role"
+
+  # Basic Traffic security group
+  ServiceConnectionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow traffic to/from microservices
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Ref Cluster
+      SecurityGroupIngress:
+        # Only allow inbound if you have the shared security group.
+        - IpProtocol: "-1"
+          CidrIp: "127.0.0.1/32"
+          Description: No ingress
+
+      # For now, allow all outbound traffic.
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: "0.0.0.0/0"
+          Description: Everything ipv4
+        - IpProtocol: "-1"
+          CidrIpv6: "::/0"
+          Description: Everything ipv6
+
+  # Inter-cluster communication security group.
+  # This acts like a "key", where both parties need it to communicate.
+  InterClusterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref Cluster
+      GroupDescription: Allows access between cluster instances.
+      VpcId: !Ref VPC
+
+  InterClusterIngressSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: InterClusterSecurityGroup
+    Properties:
+      GroupId: !Ref InterClusterSecurityGroup
+      IpProtocol: tcp
+      # All ephemeral ports
+      FromPort: '32768'
+      ToPort: '65535'
+      SourceSecurityGroupId: !Ref InterClusterSecurityGroup
+
+  InterClusterEgressSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroupEgress'
+    DependsOn: InterClusterSecurityGroup
+    Properties:
+      GroupId: !Ref InterClusterSecurityGroup
+      IpProtocol: tcp
+      FromPort: '32768'
+      ToPort: '65535'
+      SourceSecurityGroupId: !Ref InterClusterSecurityGroup
+
+  CloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      # Can't use the stack name; it's too long and has invalid characters.
+      # LogGroupName: !Sub 'AWS::StackName'
+      LogGroupName: !Sub "${ClusterName}-Logs"
+      RetentionInDays: 7
+
+  # =========================================================================
+  # General ECS Setup Requirements
+
+  TaskExecRole:
+    DependsOn:
+    - ServiceTaskRole
+    Type: AWS::IAM::Role
+    Properties:
+      Path: "/"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - "ecs-tasks.amazonaws.com"
+          Action:
+          - "sts:AssumeRole"
+      Policies:
+      - PolicyName: DeveloperLocalDockerImagesExec
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Effect: Allow
+            Action:
+            - "ecr:GetAuthorizationToken"
+            - "ecr:BatchCheckLayerAvailability"
+            - "ecr:GetDownloadUrlForLayer"
+            - "ecr:BatchGetImage"
+            - "logs:CreateLogStream"
+            - "logs:PutLogEvents"
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - "iam:PassRole"
+            Resource: !GetAtt "ServiceTaskRole.Arn"
+          - Effect: Allow
+            Action:
+            - "ecs:RunTask"
+            - "ecs:StartTask"
+            - "ecs:StopTask"
+            Resource: "*"
+
+  ServiceTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: "/"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - "ecs-tasks.amazonaws.com"
+          Action:
+          - "sts:AssumeRole"
+      # Add policies as necessary.
+      # This definition here allows for logging
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchFullAccess
+        # and writing to an XRay daemon, which we aren't doing right now.
+        # - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+
+  # =========================================================================
+  # First Service: Tuna Blue
+
+  TunaBlueService:
+    Type: "AWS::ECS::Service"
+    Properties:
+      Cluster: !Ref "ClusterName"
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DesiredCount: 1
+      LaunchType: EC2
+      TaskDefinition: !Ref "TunaBlueTaskDef"
+
+  TunaBlueTaskDef:
+    Type: "AWS::ECS::TaskDefinition"
+    Properties:
+      RequiresCompatibilities:
+      - EC2
+      # No network definition, which means to use the EC2 standard bridge networking mode.
+      ExecutionRoleArn: !Ref TaskExecRole
+      TaskRoleArn: !Ref ServiceTaskRole
+      Family: "yummy-tuna-blue"
+      Tags:
+      # These tags can be changed on the fly to alter the behavior.
+      - Key: NJ_ROUTE_WEIGHT_1
+        Value: 1
+      - Key: NJ_ROUTE_WEIGHT_2
+        Value: 1
+      ContainerDefinitions:
+      - Name: service
+        Image: !Ref ServiceImage
+        Essential: true
+        Cpu: 256
+        MemoryReservation: 1024
+        PortMappings:
+        - ContainerPort: 3000
+          # No "HostPort", which makes this an ephemeral port.
+          Protocol: "tcp"
+        HealthCheck:
+          Command: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+          Interval: 5
+          Timeout: 2
+          Retries: 3
+
+        Environment:
+        # Configuration for the service.
+        # The static nightjar values are stored with the nightjar container.
+        - Name: KEYS
+          Value: tuna_blue,tuna,health
+        - Name: TUNA_BLUE_VALUE
+          Value: "really is tuna-blue"
+        - Name: TUNA_VALUE
+          Value: "tuna-blue"
+        # Health is for internal health checks only, and is not served up by the cluster.
+        - Name: HEALTH_VALUE
+          Value: ok
+
+        Link:
+        # Allow the service to talk to the nightjar container.
+        - nightjar
+
+      - Name: nightjar
+        # Note: this is not a real image name.  You need to build it yourself.
+        Image: !Ref StandaloneNightjarImage
+        User: "1337"
+        Essential: true
+        Memory: 128
+        Ulimits:
+        - Name: nofile
+          HardLimit: 15000
+          SoftLimit: 15000
+        Environment:
+        # These environment variables must be carefully set.
+
+        # The AWS region, so nightjar can ask for the right resources.
+        - Name: AWS_REGION
+          Value: !Ref "AWS::Region"
+
+        # These environment variables are associated with the nightjar container,
+        # and so are shared between used by the nightjar discovery map extension
+        # point and the stand-alone entry point.
+        - Name: NJ_NAMESPACE
+          Value: Yummy
+        - Name: NJ_SERVICE
+          Value: tuna
+        - Name: NJ_COLOR
+          Value: blue
+
+
+        # Purely stand-alone entry point properties.
+
+        # The port number that the envoy proxy will listen to for connections
+        # *from* the sidecar service *to* the mesh.
+        - Name: NJ_LISTEN_PORT
+          Value: 8090
+
+        # The Envoy proxy administration port.  Defaults to 9901
+        - Name: NJ_ADMIN_PORT
+          Value: 9901
+
+        # The Envoy proxy's logging level.
+        - Name: ENVOY_LOG_LEVEL
+          Value: info
+
+
+        # Setup the extension points
+        # The data store extension point is configured in the nightjar image.
+
+        # This configures the discovery map extension point.
+        - Name: DISCOVERY_MAP_EXEC
+          Value: python3 -m nightjar_dm_aws_ecs_tags
+
+        # Only tasks with this tag and value will be considered part of
+        # the mesh.
+        - Name: NJ_DMECS_REQUIRED_TAG
+          Value: MESH_MEMBERSHIP
+        - Name: NJ_DMECS_REQUIRED_TAG_VALUE
+          Value: Yummy-Mesh
+        # So define this gateway as in the mesh...
+        - Name: MESH_MEMBERSHIP
+          Value: Yummy-Mesh
+
+        # Tell the discovery map that this is a service...
+        - Name: NJ_PROXY_MODE
+          Value: SERVICE
+        # ...that listens on this port.
+        - Name: NJ_ROUTE_PORT
+          Value: "service:3000"
+
+        # Setup the routes used by this service.
+        - Name: NJ_ROUTE_1
+          Value: /key/tuna
+        - Name: NJ_ROUTE_2
+          # "!" in front means it's internal, and can't be reached from outside the namespace.
+          Value: !/key/tuna_blue
+
+
+        PortMappings:
+        - ContainerPort: 9901
+          Protocol: tcp
+        - ContainerPort: 8090
+          Protocol: tcp
+        HealthCheck:
+          Command:
+          - "CMD-SHELL"
+          - "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
+          Interval: 5
+          Timeout: 2
+          Retries: 3
+
+  # =========================================================================
+  # Second Service: Tuna Ahi
+
+  TunaAhiService:
+    Type: "AWS::ECS::Service"
+    Properties:
+      Cluster: !Ref "ClusterName"
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DesiredCount: 1
+      LaunchType: EC2
+      TaskDefinition: !Ref "TunaAhiTaskDef"
+
+  TunaAhiTaskDef:
+    Type: "AWS::ECS::TaskDefinition"
+    Properties:
+      RequiresCompatibilities:
+      - EC2
+      # No network definition, which means to use the EC2 standard bridge networking mode.
+      ExecutionRoleArn: !Ref TaskExecRole
+      TaskRoleArn: !Ref ServiceTaskRole
+      Family: "yummy-tuna-ahi"
+      Tags:
+      # These tags can be changed on the fly to alter the behavior.
+      - Key: NJ_ROUTE_WEIGHT_1
+        Value: 2
+      - Key: NJ_ROUTE_WEIGHT_2
+        Value: 2
+      ContainerDefinitions:
+      - Name: service
+        Image: !Ref ServiceImage
+        Essential: true
+        Cpu: 256
+        MemoryReservation: 1024
+        PortMappings:
+          - ContainerPort: 3000
+            # No "HostPort", which makes this an ephemeral port.
+            Protocol: "tcp"
+
+        Environment:
+        # Configuration for the service.
+        # The static nightjar values are stored with the nightjar container.
+        - Name: KEYS
+          Value: tuna_ahi,tuna,health
+        - Name: TUNA_AHI_VALUE
+          Value: "really is tuna-ahi"
+        - Name: TUNA_VALUE
+          Value: "tuna-ahi"
+        # Health is for internal health checks only, and is not served up by the cluster.
+        - Name: HEALTH_VALUE
+          Value: ok
+
+        Link:
+          # Allow the service to talk to the nightjar container.
+          - nightjar
+
+      - Name: nightjar
+        # Note: this is not a real image name.  You need to build it yourself.
+        Image: !Ref StandaloneNightjarImage
+        User: "1337"
+        Essential: true
+        Memory: 128
+        Ulimits:
+        - Name: nofile
+          HardLimit: 15000
+          SoftLimit: 15000
+        Environment:
+        # These environment variables must be carefully set.
+
+        # The AWS region, so nightjar can ask for the right resources.
+        - Name: AWS_REGION
+          Value: !Ref "AWS::Region"
+
+        # These environment variables are associated with the nightjar container,
+        # and so are shared between used by the nightjar discovery map extension
+        # point and the stand-alone entry point.
+        - Name: NJ_NAMESPACE
+          Value: Yummy
+        - Name: NJ_SERVICE
+          Value: tuna
+        - Name: NJ_COLOR
+          Value: ahi
+
+
+        # Purely stand-alone entry point properties.
+
+        # The port number that the envoy proxy will listen to for connections
+        # *from* the sidecar service *to* the mesh.
+        - Name: NJ_LISTEN_PORT
+          Value: 8090
+
+        # The Envoy proxy administration port.  Defaults to 9901
+        - Name: NJ_ADMIN_PORT
+          Value: 9901
+
+        # The Envoy proxy's logging level.
+        - Name: ENVOY_LOG_LEVEL
+          Value: info
+
+
+        # Setup the extension points
+        # The data store extension point is configured in the nightjar image.
+
+        # This configures the discovery map extension point.
+        - Name: DISCOVERY_MAP_EXEC
+          Value: python3 -m nightjar_dm_aws_ecs_tags
+
+        # Only tasks with this tag and value will be considered part of
+        # the mesh.
+        - Name: NJ_DMECS_REQUIRED_TAG
+          Value: MESH_MEMBERSHIP
+        - Name: NJ_DMECS_REQUIRED_TAG_VALUE
+          Value: Yummy-Mesh
+        # So define this gateway as in the mesh...
+        - Name: MESH_MEMBERSHIP
+          Value: Yummy-Mesh
+
+        # Tell the discovery map that this is a service...
+        - Name: NJ_PROXY_MODE
+          Value: SERVICE
+        # ...that listens on this port.
+        - Name: NJ_ROUTE_PORT
+          Value: "service:3000"
+
+        # Setup the routes used by this service.
+        - Name: NJ_ROUTE_1
+          Value: /key/tuna
+        - Name: NJ_ROUTE_2
+          # "!" in front means it's internal, and can't be reached from outside the namespace.
+          Value: !/key/tuna_ahi
+
+
+        PortMappings:
+        - ContainerPort: 9901
+          Protocol: tcp
+        - ContainerPort: 8090
+          Protocol: tcp
+        HealthCheck:
+          Command:
+          - "CMD-SHELL"
+          - "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
+          Interval: 5
+          Timeout: 2
+          Retries: 3
+
+  # =========================================================================
+  # Third Service: Fish Router
+
+  FishService:
+    Type: "AWS::ECS::Service"
+    Properties:
+      Cluster: !Ref "ClusterName"
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DesiredCount: 1
+      LaunchType: EC2
+      TaskDefinition: !Ref "FishTaskDef"
+
+  FishTaskDef:
+    Type: "AWS::ECS::TaskDefinition"
+    Properties:
+      RequiresCompatibilities:
+      - EC2
+      # No network definition, which means to use the EC2 standard bridge networking mode.
+      ExecutionRoleArn: !Ref TaskExecRole
+      TaskRoleArn: !Ref ServiceTaskRole
+      Family: "yummy-tuna-ahi"
+      Tags:
+      # These tags can be changed on the fly to alter the behavior.
+      - Key: NJ_ROUTE_WEIGHT_1
+        Value: 1
+      - Key: NJ_ROUTE_WEIGHT_2
+        Value: 1
+      ContainerDefinitions:
+      - Name: service
+        Image: !Ref ServiceImage
+        Essential: true
+        Cpu: 256
+        MemoryReservation: 1024
+        PortMappings:
+          - ContainerPort: 3000
+            # No "HostPort", which makes this an ephemeral port.
+            Protocol: "tcp"
+
+        Environment:
+        # Configuration for the service.
+        # The static nightjar values are stored with the nightjar container.
+        - Name: KEYS
+          Value: serves,health
+        - Name: SERVES_VALUE
+          Value: "fish"
+        - Name: FORWARD_KEYS
+          Value: "fish"
+        - Name: FISH_URL
+          # Requests for fish serves up tuna, but the kind of tuna is determined by the weights.
+          Value: "http://nightjar:8090/key/tuna"
+        # Health is for internal health checks only, and is not served up by the cluster.
+        - Name: HEALTH_VALUE
+          Value: ok
+
+        Link:
+          # Allow the service to talk to the nightjar container.
+          - nightjar
+
+      - Name: nightjar
+        # Note: this is not a real image name.  You need to build it yourself.
+        Image: !Ref StandaloneNightjarImage
+        User: "1337"
+        Essential: true
+        Memory: 128
+        Ulimits:
+        - Name: nofile
+          HardLimit: 15000
+          SoftLimit: 15000
+        Environment:
+        # These environment variables must be carefully set.
+
+        # The AWS region, so nightjar can ask for the right resources.
+        - Name: AWS_REGION
+          Value: !Ref "AWS::Region"
+
+        # These environment variables are associated with the nightjar container,
+        # and so are shared between used by the nightjar discovery map extension
+        # point and the stand-alone entry point.
+        - Name: NJ_NAMESPACE
+          Value: Yummy
+        - Name: NJ_SERVICE
+          Value: fish-router
+        - Name: NJ_COLOR
+          Value: default
+
+
+        # Purely stand-alone entry point properties.
+
+        # The port number that the envoy proxy will listen to for connections
+        # *from* the sidecar service *to* the mesh.
+        - Name: NJ_LISTEN_PORT
+          Value: 8090
+
+        # The Envoy proxy administration port.  Defaults to 9901
+        - Name: NJ_ADMIN_PORT
+          Value: 9901
+
+        # The Envoy proxy's logging level.
+        - Name: ENVOY_LOG_LEVEL
+          Value: info
+
+
+        # Setup the extension points
+        # The data store extension point is configured in the nightjar image.
+
+        # This configures the discovery map extension point.
+        - Name: DISCOVERY_MAP_EXEC
+          Value: python3 -m nightjar_dm_aws_ecs_tags
+
+        # Only tasks with this tag and value will be considered part of
+        # the mesh.
+        - Name: NJ_DMECS_REQUIRED_TAG
+          Value: MESH_MEMBERSHIP
+        - Name: NJ_DMECS_REQUIRED_TAG_VALUE
+          Value: Yummy-Mesh
+        # So define this gateway as in the mesh...
+        - Name: MESH_MEMBERSHIP
+          Value: Yummy-Mesh
+
+        # Tell the discovery map that this is a service...
+        - Name: NJ_PROXY_MODE
+          Value: SERVICE
+        # ...that listens on this port.
+        - Name: NJ_ROUTE_PORT
+          Value: "service:3000"
+
+        # Setup the routes used by this service.
+        - Name: NJ_ROUTE_1
+          Value: /key/serves
+        - Name: NJ_ROUTE_2
+          Value: /forward/fish
+
+
+        PortMappings:
+        - ContainerPort: 9901
+          Protocol: tcp
+        - ContainerPort: 8090
+          Protocol: tcp
+        HealthCheck:
+          Command:
+          - "CMD-SHELL"
+          - "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
+          Interval: 5
+          Timeout: 2
+          Retries: 3
+
+
+  # =========================================================================
+  # Gateway Service - Allows access to the mesh.
+
+  # Setup the gateway service + container definition.
+  GatewayService:
+    Type: AWS::ECS::Service
+    DependsOn:
+    - GatewayTargetGroup
+    - GatewayLoadBalancerListener
+    Properties:
+      Cluster: !Ref "ClusterName"
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DesiredCount: 1
+      LaunchType: EC2
+      # The gateway is accessible through a load balancer.
+      LoadBalancers:
+      - ContainerName: nightjar
+        ContainerPort: 2000
+        TargetGroupArn: !Ref GatewayTargetGroup
+      TaskDefinition: !Ref GatewayTaskDef
+
+  GatewayTaskDef:
+    Type: "AWS::ECS::TaskDefinition"
+    Properties:
+      RequiresCompatibilities:
+      - EC2
+      ExecutionRoleArn: !Ref TaskExecRole
+      TaskRoleArn: !Ref ServiceTaskRole
+      Family: "yummy-gateway"
+      Tags:
+      # These tags define the configuration of the discovery map.
+      # This instance runs as a gateway...
+      - Key: NJ_PROXY_MODE
+        Value: GATEWAY
+      # A gateway for the Yummy namespace.
+      - Key: NJ_NAMESPACE
+        Value: Yummy
+      ContainerDefinitions:
+      - Name: nightjar
+        Image: !Ref StandaloneNightjarImage
+        User: "1337"
+        Essential: true
+        Memory: 128
+        Ulimits:
+        - Name: nofile
+          HardLimit: 15000
+          SoftLimit: 15000
+        Environment:
+        # For ecs-task-tags, we need to define these values...
+
+        # Scan these ECS clusters for tasks.
+        - Name: NJ_DMECS_AWS_CLUSTERS
+          Value: !Ref ClusterName
+
+        # Only tasks with this tag and value will be considered part of
+        # the mesh.
+        - Name: NJ_DMECS_REQUIRED_TAG
+          Value: MESH_MEMBERSHIP
+        - Name: NJ_DMECS_REQUIRED_TAG_VALUE
+          Value: Yummy-Mesh
+        # So define this gateway as in the mesh...
+        - Name: MESH_MEMBERSHIP
+          Value: Yummy-Mesh
+
+        # Use the ecs-task-tags discovery map extension point.
+        - Name: DISCOVERY_MAP_EXEC
+          Value: python3 -m nightjar_dm_aws_ecs_tags
+
+        # Run as a gateway.
+        - Name: NJ_PROXY_MODE
+          Value: GATEWAY
+        - Name: NJ_NAMESPACE
+          Value: Yummy
+
+        # Use the locally constructed template files.
+        - Name: DATA_STORE_EXEC
+          Value: python3 -m nightjar_ds_local
+
+        # All these are the same...
+        - Name: AWS_REGION
+          Value: !Ref "AWS::Region"
+        - Name: ENVOY_LOG_LEVEL
+          Value: info
+        - Name: NJ_LISTEN_PORT
+          Value: 2000
+        - Name: NJ_ADMIN_PORT
+          Value: 9901
+        PortMappings:
+        - ContainerPort: 9901
+          Protocol: tcp
+        - ContainerPort: 2000
+          Protocol: tcp
+        HealthCheck:
+          Command:
+          - "CMD-SHELL"
+          - "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
+          Interval: 5
+          Timeout: 2
+          Retries: 3
+
+  GatewayTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: gateway-tg
+      # The listening port of the container, which nightjar will forward to the mesh
+      Port: 2000
+      Protocol: HTTP
+      VpcId: !Ref VPC
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 120
+      HealthCheckIntervalSeconds: 60
+      # Hard-coded health check path on the envoy proxy.
+      HealthCheckPath: '/ping'
+      Matcher:
+        HttpCode: "200"
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+
+  GatewayLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internal
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: '300'
+      Subnets: !Ref Subnets
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+        - !Ref ECSInstancesSecurityGroup
+
+  GatewayLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+    - GatewayLoadBalancer
+    Properties:
+      DefaultActions:
+      - TargetGroupArn: !Ref GatewayTargetGroup
+        Type: 'forward'
+      LoadBalancerArn: !Ref 'GatewayLoadBalancer'
+      # The load balancer listening port.
+      Port: 80
+      Protocol: HTTP
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Access to the fronting load balancer
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      # You should probably change this to something safer.
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: -1

@@ -4,7 +4,7 @@ Configures the program for use with AWS based on standard settings.  It also sca
 environment for the configuration.
 """
 
-from typing import Dict, Sequence
+from typing import Dict, Sequence, Optional
 import os
 from . import ecs
 
@@ -16,6 +16,8 @@ ENV__SERVICE = 'NJ_SERVICE'
 DEFAULT_SERVICE = 'default'
 ENV__COLOR = 'NJ_COLOR'
 DEFAULT_COLOR = 'default'
+ENV__REQUIRED_TAG = 'NJ_DMECS_REQUIRED_TAG'
+ENV__REQUIRED_TAG_VALUE = 'NJ_DMECS_REQUIRED_TAG_VALUE'
 
 
 class Config:
@@ -23,6 +25,7 @@ class Config:
     __slots__ = (
         'clusters', 'aws_config', 'test_mode',
         'namespace', 'service', 'color',
+        'required_tag_name', 'required_tag_value',
     )
 
     def __init__(self, env: Dict[str, str]) -> None:
@@ -32,6 +35,8 @@ class Config:
         self.color = get_color(env)
         self.aws_config: Dict[str, str] = {}
         self.test_mode = False
+        self.required_tag_name = get_required_tag_name(env)
+        self.required_tag_value = get_required_tag_value(env)
 
 
 def create_configuration() -> Config:
@@ -63,3 +68,13 @@ def get_service(env: Dict[str, str]) -> str:
 def get_color(env: Dict[str, str]) -> str:
     """Get the environment service color."""
     return env.get(ENV__COLOR, DEFAULT_COLOR)
+
+
+def get_required_tag_name(env: Dict[str, str]) -> Optional[str]:
+    """Get the environment required tag name."""
+    return env.get(ENV__REQUIRED_TAG, None)
+
+
+def get_required_tag_value(env: Dict[str, str]) -> Optional[str]:
+    """Get the environment required tag value."""
+    return env.get(ENV__REQUIRED_TAG_VALUE, None)

@@ -1,0 +1,64 @@
+{
+  "version": "v1",
+  "namespaces": [
+    {
+      "namespace": "default",
+      "network-id": "default",
+      "gateways": {
+        "instances": [{ "hostname": "gateway", "port": 3000 }],
+        "prefer-gateway": false,
+        "protocol": "http1.1"
+      },
+      "service-colors": [
+        {
+          "service": "service-food",
+          "color": "hamburger",
+          "routes": [
+            {
+              "path-match": {"match-type": "exact", "value": "/key/food"},
+              "weight": 1,
+              "namespace-access": [],
+              "default-access": true
+            }
+          ],
+          "instances": [{ "hostname": "service-food-hamburger", "port": 3000 }],
+          "namespace-egress": []
+        },
+        {
+          "service": "service-food",
+          "color": "hotdog",
+          "routes": [
+            {
+              "path-match": {"match-type": "exact", "value": "/key/food"},
+              "weight": 2,
+              "namespace-access": [],
+              "default-access": true
+            }
+          ],
+          "instances": [{ "hostname": "service-food-hotdog", "port": 3000 }],
+          "namespace-egress": []
+        },
+        {
+          "service": "food-forwarder",
+          "color": "default",
+          "routes": [
+            {
+              "path-match": {"match-type": "exact", "value": "/forward/food"},
+              "weight": 1,
+              "namespace-access": [],
+              "default-access": true
+            },
+            {
+              "path-match": {"match-type": "exact", "value": "/key/serves"},
+              "weight": 1,
+              "namespace-access": [],
+              "default-access": true
+            }
+          ],
+          "instances": [{ "hostname": "forwarder-food", "port": 3000 }],
+          "namespace-egress": []
+        }
+      ]
+    }
+  ]
+}

@@ -5,7 +5,7 @@
       "namespace": "default",
       "network-id": "default",
       "gateways": {
-        "instances": [{ "hostname": "gateway", "port": 3000 }],
+        "instances": [{ "hostname": "gateway", "port": 4000 }],
         "prefer-gateway": false,
         "protocol": "http1.1"
       },
@@ -30,12 +30,6 @@
           "routes": [
             {
               "path-match": {"match-type": "exact", "value": "/forward/f1"},
-              "weight": 1,
-              "namespace-access": [],
-              "default-access": true
-            },
-            {
-              "path-match": {"match-type": "exact", "value": "/key/f1"},
               "weight": 1,
               "namespace-access": [],
               "default-access": true

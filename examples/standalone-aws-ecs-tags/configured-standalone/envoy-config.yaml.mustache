@@ -1,17 +1,21 @@
+# This file is inserted into the 02-templates.json file.
+
 node:
   id: {{service_member}}
   cluster: {{network_name}}
 
+{{#has_admin_port}}
 admin:
   access_log_path: "/dev/stdout"
   address:
     socket_address:
       address: 0.0.0.0
       # Post mustache replacement.
-      port_value: %admin_port%
+      port_value: {{admin_port}}
+{{/has_admin_port}}
 
 dynamic_resources:
   cds_config:
-    path: "/tmp/active-envoy-config/cds.yaml"
+    path: "/tmp/envoy/cds.yaml"
   lds_config:
-    path: "/tmp/active-envoy-config/lds.yaml"
+    path: "/tmp/envoy/lds.yaml"

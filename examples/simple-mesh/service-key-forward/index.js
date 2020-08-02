@@ -5,20 +5,22 @@ const PORT = process.env.PORT || 3000;
 const app = express();
 
 (process.env.KEYS || '').split(',').forEach(key => {
-  if (key && key.length > 0) {
+  if (key && key.trim().length > 0) {
     key = key.trim();
+    let env_key = key.toUpperCase() + '_VALUE';
+    let value = process.env[env_key] || key;
     app.get(`/key/${key}`, (req, res) => {
       res.type('json');
-      res.send(`{"key":"${key}"}`);
+      res.send(`{"value":"${value}"}`);
     });
-    console.log(` - Listening for /key/${key}`);
+    console.log(` - Listening for /key/${key} -> ${value}`);
   }
 });
 
 (process.env.FORWARD_KEYS || '').split(',').forEach(key => {
-  if (key && key.length > 0) {
+  if (key && key.trim().length > 0) {
     key = key.trim();
-    env_key = key.toUpperCase() + "_URL";
+    let env_key = key.toUpperCase() + "_URL";
     let url = process.env[env_key];
     if (url && url.length > 0) {
       app.get(`/forward/${key}`, (req, res) => {

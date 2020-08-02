@@ -20,10 +20,10 @@ class EcsTaskTest(unittest.TestCase):
             host_ipv4='', container_host_ports={},
 
             # tag/env order priority: task tag, taskdef tag, task env, taskdef env
-            task_tags={'NAMESPACE': 'n1'},
-            task_env={'PROTOCOL': 'HTTP2'},
-            taskdef_tags={'SERVICE_NAME': 's1'},
-            taskdef_env={'COLOR': 'c1', 'NAMESPACE': 'n2'},
+            task_tags={'NJ_NAMESPACE': 'n1'},
+            task_env={'NJ_PROTOCOL': 'HTTP2'},
+            taskdef_tags={'NJ_SERVICE': 's1'},
+            taskdef_env={'NJ_COLOR': 'c1', 'NJ_NAMESPACE': 'n2'},
         )
         task_empty = ecs.EcsTask(
             task_name='t2', task_arn='a2', taskdef_arn='ta', container_instance_arn='',
@@ -33,20 +33,14 @@ class EcsTaskTest(unittest.TestCase):
         self.assertEqual('n1', task_full.get_namespace_tag())
         self.assertIsNone(task_empty.get_namespace_tag())
 
-        self.assertEqual('HTTP2', task_full.get_protocol())
-        self.assertEqual('HTTP1.1', task_empty.get_protocol())
+        self.assertEqual('HTTP2', task_full.get_protocol_tag())
+        self.assertEqual(None, task_empty.get_protocol_tag())
 
-        self.assertEqual('s1', task_full.get_service_name())
-        self.assertEqual('t2', task_empty.get_service_name())
+        self.assertEqual('s1', task_full.get_service_tag())
+        self.assertEqual(None, task_empty.get_service_tag())
 
-        self.assertEqual('s1', task_full.get_service_name_tag())
-        self.assertIsNone(task_empty.get_service_name_tag())
-
-        self.assertEqual('c1', task_full.get_color())
-        self.assertEqual('default', task_empty.get_color())
-
-        self.assertEqual('a1', task_full.get_service_id())
-        self.assertEqual('a2', task_empty.get_service_id())
+        self.assertEqual('c1', task_full.get_color_tag())
+        self.assertEqual(None, task_empty.get_color_tag())
 
         self.assertEqual(('0', 1), task_full.get_route_container_host_port_for(1))
         self.assertEqual(('0', 1), task_empty.get_route_container_host_port_for(1))
@@ -58,66 +52,78 @@ class EcsTaskTest(unittest.TestCase):
             host_ipv4='', container_host_ports={'8080': 2021, 's1:8080': 2021},
             task_tags={
                 # And for coverage, an invalid protocol...
-                'PROTOCOL': 'tcp',
+                'NJ_PROTOCOL': 'tcp',
 
-                'ROUTE_1': '/path/1',
+                'NJ_ROUTE_1': '/path/1',
 
-                'ROUTE_3': '!/path/3',
+                'NJ_ROUTE_3': '!/path/3',
 
-                'ROUTE_16': '/other/16',
-                'WEIGHT_16': '100',
+                'NJ_ROUTE_16': '/other/16',
+                'NJ_ROUTE_WEIGHT_16': '100',
 
-                'ROUTE_22': '/that/22/path',
-                'WEIGHT_22': 'xyz',
-                'PORT_22': 's1:8080',
+                'NJ_ROUTE_22': '/that/22/path',
+                'NJ_ROUTE_WEIGHT_22': 'xyz',
+                'NJ_ROUTE_PORT_22': 's1:8080',
 
-                'ROUTE_XYZ': 'invalid',
+                'NJ_ROUTE_23': '{"some": true}',
+
+                'NJ_ROUTE_XYZ': 'invalid',
             }, task_env={}, taskdef_tags={}, taskdef_env={},
         )
 
         # Coverage based checks...
-        self.assertEqual('HTTP1.1', task.get_protocol())
-        self.assertEqual(
-            (None, 0, 'private'),
-            task.get_route_weight_protection_for(0),
-        )
+        self.assertEqual('tcp', task.get_protocol_tag())
 
-        indicies = task.get_route_indicies()
-        self.assertEqual(
-            [1, 3, 16, 22],
-            sorted(list(indicies)),
-        )
-        route1, weight1, protection1 = task.get_route_weight_protection_for(1)
-        container_port1, host_port1 = task.get_route_container_host_port_for(1)
-        self.assertEqual('/path/1', route1)
-        self.assertEqual(1, weight1)
-        self.assertEqual('public', protection1)
-        self.assertEqual('8080', container_port1)
-        self.assertEqual(2021, host_port1)
+        routes = task.get_routes()
+        self.assertEqual(5, len(routes))
 
-        route3, weight3, protection3 = task.get_route_weight_protection_for(3)
-        container_port3, host_port3 = task.get_route_container_host_port_for(16)
-        self.assertEqual('/path/3', route3)
-        self.assertEqual(1, weight3)
-        self.assertEqual('private', protection3)
-        self.assertEqual('8080', container_port3)
-        self.assertEqual(2021, host_port3)
+        def get_route_index(index: int) -> ecs.RouteInfo:
+            for route in routes:
+                if route.index == index:
+                    return route
+            raise Exception('No such route: ' + str(index))  # pragma no cover
 
-        route16, weight16, protection16 = task.get_route_weight_protection_for(16)
-        container_port16, host_port16 = task.get_route_container_host_port_for(16)
-        self.assertEqual('/other/16', route16)
-        self.assertEqual(100, weight16)
-        self.assertEqual('public', protection16)
-        self.assertEqual('8080', container_port16)
-        self.assertEqual(2021, host_port16)
+        route1 = get_route_index(1)
+        self.assertEqual('/path/1', route1.data)
+        self.assertEqual(1, route1.weight)
+        self.assertTrue(route1.is_public_path)
+        self.assertFalse(route1.is_private_path)
+        self.assertFalse(route1.is_route_data)
+        self.assertEqual('8080', route1.container_port)
+        self.assertEqual(2021, route1.host_port)
 
-        route22, weight22, protection22 = task.get_route_weight_protection_for(22)
-        container_port22, host_port22 = task.get_route_container_host_port_for(22)
-        self.assertEqual('/that/22/path', route22)
-        self.assertEqual(1, weight22)
-        self.assertEqual('public', protection22)
-        self.assertEqual('s1:8080', container_port22)
-        self.assertEqual(2021, host_port22)
+        route3 = get_route_index(3)
+        self.assertEqual('/path/3', route3.data)
+        self.assertEqual(1, route3.weight)
+        self.assertFalse(route3.is_public_path)
+        self.assertTrue(route3.is_private_path)
+        self.assertFalse(route3.is_route_data)
+        self.assertEqual('8080', route3.container_port)
+        self.assertEqual(2021, route3.host_port)
+
+        route16 = get_route_index(16)
+        self.assertEqual('/other/16', route16.data)
+        self.assertEqual(100, route16.weight)
+        self.assertTrue(route16.is_public_path)
+        self.assertFalse(route16.is_private_path)
+        self.assertFalse(route16.is_route_data)
+        self.assertEqual('8080', route16.container_port)
+        self.assertEqual(2021, route16.host_port)
+
+        route22 = get_route_index(22)
+        self.assertEqual('/that/22/path', route22.data)
+        self.assertEqual(1, route22.weight)
+        self.assertTrue(route22.is_public_path)
+        self.assertFalse(route22.is_private_path)
+        self.assertFalse(route22.is_route_data)
+        self.assertEqual('s1:8080', route22.container_port)
+        self.assertEqual(2021, route22.host_port)
+
+        route23 = get_route_index(23)
+        self.assertEqual({"some": True}, route23.data)
+        self.assertFalse(route23.is_public_path)
+        self.assertFalse(route23.is_private_path)
+        self.assertTrue(route23.is_route_data)
 
 
 class EcsTest(unittest.TestCase):
@@ -130,14 +136,14 @@ class EcsTest(unittest.TestCase):
         ecs.CONFIG.clear()
         ecs.CONFIG.update(self._orig_config)
 
-    def test_load_tasks_for_namespace__empty(self) -> None:
+    def test_load_mesh_tasks__empty(self) -> None:
         """Test load_tasks_for_namespace with a basic setup."""
         mecs = MockEcs()
         with mecs:
-            tasks = ecs.load_tasks_for_namespace('n1', [], None, None)
+            tasks = ecs.load_mesh_tasks([], None, None)
             self.assertEqual([], tasks)
 
-    def test_load_tasks_for_namespace__basic(self) -> None:
+    def test_load_mesh_tasks__basic(self) -> None:
         """Test load_tasks_for_namespace with a basic setup."""
         mecs = MockEcs()
 
@@ -153,7 +159,7 @@ class EcsTest(unittest.TestCase):
             ),
             True,
             [
-                {
+                _mk_task({
                     'taskArn': 'aws:ecs:c1_task1',
                     'taskDefinitionArn': 'aws:ecs:c1_taskdef1',
                     'containerInstanceArn': 'aws:ecs:c1_instance',
@@ -166,359 +172,133 @@ class EcsTest(unittest.TestCase):
                             'environment': [{'name': 'env_1', 'value': 'env_1_val'}],
                         }],
                     },
-                    'containers': [{
+                    'containers': [_mk_container({
                         'containerArn': 'aws:ecs:c1_container',
                         'taskArn': 'aws:ecs:c1_task1',
                         'name': 'c1_task1',
-                        'image': 'image-name',
-                        'imageDigest': '1234',
-                        'runtimeId': 'blah',
-                        'lastStatus': 'RUNNING',  # What is the right value here?
 
                         # This one uses an ec2 instance.
-                        'networkBindings': [{
-                            'bindIP': '0.0.0.0',
+                        'networkBindings': [_mk_network_binding({
                             'containerPort': 9080,
                             'hostPort': 32769,
-                            'protocol': 'tcp',
-                        }],
-                        'networkInterfaces': [],
-                        'healthStatus': 'HEALTHY',
-                        'cpu': '1.5',
-                        'memory': '32',
-                        'memoryReservation': '32',
-                        'gpuIds': [],
-                    }],
-                    'attachments': [{}],
-                    'attributes': [],
-                    'availabilityZone': 'us-east-1a',
-                    'capacityProviderName': 'blah',
-                    'connectivity': 'CONNECTED',
-                    'connectivityAt': datetime.datetime(2015, 1, 1),
-                    'cpu': '1.5',
-                    'createdAt': datetime.datetime(2015, 1, 1),
-                    'desiredStatus': 'RUNNING',
-                    'healthStatus': 'HEALTHY',
-                    'inferenceAccelerators': [],
-                    'lastStatus': 'RUNNING',
-                    'launchType': 'EC2',
-                    'memory': '32',
-                    'platformVersion': '100',
-                    'pullStartedAt': datetime.datetime(2015, 1, 1),
-                    'pullStoppedAt': datetime.datetime(2015, 1, 1),
-                    'startedAt': datetime.datetime(2015, 1, 1),
-                    'startedBy': 'string',
-                    'version': 123,
-                },
+                        })],
+                    })],
+                }),
 
                 # This one is ignored because of the tags...
-                {
+                _mk_task({
                     'taskArn': 'aws:ecs:c1_task2',
                     'taskDefinitionArn': 'aws:ecs:c1_taskdef2',
                     'containerInstanceArn': 'aws:ecs:c1_instance',
                     'clusterArn': 'aws:ecs:cluster1',
                     'tags': [{'key': 'ROUTE_1', 'value': '/my/path'}],
-
-                    'attachments': [],
-                    'attributes': [],
-                    'availabilityZone': 'us-east-1a',
-                    'capacityProviderName': 'string',
-                    'connectivity': 'CONNECTED',
-                    'connectivityAt': datetime.datetime(2015, 1, 1),
-                    'containers': [{
+                    'containers': [_mk_container({
                         'containerArn': 'aws:ecs:c1_task2_container',
                         'taskArn': 'aws:ecs:c1_task2',
                         'name': 'service_2',
-                        'image': 'string',
-                        'imageDigest': 'string',
-                        'runtimeId': 'string',
-                        'lastStatus': 'string',
-                        'exitCode': 123,
-                        'reason': 'string',
                         'networkBindings': [
-                            {
-                                'bindIP': '0.0.0.0', 'containerPort': 80,
-                                'hostPort': 90, 'protocol': 'tcp',
-                            },
-                            {
+                            _mk_network_binding({'containerPort': 80, 'hostPort': 90}),
+                            _mk_network_binding({
                                 'bindIP': '127.0.0.1', 'containerPort': 82,
-                                'hostPort': 92, 'protocol': 'tcp',
-                            },
+                                'hostPort': 92,
+                            }),
                         ],
-                        'networkInterfaces': [],
-                        'healthStatus': 'HEALTHY',
-                        'cpu': 'string',
-                        'memory': 'string',
-                        'memoryReservation': 'string',
-                        'gpuIds': [],
-                    }],
-                    'cpu': '10',
-                    'createdAt': datetime.datetime(2015, 1, 1),
-                    'desiredStatus': 'RUNNING',
-                    'executionStoppedAt': datetime.datetime(2015, 1, 1),
-                    'healthStatus': 'HEALTHY',
-                    'inferenceAccelerators': [],
-                    'lastStatus': 'RUNNING',
-                    'launchType': 'EC2',
-                    'overrides': {},
-                    'memory': '32',
-                    'platformVersion': '12',
-                    'pullStartedAt': datetime.datetime(2015, 1, 1),
-                    'pullStoppedAt': datetime.datetime(2015, 1, 1),
-                    'startedAt': datetime.datetime(2015, 1, 1),
-                    'startedBy': 'who',
-                    'version': 123,
-                },
+                    })],
+                }),
 
                 # As is this one...
-                {
+                _mk_task({
                     'taskArn': 'aws:ecs:c1_task3',
                     'taskDefinitionArn': 'aws:ecs:c1_taskdef3',
                     'containerInstanceArn': 'aws:ecs:c1_instance',
                     'clusterArn': 'aws:ecs:cluster1',
                     'tags': [
-                        {'key': 'NAMESPACE', 'value': 'namespace1'},
+                        {'key': 'NJ_NAMESPACE', 'value': 'namespace1'},
                         {'key': 'tag-r1', 'value': 'v2'},
                     ],
-
-                    'attachments': [],
-                    'attributes': [],
-                    'availabilityZone': 'us-east-1a',
-                    'capacityProviderName': 'string',
-                    'connectivity': 'CONNECTED',
-                    'connectivityAt': datetime.datetime(2015, 1, 1),
-                    'containers': [{
+                    'containers': [_mk_container({
                         'containerArn': 'aws:ecs:c1_task2_container',
                         'taskArn': 'aws:ecs:c1_task3',
                         'name': 'service_4',
-                        'image': 'string',
-                        'imageDigest': 'string',
-                        'runtimeId': 'string',
-                        'lastStatus': 'string',
-                        'exitCode': 123,
-                        'reason': 'string',
-                        'networkBindings': [{
-                            'bindIP': '10.0.0.1', 'containerPort': 80,
-                            'hostPort': 90, 'protocol': 'tcp',
-                        }],
-                        'networkInterfaces': [],
-                        'healthStatus': 'HEALTHY',
-                        'cpu': 'string',
-                        'memory': 'string',
-                        'memoryReservation': 'string',
-                        'gpuIds': [],
-                    }],
-                    'cpu': '10',
-                    'createdAt': datetime.datetime(2015, 1, 1),
-                    'desiredStatus': 'RUNNING',
-                    'executionStoppedAt': datetime.datetime(2015, 1, 1),
-                    'healthStatus': 'HEALTHY',
-                    'inferenceAccelerators': [],
-                    'lastStatus': 'RUNNING',
-                    'launchType': 'EC2',
-                    'memory': '32',
-                    'overrides': {},
-                    'platformVersion': '12',
-                    'pullStartedAt': datetime.datetime(2015, 1, 1),
-                    'pullStoppedAt': datetime.datetime(2015, 1, 1),
-                    'startedAt': datetime.datetime(2015, 1, 1),
-                    'startedBy': 'who',
-                    'version': 123,
-                },
+                        'networkBindings': [_mk_network_binding({
+                            'bindIP': '10.0.0.1', 'containerPort': 80, 'hostPort': 90,
+                        })],
+                    })],
+                }),
 
                 # As is this one...
-                {
+                _mk_task({
                     'taskArn': 'aws:ecs:c1_task4',
                     'taskDefinitionArn': 'aws:ecs:c1_taskdef3',
                     'containerInstanceArn': 'aws:ecs:c1_instance',
                     'clusterArn': 'aws:ecs:cluster1',
                     'tags': [{'key': 'tag-r1', 'value': 'v1'}],
-
-                    'attachments': [],
-                    'attributes': [],
-                    'availabilityZone': 'us-east-1a',
-                    'capacityProviderName': 'string',
-                    'connectivity': 'CONNECTED',
-                    'connectivityAt': datetime.datetime(2015, 1, 1),
-                    'containers': [{
+                    'containers': [_mk_container({
                         'containerArn': 'aws:ecs:c1_task2_container',
                         'taskArn': 'aws:ecs:c1_task4',
                         'name': 'service_5',
-                        'image': 'string',
-                        'imageDigest': 'string',
-                        'runtimeId': 'string',
-                        'lastStatus': 'string',
-                        'exitCode': 123,
-                        'reason': 'string',
-                        'networkBindings': [{
-                            'bindIP': '0.0.0.0', 'containerPort': 80,
-                            'hostPort': 90, 'protocol': 'tcp',
-                        }],
+                        'networkBindings': [_mk_network_binding({
+                            'containerPort': 80, 'hostPort': 90,
+                        })],
                         'networkInterfaces': [{
                             'attachmentId': 'attachment1234',
                             'privateIpv4Address': '10.9.8.7',
                             'ipv6Address': 'ipv6',
                         }],
-                        'healthStatus': 'HEALTHY',
-                        'cpu': 'string',
-                        'memory': 'string',
-                        'memoryReservation': 'string',
-                        'gpuIds': [],
-                    }],
-                    'cpu': '10',
-                    'createdAt': datetime.datetime(2015, 1, 1),
-                    'desiredStatus': 'RUNNING',
-                    'executionStoppedAt': datetime.datetime(2015, 1, 1),
-                    'healthStatus': 'HEALTHY',
-                    'inferenceAccelerators': [],
-                    'lastStatus': 'RUNNING',
-                    'launchType': 'EC2',
-                    'memory': '32',
-                    'overrides': {},
-                    'platformVersion': '12',
-                    'pullStartedAt': datetime.datetime(2015, 1, 1),
-                    'pullStoppedAt': datetime.datetime(2015, 1, 1),
-                    'startedAt': datetime.datetime(2015, 1, 1),
-                    'startedBy': 'who',
-                    'version': 123,
-                },
+                    })],
+                }),
             ],
         )
 
         # Then, for each task that has undefined networks, load the container instances.
         mecs.mk_describe_container_instances(
             'cluster1', ('aws:ecs:c1_instance',),
-            [{
+            [_mk_container_instance({
                 'containerInstanceArn': 'aws:ecs:c1_instance',
                 'ec2InstanceId': 'i12345678',
-                'capacityProviderName': 'x',
-                'version': 123,
-                'versionInfo': {},
-                'remainingResources': [],
-                'registeredResources': [],
-                'status': 'ACTIVE',
-                'statusReason': 'string',
-                'agentConnected': True,
-                'runningTasksCount': 2,
-                'pendingTasksCount': 0,
-                'agentUpdateStatus': 'UPDATED',
-                'attributes': [
-                    {
-                        'name': 'ecs.subnet-id',
-                        'value': 'subnet-1234',
-                    },
-                    {
-                        'name': 'ecs.vpc-id',
-                        'value': 'vpc-abcd',
-                    },
-                ],
-                'registeredAt': datetime.datetime(2015, 1, 1),
-                'attachments': [],
                 'tags': [],
-            }],
+                'attributes': [
+                    {'name': 'ecs.subnet-id', 'value': 'subnet-1234'},
+                    {'name': 'ecs.vpc-id', 'value': 'vpc-abcd'},
+                ],
+            })],
         )
 
         # And get the EC2 instance on which it runs.
-        mecs.mk_describe_instances(['i12345678'], [{
+        mecs.mk_describe_instances(['i12345678'], [_mk_ec2_instance({
             'InstanceId': 'i12345678',
-            'AmiLaunchIndex': 123,
-            'ImageId': 'abc',
-            'InstanceType': 't1.micro',
-            'KernelId': 'blah',
-            'KeyName': 'blah',
-            'LaunchTime': datetime.datetime(2015, 1, 1),
-            'Monitoring': {'State': 'disabled'},
-            'Placement': {},
-            'Platform': 'Linux',
             'PrivateDnsName': 'my.host.internal',
             'PrivateIpAddress': '1.2.3.4',
-            'ProductCodes': [],
-            'RamdiskId': 'x',
-            'State': {
-                'Code': 123,
-                'Name': 'running',
-            },
-            'StateTransitionReason': 'string',
             'SubnetId': 'subnet-1234',
             'VpcId': 'vpc-abcd',
-            'Architecture': 'x86_64',
-            'BlockDeviceMappings': [],
-            'ClientToken': 'token',
-            'EbsOptimized': False,
-            'EnaSupport': False,
-            'Hypervisor': 'xen',
-            'IamInstanceProfile': {'Arn': 'x', 'Id': 'y'},
-            'InstanceLifecycle': 'spot',
-            'ElasticGpuAssociations': [],
-            'ElasticInferenceAcceleratorAssociations': [],
-            'NetworkInterfaces': [{
-                'Association': {
-                    'IpOwnerId': 'string',
-                    'PublicDnsName': 'string',
-                    'PublicIp': 'string',
-                },
-                'Attachment': {
-                    'AttachTime': datetime.datetime(2015, 1, 1),
-                    'AttachmentId': 'string',
-                    'DeleteOnTermination': True,
-                    'DeviceIndex': 123,
-                    'Status': 'attached',
-                },
-                'Description': 'string',
-                'Groups': [],
-                'Ipv6Addresses': [{'Ipv6Address': 'string'}],
-                'MacAddress': 'string',
-                'NetworkInterfaceId': 'string',
-                'OwnerId': 'string',
-                'PrivateDnsName': 'string',
+            'NetworkInterfaces': [_mk_network_interface({
                 'PrivateIpAddress': '1.2.3.4',
-                'PrivateIpAddresses': [{
-                    'Association': {
-                        'IpOwnerId': 'string',
-                        'PublicDnsName': 'string',
-                        'PublicIp': 'string',
-                    },
-                    'Primary': True,
-                    'PrivateDnsName': 'string',
+                'PrivateIpAddresses': [_mk_ipv4_address({
                     'PrivateIpAddress': '1.2.3.4',
-                }],
-                'SourceDestCheck': True,
-                'Status': 'in-use',
+                })],
                 'SubnetId': 'subnet-1234',
                 'VpcId': 'vpc-abcd',
-                'InterfaceType': 'string',
-            }],
-            'OutpostArn': 'string',
-            'RootDeviceName': 'string',
-            'RootDeviceType': 'instance-store',
-            'SecurityGroups': [],
-            'SourceDestCheck': True,
-            'SpotInstanceRequestId': 'string',
-            'SriovNetSupport': 'string',
-            'StateReason': {'Code': 'string', 'Message': 'string'},
+            })],
             'Tags': [],
-            'VirtualizationType': 'hvm',
-            'CpuOptions': {'CoreCount': 123, 'ThreadsPerCore': 123},
-            'CapacityReservationId': 'string',
-            'CapacityReservationSpecification': {},
-            'HibernationOptions': {'Configured': False},
-            'Licenses': [],
-            'MetadataOptions': {},
-        }])
+        })])
 
         # Then get the resource tags for the taskdefs.
         mecs.mk_describe_task_definition('aws:ecs:c1_taskdef1', {
-            'ROUTE_11': '/my/path',
-            'NAMESPACE': 'namespace1',
+            'NJ_ROUTE_11': '/my/path',
+            'NJ_NAMESPACE': 'namespace1',
+            'NJ_PROXY_MODE': 'SERVICE',
+            'NJ_SERVICE': 's1',
+            'NJ_COLOR': 'c1',
         }, {})
         mecs.mk_describe_task_definition('aws:ecs:c1_taskdef2', {}, {'x': {
-            'NAMESPACE': 'namespace1',
+            'NJ_NAMESPACE': 'namespace1',
+            'NJ_PROXY_MODE': 'GATEWAY',
         }})
         mecs.mk_describe_task_definition('aws:ecs:c1_taskdef3', {}, {})
 
         # Do the same thing with the second cluster.  This one contains only Fargate instances.
         mecs.mk_list_tasks('cluster2', ('aws:ecs:c2_task1',))
-        mecs.mk_describe_tasks('cluster2', ('aws:ecs:c2_task1',), True, [{
+        mecs.mk_describe_tasks('cluster2', ('aws:ecs:c2_task1',), True, [_mk_task({
             'tags': [],
             'taskArn': 'aws:ecs:c2_task1',
             'taskDefinitionArn': 'aws:ecs:taskdef_3',
@@ -526,109 +306,74 @@ class EcsTest(unittest.TestCase):
             'containerInstanceArn': 'aws:ecs:fargate-1',
             'launchType': 'FARGATE',
             'containers': [
-                {
+                _mk_container({
                     'containerArn': 'aws:ecs:c2_container1',
                     'taskArn': 'aws:ecs:c2_task1',
                     'name': 'service_1',
-                    'image': 'image1',
-                    'imageDigest': 'imageDigest1',
-                    'runtimeId': 'runtimeId1',
-                    'lastStatus': 'lastStatus1',
                     'networkBindings': [
-                        {
+                        _mk_network_binding({
                             'bindIP': '10.1.2.3',
                             'containerPort': 80,
                             'hostPort': 90,
-                            'protocol': 'tcp',
-                        },
-                        {
+                        }),
+                        _mk_network_binding({
                             'bindIP': '0.0.0.0',
                             'containerPort': 81,
                             'hostPort': 91,
                             'protocol': 'udp',
-                        },
-                        {
+                        }),
+                        _mk_network_binding({
                             'bindIP': '0.0.0.0',
                             'containerPort': 82,
                             'hostPort': 92,
-                            'protocol': 'tcp',
-                        },
+                        }),
                     ],
                     'networkInterfaces': [{
-                        'attachmentId': 'attachmentId1',
+                        'attachmentId': 'attachment2',
                         'privateIpv4Address': '10.1.2.3',
-                        'ipv6Address': 'ipv6Address1',
+                        'ipv6Address': ':::2',
                     }],
-                    'healthStatus': 'HEALTHY',
-                    'cpu': 'cpu1',
-                    'memory': 'memory1',
-                    'memoryReservation': 'memoryReservation1',
-                    'gpuIds': [],
-                },
-                {
+                }),
+                _mk_container({
                     'containerArn': 'aws:ecs:c2_container2',
                     'taskArn': 'aws:ecs:c2_task1',
                     'name': 'service_2',
-                    'image': 'image2',
-                    'imageDigest': 'imageDigest2',
-                    'runtimeId': 'runtimeId2',
-                    'lastStatus': 'lastStatus2',
                     'networkBindings': [
-                        {
+                        _mk_network_binding({
                             'bindIP': '10.1.2.4',
                             'containerPort': 83,
                             'hostPort': 93,
-                            'protocol': 'tcp',
-                        },
+                        }),
                     ],
                     'networkInterfaces': [{
-                        'attachmentId': 'attachmentId2',
+                        'attachmentId': 'attachment1',
                         'privateIpv4Address': '10.1.2.4',
-                        'ipv6Address': 'ipv6Address2',
+                        'ipv6Address': ':::3',
                     }],
-                    'healthStatus': 'HEALTHY',
-                    'cpu': 'cpu2',
-                    'memory': 'memory2',
-                    'memoryReservation': 'memoryReservation3',
-                    'gpuIds': [],
-                },
+                }),
             ],
-
-            'attachments': [],
-            'attributes': [],
-            'availabilityZone': 'us-west-1b',
-            'capacityProviderName': 'capacityProviderName1',
-            'connectivity': 'CONNECTED',
-            'connectivityAt': datetime.datetime(2015, 1, 1),
-            'cpu': 'cpuA',
-            'createdAt': datetime.datetime(2015, 1, 1),
-            'desiredStatus': 'desiredStatusA',
-            'executionStoppedAt': datetime.datetime(2015, 1, 1),
-            'group': 'groupA',
-            'healthStatus': 'HEALTHY',
-            'inferenceAccelerators': [],
-            'lastStatus': 'lastStatusA',
-            'memory': 'memoryA',
-            'overrides': {},
-            'platformVersion': 'platformVersionA',
-            'pullStartedAt': datetime.datetime(2015, 1, 1),
-            'pullStoppedAt': datetime.datetime(2015, 1, 1),
-            'startedAt': datetime.datetime(2015, 1, 1),
-            'startedBy': 'startedByA',
-            'version': 123,
-        }])
+            'overrides': {
+                'containerOverrides': [{
+                    'environment': [
+                        {'name': 'NJ_PROXY_MODE', 'value': 'SERVICE'},
+                        {'name': 'NJ_SERVICE', 'value': 'service_1'},
+                        {'name': 'NJ_COLOR', 'value': 'color_1'},
+                    ],
+                }],
+            },
+        })])
 
         # Then, because all the host IPs are known, it skips directly to finding the taskdef tags.
         mecs.mk_describe_task_definition('aws:ecs:taskdef_3', {
             'tag-r1': 'v1',
-            'ROUTE_6': '!/a/b/c',
-            'WEIGHT_6': '12',
-            'NAMESPACE': 'namespace1',
+            'NJ_ROUTE_6': '!/a/b/c',
+            'NJ_WEIGHT_6': '12',
+            'NJ_NAMESPACE': 'namespace1',
         }, {})
 
         with mecs:
-            tasks = ecs.load_tasks_for_namespace(
-                'namespace1', ['cluster1', 'cluster2'], 'tag-r1', 'v1',
+            tasks = ecs.load_mesh_tasks(
+                ['cluster1', 'cluster2'], 'tag-r1', 'v1',
             )
             self.assertEqual(
                 [
@@ -636,15 +381,17 @@ class EcsTest(unittest.TestCase):
                     "taskdef_arn='aws:ecs:c1_taskdef1', "
                     "container_instance_arn='aws:ecs:c1_instance', host_ipv4='1.2.3.4', "
                     "container_host_ports=[('9080', 32769), ('c1_task1:9080', 32769)], "
-                    "tags=[('NAMESPACE', 'namespace1'), ('ROUTE_11', '/my/path'), ('env_1', "
+                    "tags=[('NJ_COLOR', 'c1'), ('NJ_NAMESPACE', 'namespace1'), ('NJ_PROXY_MODE', "
+                    "'SERVICE'), ('NJ_ROUTE_11', '/my/path'), ('NJ_SERVICE', 's1'), ('env_1', "
                     "'env_1_val'), ('tag-r1', 'v1')])",
 
                     "EcsTask(task_name='service_1', task_arn='aws:ecs:c2_task1', "
                     "taskdef_arn='aws:ecs:taskdef_3', container_instance_arn='aws:ecs:fargate-1', "
                     "host_ipv4='10.1.2.4', container_host_ports=[('80', 90), ('82', 92), ('83', "
                     "93), ('service_1:80', 90), ('service_1:82', 92), ('service_2:83', 93)], "
-                    "tags=[('NAMESPACE', 'namespace1'), ('ROUTE_6', '!/a/b/c'), ('WEIGHT_6', "
-                    "'12'), ('tag-r1', 'v1')])",
+                    "tags=[('NJ_COLOR', 'color_1'), ('NJ_NAMESPACE', 'namespace1'), "
+                    "('NJ_PROXY_MODE', 'SERVICE'), ('NJ_ROUTE_6', '!/a/b/c'), ('NJ_SERVICE', "
+                    "'service_1'), ('NJ_WEIGHT_6', '12'), ('tag-r1', 'v1')])",
                 ],
                 [repr(task) for task in tasks],
             )
@@ -745,7 +492,7 @@ class EcsTest(unittest.TestCase):
             container_host_ports={}, task_tags={}, taskdef_tags={}, task_env={},
             taskdef_env={'namespace': 'n1'},
         )]
-        filtered = ecs.filter_tasks(tasks, 'n1', None, None)
+        filtered = ecs.filter_tasks(tasks, None, None)
         self.assertEqual([], filtered)
 
 
@@ -939,3 +686,196 @@ class MockEcs:
         }
         request = {'InstanceIds': list(instance_ids)}
         self.ec2_stubber.add_response('describe_instances', data, request)
+
+
+def _mk_task(overrides: Dict[str, Any]) -> Dict[str, Any]:
+    ret: Dict[str, Any] = {
+        'taskArn': 'aws:ecs:task',
+        'taskDefinitionArn': 'aws:ecs:taskdef',
+        'containerInstanceArn': 'aws:ecs:instance',
+        'clusterArn': 'aws:ecs:cluster1',
+        'tags': [],
+        'overrides': {},
+        'containers': [],
+        'attachments': [{}],
+        'attributes': [],
+        'availabilityZone': 'us-east-1a',
+        'capacityProviderName': 'blah',
+        'connectivity': 'CONNECTED',
+        'connectivityAt': datetime.datetime(2015, 1, 1),
+        'cpu': '1.5',
+        'createdAt': datetime.datetime(2015, 1, 1),
+        'desiredStatus': 'RUNNING',
+        'healthStatus': 'HEALTHY',
+        'inferenceAccelerators': [],
+        'lastStatus': 'RUNNING',
+        'launchType': 'EC2',
+        'memory': '32',
+        'platformVersion': '100',
+        'pullStartedAt': datetime.datetime(2015, 1, 1),
+        'pullStoppedAt': datetime.datetime(2015, 1, 1),
+        'startedAt': datetime.datetime(2015, 1, 1),
+        'startedBy': 'string',
+        'version': 123,
+    }
+    ret.update(overrides)
+    return ret
+
+
+def _mk_container(overrides: Dict[str, Any]) -> Dict[str, Any]:
+    ret: Dict[str, Any] = {
+        'containerArn': 'aws:ecs:container',
+        'taskArn': 'aws:ecs:task',
+        'name': 'container',
+        'image': 'image-name',
+        'imageDigest': '1234',
+        'runtimeId': 'blah',
+        'lastStatus': 'RUNNING',  # What is the right value here?
+        'networkBindings': [],
+        'networkInterfaces': [],
+        'healthStatus': 'HEALTHY',
+        'cpu': '1.5',
+        'memory': '32',
+        'memoryReservation': '32',
+        'gpuIds': [],
+    }
+    ret.update(overrides)
+    return ret
+
+
+def _mk_network_binding(overrides: Dict[str, Any]) -> Dict[str, Any]:
+    ret: Dict[str, Any] = {
+        'bindIP': '0.0.0.0',
+        'containerPort': 9080,
+        'hostPort': 32769,
+        'protocol': 'tcp',
+    }
+    ret.update(overrides)
+    return ret
+
+
+def _mk_container_instance(overrides: Dict[str, Any]) -> Dict[str, Any]:
+    ret: Dict[str, Any] = {
+        'containerInstanceArn': 'aws:ecs:instance',
+        'ec2InstanceId': 'i1234',
+        'capacityProviderName': 'x',
+        'version': 123,
+        'versionInfo': {},
+        'remainingResources': [],
+        'registeredResources': [],
+        'status': 'ACTIVE',
+        'statusReason': 'string',
+        'agentConnected': True,
+        'runningTasksCount': 2,
+        'pendingTasksCount': 0,
+        'agentUpdateStatus': 'UPDATED',
+        'attributes': [],
+        'registeredAt': datetime.datetime(2015, 1, 1),
+        'attachments': [],
+        'tags': [],
+    }
+    ret.update(overrides)
+    return ret
+
+
+def _mk_ec2_instance(overrides: Dict[str, Any]) -> Dict[str, Any]:
+    ret: Dict[str, Any] = {
+        'InstanceId': 'i1234',
+        'AmiLaunchIndex': 123,
+        'ImageId': 'abc',
+        'InstanceType': 't1.micro',
+        'KernelId': 'blah',
+        'KeyName': 'blah',
+        'LaunchTime': datetime.datetime(2015, 1, 1),
+        'Monitoring': {'State': 'disabled'},
+        'Placement': {},
+        'Platform': 'Linux',
+        'PrivateDnsName': 'my.host.internal',
+        'PrivateIpAddress': '1.2.3.4',
+        'ProductCodes': [],
+        'RamdiskId': 'x',
+        'State': {
+            'Code': 123,
+            'Name': 'running',
+        },
+        'StateTransitionReason': 'string',
+        'SubnetId': 'subnet-1234',
+        'VpcId': 'vpc-abcd',
+        'Architecture': 'x86_64',
+        'BlockDeviceMappings': [],
+        'ClientToken': 'token',
+        'EbsOptimized': False,
+        'EnaSupport': False,
+        'Hypervisor': 'xen',
+        'IamInstanceProfile': {'Arn': 'x', 'Id': 'y'},
+        'InstanceLifecycle': 'spot',
+        'ElasticGpuAssociations': [],
+        'ElasticInferenceAcceleratorAssociations': [],
+        'NetworkInterfaces': [],
+        'OutpostArn': 'string',
+        'RootDeviceName': 'string',
+        'RootDeviceType': 'instance-store',
+        'SecurityGroups': [],
+        'SourceDestCheck': True,
+        'SpotInstanceRequestId': 'string',
+        'SriovNetSupport': 'string',
+        'StateReason': {'Code': 'string', 'Message': 'string'},
+        'Tags': [],
+        'VirtualizationType': 'hvm',
+        'CpuOptions': {'CoreCount': 123, 'ThreadsPerCore': 123},
+        'CapacityReservationId': 'string',
+        'CapacityReservationSpecification': {},
+        'HibernationOptions': {'Configured': False},
+        'Licenses': [],
+        'MetadataOptions': {},
+    }
+    ret.update(overrides)
+    return ret
+
+
+def _mk_network_interface(overrides: Dict[str, Any]) -> Dict[str, Any]:
+    ret: Dict[str, Any] = {
+        'Association': {
+            'IpOwnerId': 'string',
+            'PublicDnsName': 'string',
+            'PublicIp': 'string',
+        },
+        'Attachment': {
+            'AttachTime': datetime.datetime(2015, 1, 1),
+            'AttachmentId': 'string',
+            'DeleteOnTermination': True,
+            'DeviceIndex': 123,
+            'Status': 'attached',
+        },
+        'Description': 'string',
+        'Groups': [],
+        'Ipv6Addresses': [],
+        'MacAddress': 'string',
+        'NetworkInterfaceId': 'string',
+        'OwnerId': 'string',
+        'PrivateDnsName': 'string',
+        'PrivateIpAddress': '1.2.3.4',
+        'PrivateIpAddresses': [],
+        'SourceDestCheck': True,
+        'Status': 'in-use',
+        'SubnetId': 'subnet-1234',
+        'VpcId': 'vpc-abcd',
+        'InterfaceType': 'string',
+    }
+    ret.update(overrides)
+    return ret
+
+
+def _mk_ipv4_address(overrides: Dict[str, Any]) -> Dict[str, Any]:
+    ret: Dict[str, Any] = {
+        'Association': {
+            'IpOwnerId': 'string',
+            'PublicDnsName': 'string',
+            'PublicIp': 'string',
+        },
+        'Primary': True,
+        'PrivateDnsName': 'string',
+        'PrivateIpAddress': '1.2.3.4',
+    }
+    ret.update(overrides)
+    return ret

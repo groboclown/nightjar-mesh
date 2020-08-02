@@ -13,7 +13,7 @@ services:
       FORWARD_KEYS: f1
       F1_URL: http://gateway:3000/key/s1
     depends_on:
-      - service-s1
+      - gateway
     networks:
       default:
         aliases:
@@ -42,10 +42,10 @@ services:
       NJ_PROXY_MODE: gateway
       NJ_NAMESPACE: default
       DATA_STORE_EXEC: python3 -m nightjar_ds_local
-      NJ_DSLOCAL_TEMPLATE_FILE: /nightjar/local/01-templates.json
-      NJ_DSLOCAL_CONFIGURATION_FILE: /nightjar/local/01-configurations.json
+      NJ_DSLOCAL_TEMPLATE_FILE: /nightjar/local/02-templates.json
+      NJ_DSLOCAL_CONFIGURATION_FILE: /nightjar/local/02-configurations.json
       DISCOVERY_MAP_EXEC: python3 -m nightjar_dm_local
-      NJ_DMLOCAL_DATA_FILE: /nightjar/local/01-discovery-map.json
+      NJ_DMLOCAL_DATA_FILE: /nightjar/local/02-discovery-map.json
       # The configuration directory must be a writable directory by the nobody user.
       ENVOY_CONFIGURATION_DIR: /tmp/envoy
       NJ_LISTEN_PORT: 3000

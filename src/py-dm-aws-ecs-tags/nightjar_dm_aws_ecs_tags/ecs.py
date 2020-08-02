@@ -3,9 +3,11 @@
 
 from typing import Dict, Tuple, List, Optional, Iterable, Set, Literal, Union, Any
 import re
+import json
 import boto3
 # from botocore.exceptions import ClientError  # type: ignore
 from botocore.config import Config  # type: ignore
+from .warn import warning
 
 
 RouteProtection = Literal['public', 'private']
@@ -20,7 +22,72 @@ SUPPORTED_PROTOCOLS = (
     PROTOCOL__HTTP2,
 )
 
-ROUTE_TAG_MATCHER = re.compile(r'^ROUTE_(\d+)$')
+# This must be kept in-sync with the documentation
+#  discovery-aws-ecs-task-tags.md
+TAG__ROUTE_MATCHER = re.compile(r'^NJ_ROUTE_(\d+)$')
+TAG__NAMESPACE_PORT_MATCHER = re.compile(r'^NJ_NAMESPACE_PORT_(\d+)$')
+
+TAG__MODE = 'NJ_PROXY_MODE'
+TAG__SERVICE = 'NJ_SERVICE'
+TAG__COLOR = 'NJ_COLOR'
+TAG__NAMESPACE = 'NJ_NAMESPACE'
+TAG__PROTOCOL = 'NJ_PROTOCOL'
+TAG__ROUTE_PORT = 'NJ_ROUTE_PORT'
+TAG__ROUTE_PORT_INDEX_PREFIX = 'NJ_ROUTE_PORT_'
+TAG__ROUTE_WEIGHT_INDEX_PREFIX = 'NJ_ROUTE_WEIGHT_'
+TAG__PREFER_GATEWAY = 'NJ_PREFER_GATEWAY'
+
+# A valid port number, but generally one that isn't listed on.
+# This is to allow the map generation to work.
+DEFAULT_ROUTE_PORT = 1
+
+
+class RouteInfo:
+    """Basic route info, parsed from the NJ_ROUTE_() value."""
+    __slots__ = (
+        'is_public_path', 'is_private_path', 'is_route_data', 'data',
+        'index', 'container_port', 'host_port', 'weight',
+    )
+    data: Union[str, Dict[str, Any]]
+
+    def __init__(
+            self, index: int, route_value: str, container_port: str, host_port: int, weight: int,
+    ) -> None:
+        self.index = index
+        self.container_port = container_port
+        self.host_port = host_port
+        self.weight = weight
+
+        if route_value[0] == '!':
+            self.is_public_path = False
+            self.is_private_path = True
+            self.is_route_data = False
+            self.data = route_value[1:]
+        elif route_value[0] == '+':
+            self.is_public_path = True
+            self.is_private_path = False
+            self.is_route_data = False
+            self.data = route_value[1:]
+        elif route_value[0] == '{':
+            self.is_public_path = False
+            self.is_private_path = False
+            self.is_route_data = True
+            try:
+                self.data = json.loads(route_value)
+            except (ValueError, TypeError) as err:
+                warning(
+                    'Route Definition',
+                    '{data} is not a valid JSON data structure: {error}',
+                    data=route_value,
+                    error=repr(err),
+                )
+                self.is_route_data = False
+                self.data = ''
+        else:
+            self.is_public_path = True
+            self.is_private_path = False
+            self.is_route_data = False
+            self.data = route_value
 
 
 class EcsTask:
@@ -58,6 +125,7 @@ class EcsTask:
         self.taskdef_env = dict(taskdef_env)
 
     def __repr__(self) -> str:
+        # This is a bit complex, but done for consistent unit tests.
         return (
             f'EcsTask('
             f'task_name={repr(self.task_name)}, '
@@ -68,6 +136,44 @@ class EcsTask:
             f'container_host_ports={repr(sorted(list(self.container_host_ports.items())))}, '
             f'tags={repr(sorted(list(self.get_tags().items())))})'
         )
+
+    def get_namespace_tag(self) -> Optional[str]:
+        """Get the namespace tag, if it is provided."""
+        return self.get_tag(TAG__NAMESPACE)
+
+    def get_service_tag(self) -> Optional[str]:
+        """Get the service tag, if it is provided."""
+        return self.get_tag(TAG__SERVICE)
+
+    def get_color_tag(self) -> Optional[str]:
+        """Get the color tag, if it is provided"""
+        return self.get_tag(TAG__COLOR)
+
+    def get_protocol_tag(self) -> Optional[str]:
+        """Get the protocol tag, if it is provided"""
+        return self.get_tag(TAG__PROTOCOL)
+
+    def get_prefer_gateway_tag(self) -> Optional[str]:
+        """Get the prefer gateway tag, if provided"""
+        return self.get_tag(TAG__PREFER_GATEWAY)
+
+    def get_service_color_config(self) -> Optional[Tuple[str, str, str]]:
+        """Returns None if this is not a service, or the namespace, service, color of it."""
+        proxy_mode = self.get_tag(TAG__MODE)
+        namespace = self.get_namespace_tag()
+        service = self.get_service_tag()
+        color = self.get_color_tag()
+        if proxy_mode == 'SERVICE' and namespace and service and color:
+            return namespace, service, color
+        return None
+
+    def get_gateway_config(self) -> Optional[str]:
+        """Returns None if this is not a gateway, or the namespace of the gateway"""
+        proxy_mode = self.get_tag(TAG__MODE)
+        namespace = self.get_namespace_tag()
+        if proxy_mode == 'GATEWAY' and namespace:
+            return namespace
+        return None
 
     def get_tags(self) -> Dict[str, str]:
         """Fetch the current 'tags', which is a combination of tags and environment variables,
@@ -112,112 +218,107 @@ class EcsTask:
                     val = self.taskdef_env.get(key, default_value)
         return val
 
-    def get_namespace(self) -> str:
-        """The namespace, or default if not given."""
-        return self.get_namespace_tag() or 'default'
-
-    def get_namespace_tag(self) -> Optional[str]:
-        """The optional namespace tag on the task."""
-        return self.get_tag('NAMESPACE')
-
-    def get_protocol(self) -> str:
-        """The optional protocol defined for this service."""
-        protocol = self.get_tag_with('PROTOCOL', PROTOCOL__HTTP1_1)
-        if protocol.upper() in SUPPORTED_PROTOCOLS:
-            return protocol.upper()
-        return PROTOCOL__HTTP1_1
-
-    def get_service_name(self) -> str:
-        """The name of the service."""
-        return self.get_service_name_tag() or self.task_name
-
-    def get_service_name_tag(self) -> Optional[str]:
-        """The service name tag, if given."""
-        return self.get_tag('SERVICE_NAME')
-
-    def get_color(self) -> str:
-        """The color for this service."""
-        return self.get_tag('COLOR') or 'default'
-
-    def get_service_id(self) -> str:
-        """The opaque ID for this service instance."""
-        return self.task_arn
-
     def get_route_container_host_port_for(self, index: int) -> Tuple[str, int]:
         """Finds the (container) PORT value for the index, and grabs the
         mapped-to host port.  If no PORT is given, or the container port
         is not found, then the first host port is used.  If nothing valid
         is found, then this returns 1.
 
-        The PORT* value can be `container-name:port`, to allow for
+        The NJ_ROUTE_PORT_* value can be `container-name:port`, to allow for
         differentiating between containers that share the same container port.
+        That value will be returned as the container port.
 
         Returns (container port, host port).  Container port is 0 if it is
             not a valid value.
         """
-        container_port_str = self.get_tag('PORT_' + str(index))
+        container_port_str = self.get_tag(TAG__ROUTE_PORT_INDEX_PREFIX + str(index))
         if not container_port_str:
-            container_port_str = self.get_tag('PORT')
+            # Try the generic one.
+            container_port_str = self.get_tag(TAG__ROUTE_PORT)
         if not container_port_str:
             # Return the first host port.  If it isn't an integer,
             # then the default value is returned.
             for container_port_str, host_port in self.container_host_ports.items():
+                if len(self.container_host_ports) > 1:
+                    warning(
+                        'TaskDef ' + self.task_arn,
+                        'could not identify a unique published port; using {host_port}',
+                        host_port=host_port,
+                    )
                 return container_port_str, host_port
             # No port known.  Return a value that isn't valid, but won't cause an error.
-            return '0', 1
-        host_port = self.container_host_ports.get(container_port_str, 1)
+            warning(
+                'TaskDef ' + self.task_arn,
+                'could not find any published port.',
+            )
+            return '0', DEFAULT_ROUTE_PORT
+        host_port = self.container_host_ports.get(container_port_str, DEFAULT_ROUTE_PORT)
+        if host_port == DEFAULT_ROUTE_PORT:
+            warning(
+                'TaskDef ' + self.task_arn,
+                'could not find a published port defined by {env1} or {env2} (set to {value}).',
+                env1=TAG__ROUTE_PORT_INDEX_PREFIX + str(index),
+                env2=TAG__ROUTE_PORT,
+                value=container_port_str,
+            )
         return container_port_str, host_port
 
-    def get_route_weight_protection_for(
-            self, index: int,
-    ) -> Tuple[Optional[str], int, RouteProtection]:
-        """Get the route, weight, and protection for the route at the given index."""
-        route = self.get_tag('ROUTE_' + str(index))
-        if not route:
-            return None, 0, PROTECTION_PRIVATE
-        protection = PROTECTION_PUBLIC
-        if route[0] == '!':
-            route = route[1:]
-            protection = PROTECTION_PRIVATE
-        weight_str = self.get_tag('WEIGHT_' + str(index))
-        if weight_str:
-            try:
-                weight = int(weight_str)
-            except ValueError:
-                weight = 1
-        else:
+    def get_route_weight(self, index: int) -> int:
+        """Get the route index's weight, or default to 1."""
+        try:
+            weight = int(self.get_tag_with(TAG__ROUTE_WEIGHT_INDEX_PREFIX + str(index), '1'))
+        except ValueError:
             weight = 1
-        return route, weight, protection
+        return max(1, weight)
 
-    def get_route_indicies(self) -> Iterable[int]:
-        """Find all the route indicies in the tags."""
-        ret: List[int] = []
-        for tag_name in self.get_tag_keys():
-            match = ROUTE_TAG_MATCHER.match(tag_name)
+    def get_routes(self) -> List[RouteInfo]:
+        """Find all the route information."""
+        ret: List[RouteInfo] = []
+        for tag_name, tag_value in self.get_tags().items():
+            match = TAG__ROUTE_MATCHER.match(tag_name)
             if match:
                 try:
                     index = int(match.group(1))
-                    ret.append(index)
                 except ValueError:  # pragma no cover
                     # Because of the regular expression, this shouldn't happen...
-                    pass  # pragma no cover
+                    continue  # pragma no cover
+                container_port_str, host_port = self.get_route_container_host_port_for(index)
+                ret.append(RouteInfo(
+                    index, tag_value, container_port_str, host_port,
+                    self.get_route_weight(index),
+                ))
+        return ret
+
+    def get_namespace_egress_ports(self) -> Iterable[Tuple[str, int]]:
+        """Create the namespace:port list"""
+        ret: List[Tuple[str, int]] = []
+        for tag_name, tag_value in self.get_tags().items():
+            if TAG__NAMESPACE_PORT_MATCHER.match(tag_name):
+                parts = tag_value.split(':', 1)
+                if len(parts) != 2:
+                    continue
+                namespace, port_str = parts
+                try:
+                    port = int(port_str)
+                except ValueError:
+                    continue
+                ret.append((namespace, port))
         return ret
 
 
-def load_tasks_for_namespace(
-        namespace: str,
+def load_mesh_tasks(
         cluster_names: Iterable[str],
         required_tag_name: Optional[str],
         required_tag_value: Optional[str],
 ) -> Iterable[EcsTask]:
     """
-    Find tasks that match up to the requirements for this configuration.
+    Find tasks that match up to the requirements for this configuration.  They can
+    be in any namespace.
     """
     ret: List[EcsTask] = []
     for cluster_name in cluster_names:
         ret.extend(filter_tasks(
             load_tasks_for_cluster(cluster_name),
-            namespace,
             required_tag_name,
             required_tag_value,
         ))
@@ -226,7 +327,6 @@ def load_tasks_for_namespace(
 
 def filter_tasks(
         tasks: Iterable[EcsTask],
-        namespace: str,
         required_tag_name: Optional[str],
         required_tag_value: Optional[str],
 ) -> Iterable[EcsTask]:
@@ -234,7 +334,7 @@ def filter_tasks(
     ret: List[EcsTask] = []
     for task in tasks:
         if required_tag_name:
-            value = task.get_tag(required_tag_name, None)
+            value = task.get_tag(required_tag_name)
             if (
                     # the tag is not set (value is None)
                     value is None
@@ -246,7 +346,9 @@ def filter_tasks(
                 continue
             # Else, the tag is assigned to a value, and either
             # the value doesn't matter, or the value matches the required value.
-        if task.get_namespace() == namespace and task.get_color() is not None:
+
+        # Must be either a valid gateway or service-color.
+        if task.get_gateway_config() or task.get_service_color_config():
             ret.append(task)
     return ret
 

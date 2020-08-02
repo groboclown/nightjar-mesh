@@ -5,6 +5,7 @@ Generate the current configuration.
 
 from typing import Dict, Tuple, Iterable
 import os
+import tempfile
 import pystache  # type: ignore
 from nightjar_common import log
 from nightjar_common.extension_point.data_store import DataStoreRunner
@@ -50,14 +51,8 @@ class GenerateGatewayConfiguration(Generator):
             listen_port, admin_port,
         )
         for purpose, template in self.get_templates().items():
-            purpose_file = os.path.join(self._config.envoy_config_dir, purpose)
-            log.debug("Generating configuration file {purpose_file}", purpose_file=purpose_file)
             rendered = pystache.render(template, mapping)
-            log.debug('. . . . . . . . . . . . . . . . . .')
-            log.debug_raw(rendered)
-            log.debug('. . . . . . . . . . . . . . . . . .')
-            with open(purpose_file, 'w') as f:
-                f.write(rendered)
+            generate_envoy_file(self._config, purpose, rendered)
         return 0
 
     def get_templates(self) -> Dict[str, str]:
@@ -95,14 +90,8 @@ class GenerateServiceConfiguration(Generator):
             listen_port, admin_port,
         )
         for purpose, template in self.get_templates().items():
-            purpose_file = os.path.join(self._config.envoy_config_dir, purpose)
-            log.debug("Generating configuration file {purpose_file}", purpose_file=purpose_file)
             rendered = pystache.render(template, mapping)
-            log.debug('. . . . . . . . . . . . . . . . . .')
-            log.debug_raw(rendered)
-            log.debug('. . . . . . . . . . . . . . . . . .')
-            with open(purpose_file, 'w') as f:
-                f.write(rendered)
+            generate_envoy_file(self._config, purpose, rendered)
         return 0
 
     def get_templates(self) -> Dict[str, str]:
@@ -172,3 +161,36 @@ class MockGenerator(Generator):
             with open(self.config.trigger_stop_file, 'w') as f:
                 f.write('stop')
         return MockGenerator.RETURN_CODE
+
+
+def generate_envoy_file(config: Config, file_name: str, contents: str) -> None:
+    """Performs the correct construction of the envoy file.  To properly support
+    envoy dynamic configurations, the file must be created in a temporary file, then
+    replaced via a *move* operation.  Due to potential issues around move, the source
+    file must be in the same directory as the target file (due to cross-file system
+    move issues)."""
+
+    # Note: this is a bit memory heavy, with the contents of source and target present
+    # at the same time.
+
+    out_dir = config.envoy_config_dir
+    target_file = os.path.join(out_dir, file_name)
+
+    # First, check if the file needs to be updated.  That means the contents are different.
+    if os.path.isfile(target_file):
+        with open(target_file, 'r') as f:
+            current_contents = f.read()
+            if current_contents == contents:
+                log.debug(
+                    "Contents of {file_name} are the same; not updating.", file_name=file_name
+                )
+                return
+
+    gen_fd, gen_filename = tempfile.mkstemp(prefix=file_name, dir=out_dir, text=False)
+    os.write(gen_fd, contents.encode('utf-8', errors='replace'))
+    os.close(gen_fd)
+    os.replace(gen_filename, target_file)
+    log.log('INFO', "Generated configuration file {file_name}", file_name=file_name)
+    log.debug('. . . . . . . . . . . . . . . . . .')
+    log.debug_raw(contents)
+    log.debug('. . . . . . . . . . . . . . . . . .')
