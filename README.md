@@ -2,7 +2,7 @@
 
 # nightjar-mesh
 
-![build status (dev branch)](https://api.travis-ci.com/groboclown/nightjar-mesh.svg?branch=dev)
+![build status (dev branch)](https://api.travis-ci.com/groboclown/nightjar-mesh.svg?branch=master)
 
 Yet Another Control Plane with Envoy Proxy (currently focused on supporting AWS services)
 
