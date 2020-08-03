@@ -38,7 +38,6 @@ echo "$1 - Unit Test"
 python3 -m coverage run --source . -m unittest discover -p "*_test.py"
 unit_test_res=$?
 
-# TODO for now, until we get py-common up-to-snuff...
-python3 -m coverage report -m --fail-under 90 || exit 1
+python3 -m coverage report -m --fail-under 99 || exit 1
 
 exit $unit_test_res
