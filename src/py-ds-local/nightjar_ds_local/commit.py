@@ -9,7 +9,7 @@ import datetime
 from .config import Config
 
 
-def commit(config: Config, activity: str, source_file: str) -> int:
+def commit(config: Config, document: str, source_file: str) -> int:
     """
     Commit the source file to the local store.
     """
@@ -22,18 +22,16 @@ def commit(config: Config, activity: str, source_file: str) -> int:
     with open(source_file, 'r') as f:
         data = json.load(f)
     assert isinstance(data, dict)
-    data['commit-version'] = datetime.datetime.utcnow().isoformat()
+    version = datetime.datetime.utcnow().isoformat()
+    data['commit-version'] = version
 
-    if activity == 'configuration':
-        dest_file = config.local_configuration_file
-    elif activity == 'template':
-        dest_file = config.local_template_file
-    else:
-        print("[nightjar-ds-local] Invalid activity: `{0}`".format(activity))
+    dst_file = config.get_file(document)
+    if not dst_file:
+        print("[nightjar-ds-local] Invalid document: `{0}`".format(document))
         return 5
 
-    os.makedirs(os.path.dirname(dest_file), exist_ok=True)
-    with open(dest_file, 'w') as f:
+    os.makedirs(os.path.dirname(dst_file), exist_ok=True)
+    with open(dst_file, 'w') as f:
         json.dump(data, f)
-    print("[nightjar-ds-local] Committed {0}".format(activity))
+    print("[nightjar-ds-local] Committed {0}".format(document))
     return 0

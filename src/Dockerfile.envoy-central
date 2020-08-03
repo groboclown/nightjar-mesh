@@ -7,8 +7,8 @@ ENV PYTHONPATH /usr/nightjar
 # Add standalone loop runner and its dependencies.
 ADD py-common/nightjar_common /usr/nightjar/nightjar_common
 ADD py-common/requirements.txt /tmp/requirements-01.txt
-ADD py-entry-standalone/nightjar_standalone /usr/nightjar/nightjar_standalone
-ADD py-entry-standalone/requirements.txt /tmp/requirements-02.txt
+ADD py-entry-central/nightjar_central /usr/nightjar/nightjar_central
+ADD py-entry-central/requirements.txt /tmp/requirements-02.txt
 
 # Add Extensions
 ADD py-dm-aws-ecs-tags/nightjar_dm_aws_ecs_tags /usr/nightjar/nightjar_dm_aws_ecs_tags
@@ -34,4 +34,4 @@ RUN echo "Start install..." \
 
 USER 1337
 WORKDIR /usr/nightjar
-CMD ["/usr/bin/python3", "-m", "nightjar_standalone"]
+CMD ["/usr/bin/python3", "-m", "nightjar_central"]

@@ -40,38 +40,8 @@ class ConfigTest(unittest.TestCase):
     def test_init_bad_proxy_mode(self) -> None:
         """Run the configuration with no environment variables set."""
         cfg = config.Config({
-            config.ENV__PROXY_MODE: 'blah',
             config.ENV__DATA_STORE_EXEC: self._valid_cmd,
             config.ENV__DISCOVERY_MAP_EXEC: self._valid_cmd,
-            config.ENV__ENVOY_CMD: self._valid_cmd,
             config.ENV__TEMP_DIR: self._temp_dir,
         })
-        self.assertEqual(
-            config.DEFAULT_PROXY_MODE,
-            cfg.proxy_mode,
-        )
         self.assertEqual(self._temp_dir, cfg.temp_dir)
-
-    def test_invalid_setup_admin_port(self) -> None:
-        """Test is_valid with bad admin port."""
-        cfg = config.Config({
-            config.ENV__PROXY_MODE: 'blah',
-            config.ENV__DATA_STORE_EXEC: self._valid_cmd,
-            config.ENV__DISCOVERY_MAP_EXEC: self._valid_cmd,
-            config.ENV__ENVOY_CMD: self._valid_cmd,
-            config.ENV__TEMP_DIR: self._temp_dir,
-            config.ENV__ADMIN_PORT: '65536',
-        })
-        self.assertFalse(cfg.is_valid())
-
-    def test_invalid_setup_listen_port(self) -> None:
-        """Test is_valid with bad admin port."""
-        cfg = config.Config({
-            config.ENV__PROXY_MODE: 'blah',
-            config.ENV__DATA_STORE_EXEC: self._valid_cmd,
-            config.ENV__DISCOVERY_MAP_EXEC: self._valid_cmd,
-            config.ENV__ENVOY_CMD: self._valid_cmd,
-            config.ENV__TEMP_DIR: self._temp_dir,
-            config.ENV__LISTEN_PORT: '65536',
-        })
-        self.assertFalse(cfg.is_valid())

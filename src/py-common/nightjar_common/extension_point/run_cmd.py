@@ -7,7 +7,7 @@ from typing import Dict, Sequence, Callable, Optional
 import shlex
 import shutil
 import time
-from .exceptions import ConfigurationError
+from .errors import ConfigurationError
 
 
 def get_env_executable_cmd(
@@ -35,7 +35,6 @@ def get_env_executable_cmd(
 
 def run_with_backoff(
         runner_callback: Callable[[], int],
-        requires_retry_callback: Callable[[int], bool],
         maximum_retries: int,
         maximum_wait: float,
         sleep_func: Callable[[float], None] = time.sleep,
@@ -44,13 +43,15 @@ def run_with_backoff(
     Runs the command, and if it requires a retry, then it retries with a wait.  However,
     the exponential wait is in seconds.
 
+    This is specially designed to work with the extension points, which all have an exit
+    code of 31 to indicate a retry is requested.
+
     The logic is taken from:
     https://docs.aws.amazon.com/general/latest/gr/api-retries.html
 
     @param sleep_func:
     @param maximum_wait:
     @param runner_callback:
-    @param requires_retry_callback:
     @param maximum_retries:
     @return:
     """
@@ -60,7 +61,7 @@ def run_with_backoff(
     while keep_running and retry_count < maximum_retries:
         retry_count += 1
         result = runner_callback()
-        if requires_retry_callback(result) and retry_count < maximum_retries:
+        if result == 31 and retry_count < maximum_retries:
             sleep_time = min((2 ** retry_count), maximum_wait)
             sleep_func(sleep_time)
         else:

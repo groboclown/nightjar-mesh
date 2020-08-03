@@ -418,7 +418,7 @@ class EnvoyConfigContext:
         ret = self.config.get_context(
             self.network_id, self.service, self.admin_port,
         )
-        ret['version'] = 'v1'
+        ret['schema-version'] = 'v1'
         return validate_proxy_input(ret)
 
 

@@ -12,6 +12,9 @@ from nightjar_common.extension_point.data_store import DataStoreRunner
 from nightjar_common.extension_point.discovery_map import DiscoveryMapRunner
 from nightjar_common.envoy_transform.gateway import create_gateway_proxy_input
 from nightjar_common.envoy_transform.service import create_service_color_proxy_input
+from nightjar_common.extension_point.errors import (
+    ExtensionPointRuntimeError, ExtensionPointTooManyRetries,
+)
 from .config import Config, DEFAULT_NAMESPACE, DEFAULT_SERVICE, DEFAULT_COLOR
 
 
@@ -43,21 +46,23 @@ class GenerateGatewayConfiguration(Generator):
 
     def generate_file(self, listen_port: int, admin_port: int) -> int:
         """Runs the generation process."""
-        discovery_map = self._discovery_map.get_mesh()
-        if isinstance(discovery_map, int):
-            return discovery_map
-        mapping = create_gateway_proxy_input(
-            discovery_map, self._config.namespace,
-            listen_port, admin_port,
-        )
-        for purpose, template in self.get_templates().items():
-            rendered = pystache.render(template, mapping)
-            generate_envoy_file(self._config, purpose, rendered)
-        return 0
+        try:
+            discovery_map = self._discovery_map.get_mesh()
+            mapping = create_gateway_proxy_input(
+                discovery_map, self._config.namespace,
+                listen_port, admin_port,
+            )
+            for purpose, template in self.get_templates().items():
+                rendered = pystache.render(template, mapping)
+                generate_envoy_file(self._config, purpose, rendered)
+            return 0
+        except (ExtensionPointRuntimeError, ExtensionPointTooManyRetries) as err:
+            print("[nightjar-standalone] File construction generated error: " + repr(err))
+            return 1
 
     def get_templates(self) -> Dict[str, str]:
         """Get the right templates for this mode (purpose -> template)."""
-        all_templates = self._data_store.fetch_templates()
+        all_templates = self._data_store.fetch_document('templates')
         default_templates: Dict[str, str] = {}
         namespace_templates: Dict[str, str] = {}
         for gateway_template in all_templates['gateway-templates']:
@@ -83,8 +88,6 @@ class GenerateServiceConfiguration(Generator):
     def generate_file(self, listen_port: int, admin_port: int) -> int:
         """Runs the generation process."""
         discovery_map = self._discovery_map.get_mesh()
-        if isinstance(discovery_map, int):
-            return discovery_map
         mapping = create_service_color_proxy_input(
             discovery_map, self._config.namespace, self._config.service, self._config.color,
             listen_port, admin_port,
@@ -96,7 +99,7 @@ class GenerateServiceConfiguration(Generator):
 
     def get_templates(self) -> Dict[str, str]:
         """Get the right templates for this mode (purpose -> template)."""
-        all_templates = self._data_store.fetch_templates()
+        all_templates = self._data_store.fetch_document('templates')
         possible_templates: Dict[Tuple[str, str, str], Dict[str, str]] = {
             # Ensure defaults are always present...
             (DEFAULT_NAMESPACE, DEFAULT_SERVICE, DEFAULT_COLOR): {},

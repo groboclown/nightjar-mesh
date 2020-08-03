@@ -7,12 +7,18 @@
 description: Data output from the discovery-map extension point.  It describes the entire mesh.
 type: object
 required:
-  - version
+  - schema-version
+  - document-version
   - namespaces
 properties:
-  version:
+  schema-version:
     description: Version of this document's schema.  The value must be the string value "v1".
     const: "v1"
+
+  document-version:
+    description: An opaque value indicating the version of this document.
+    type: string
+
   namespaces:
     description: >
       Collection of all the namespaces and their services, colors, and routes.  This will be

@@ -41,16 +41,21 @@ services:
     environment:
       NJ_PROXY_MODE: gateway
       NJ_NAMESPACE: default
+
       DATA_STORE_EXEC: python3 -m nightjar_ds_local
-      NJ_DSLOCAL_TEMPLATE_FILE: /nightjar/local/02-templates.json
-      NJ_DSLOCAL_CONFIGURATION_FILE: /nightjar/local/02-configurations.json
-      DISCOVERY_MAP_EXEC: python3 -m nightjar_dm_local
-      NJ_DMLOCAL_DATA_FILE: /nightjar/local/02-discovery-map.json
-      # The configuration directory must be a writable directory by the nobody user.
-      ENVOY_CONFIGURATION_DIR: /tmp/envoy
+      NJ_DSLOCAL_FILE_TEMPLATES: /nightjar/local/02-templates.json
+      NJ_DSLOCAL_FILE_DISCOVERY_MAP: /nightjar/local/02-discovery-map.json
+
+      # Discovery map uses a static file lookup, so it reuses the data-store
+      # but with hard-coded discovery map information.
+      DISCOVERY_MAP_EXEC: python3 -m nightjar_ds_local --document=discovery-map --action=fetch
+
       NJ_LISTEN_PORT: 3000
       NJ_ADMIN_PORT: 3001
       DEBUG: "true"
+
+      # The configuration directory must be a writable directory by the nobody user.
+      ENVOY_CONFIGURATION_DIR: /tmp/envoy
     networks:
       default:
         aliases:

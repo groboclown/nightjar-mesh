@@ -9,7 +9,7 @@ from .commit import commit
 from .fetch import fetch
 
 
-ARG__ACTIVITY = '--activity='
+ARG__DOCUMENT = '--document='
 ARG__PREVIOUS_VERSION = '--previous-document-version='
 ARG__ACTION = '--action='
 ARG__FILE = '--action-file='
@@ -19,15 +19,15 @@ ARG__API_VERSION = '--api-version='
 def main(argv: List[str]) -> int:
     """Main execution."""
     config = create_configuration()
-    activity = ''
+    document = ''
     previous_version = ''
     action = ''
     action_file = ''
     api_version = ''
 
     for arg in argv[1:]:
-        if arg.startswith(ARG__ACTIVITY):
-            activity = arg[len(ARG__ACTIVITY):].strip()
+        if arg.startswith(ARG__DOCUMENT):
+            document = arg[len(ARG__DOCUMENT):].strip()
         elif arg.startswith(ARG__PREVIOUS_VERSION):
             previous_version = arg[len(ARG__PREVIOUS_VERSION):].strip()
         elif arg.startswith(ARG__ACTION):
@@ -42,10 +42,10 @@ def main(argv: List[str]) -> int:
         return 4
 
     if action == 'commit':
-        return commit(config, activity, action_file)
+        return commit(config, document, action_file)
 
     if action == 'fetch':
-        return fetch(config, activity, action_file, previous_version)
+        return fetch(config, document, action_file, previous_version)
 
     print("[nightjar-ds-local] Invalid action `{0}`.".format(action))
     return 6

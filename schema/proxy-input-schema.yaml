@@ -6,13 +6,13 @@
 description: Input data for the mustache file generation.  The data is constructed in the script, but this file keeps the template reference easy.
 type: object
 required:
-  - version
+  - schema-version
   - has_admin_port
   - listeners
   - has_clusters
   - clusters
 properties:
-  version:
+  schema-version:
     description: Version of this document's schema.  The value must be the string value "v1".
     const: "v1"
 

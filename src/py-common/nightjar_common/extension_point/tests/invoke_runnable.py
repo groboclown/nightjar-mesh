@@ -33,8 +33,7 @@ class RunnableInvoker:
         Returns the base execution list."""
         with open(self._exit_codes_file, 'w') as f:
             json.dump(exit_codes, f)
-        with open(self._argument_file, 'w') as f:
-            json.dump([], f)
+        self.clear_arguments()
 
         return [
             *RUNNABLE_EXECUTABLE,
@@ -46,3 +45,8 @@ class RunnableInvoker:
         """Returns the ordered arguments for each invocation of the runnable."""
         with open(self._argument_file, 'r') as f:
             return cast(List[List[str]], json.load(f))
+
+    def clear_arguments(self) -> None:
+        """Clear the cached argument file."""
+        with open(self._argument_file, 'w') as f:
+            json.dump([], f)

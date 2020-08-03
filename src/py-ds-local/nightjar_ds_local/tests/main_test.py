@@ -5,7 +5,7 @@ import unittest
 import os
 from .util import Local
 from .. import main
-from ..config import ENV_NAME__LOCAL_CONFIGURATION_FILE, ENV_NAME__LOCAL_TEMPLATE_FILE
+from ..config import ENV_NAME__LOCAL_FILE_TEMPLATES, ENV_NAME__LOCAL_FILE_DISCOVERY_MAP
 
 
 class MainTest(unittest.TestCase):
@@ -13,8 +13,8 @@ class MainTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self._local = Local()
-        os.environ[ENV_NAME__LOCAL_TEMPLATE_FILE] = self._local.template_file
-        os.environ[ENV_NAME__LOCAL_CONFIGURATION_FILE] = self._local.config_file
+        os.environ[ENV_NAME__LOCAL_FILE_TEMPLATES] = self._local.template_file
+        os.environ[ENV_NAME__LOCAL_FILE_DISCOVERY_MAP] = self._local.config_file
 
     def tearDown(self) -> None:
         self._local.tear_down()
@@ -41,7 +41,7 @@ class MainTest(unittest.TestCase):
         ])
         self.assertEqual(6, res)
 
-    def test_invalid_commit_activity(self) -> None:
+    def test_invalid_document(self) -> None:
         """Ensure the right exit code."""
         self._create_action_file()
         self._create_basic_files()
@@ -51,18 +51,33 @@ class MainTest(unittest.TestCase):
             "--action=commit",
             "--activity=wrong",
             "--previous-document-version=",
+            "--document=wrong",
             "--action-file=" + self._local.action_file,
         ])
         self.assertEqual(5, res)
 
-    def test_invalid_fetch_activity(self) -> None:
+    def test_valid(self) -> None:
+        """Ensure the right exit code."""
+        self._create_action_file()
+        self._create_basic_files()
+        res = main.main([
+            'main.py',
+            "--api-version=1",
+            "--action=commit",
+            "--previous-document-version=",
+            "--document=discovery-map",
+            "--action-file=" + self._local.action_file,
+        ])
+        self.assertEqual(0, res)
+
+    def test_invalid_fetch_document(self) -> None:
         """Ensure the right exit code."""
         self._create_basic_files()
         res = main.main([
             'main.py',
             "--api-version=1",
             "--action=fetch",
-            "--activity=wrong",
+            "--document=wrong",
             "--previous-document-version=",
             "--action-file=" + self._local.action_file,
         ])

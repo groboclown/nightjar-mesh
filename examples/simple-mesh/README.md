@@ -24,7 +24,7 @@ In this case we will simply use two services with no mesh:
     * Color: blue
     * Path: `/key/s1`
 
-This very simple setup is detailed in [docker-compose-00.yaml](docker-compose-00.yaml).
+This very simple setup is detailed in [docker-compose-00.yaml](docker-compose-00.yaml).  This just shows off how the service behaves before we get into using the nightjar mesh.
 
 Once you start up the configuration:
 
@@ -71,14 +71,16 @@ $ curl http://localhost:3000/key/f1
 
 The nightjar configuration uses an entirely local file version of nightjar, where the templates and discovery map are stored in local files.  This is because the docker-compose setup pattern creates a static mesh.  The nightjar configuration's environment variables declare that:
 
-* the discovery map is stored in the file ``
-    * env `` - x
-* the data store templates are stored in the file ``
-    * env `` - x
-    * file `` contains all the templates unified from ..
-* the data store configurations are stored in file ``
-    * env `` - x
-    * This file doesn't contain any configurations, because, in standalone mode, the nightjar container builds these configurations on the fly.
+* the discovery map is stored in the file [`01-discovery-map.json`](nightjar-standalone-local/01-discovery-map.json), and is accessed through a data store, rather than a discovery map generator.  This is a simplification of the model, where by specially configuring the discovery service extension point, the data store can be reused.  In this case, we're using a data store that reads files from the container's file system.
+    * env `DISCOVERY_MAP_EXEC` - set the command that runs a discovery-service compatible executable.
+    * env `NJ_DSLOCAL_FILE_DISCOVERY_MAP` - used by the data store to find the discovery file.
+* the data store templates are stored in the file [`01-templates.json`](nightjar-standalone-local/01-templates.json)
+    * env `DATA_STORE_EXEC` - set the command that runs the data store compatible executable.  For the standalone mode, it is only explicitly called to get the templates.
+    * env `NJ_DSLOCAL_FILE_TEMPLATES` - used by the data store to find the templates file.
+    * file `01-templates.json` contains the template file [`01-envoy-config.yaml.mustache`](nightjar-standalone-local/01-envoy-config.yaml.mustache) inside the json file.
+* The Envoy proxy listens on port 3000 for HTTP requests and port 3001 for administration access.
+    * env `NJ_LISTEN_PORT`
+    * env `NJ_ADMIN_PORT`
 
 The use of local files makes a docker-compose version of the mesh possible, and also simplifies the setup process.  It does, however, mean that updates to the configuration require pushing files into the docker container.  For this situation, though, the template configuration of Envoy is a static setup, so it doesn't ever pick up changes to the configuration.  So, let's try out dynamic configuration next.
 
@@ -93,7 +95,7 @@ Starting up the docker compose configuration:
 $ docker-compose -f docker-compose-02.yaml up
 ```
 
-It still responds the same way as before.
+This time, the templates are setup differently to have 3 different Envoy files generated from the discovery map.  But the effect is still the same.
 
 But now let's show off the dynamic configuration.  With docker-compose still running, we'll replace the discovery map with one that doesn't allow access to the `/key/f1` route.  This assumes that the docker-compose starts up the gateway container with the name `simple-mesh_gateway_1`; you may need to adjust this for your configuration.
 
@@ -121,7 +123,7 @@ $ curl -v http://localhost:3000/key/f1
 * Connection #0 to host localhost left intact
 ```
 
-## Example 3: Weighted Routing
+## Example 3: Weighted Routing / Canary Testing
 
 Now let's get to an interesting variation.  Let's start up the next example:
 
@@ -134,7 +136,6 @@ In this situation, we have two services with different "colors" sharing the same
 ![Route Diagram](routes-03.svg) 
 
 Here, the services are configured as:
-
 
 * Forwarder
     * Service: forwarder-food
@@ -150,8 +151,10 @@ Here, the services are configured as:
     * Color: hotdog
     * Path: `/key/food` returns the value `hotdog`, with a weight of 2
 
-This configures the Envoy gateway proxy to decide how to route that shared path between the two services.  Due to the weight differences, we should expect to see requests to the path return `hotdog` about twice as often as `hamburger`.
+This configures the Envoy gateway proxy to decide how to route that shared path between the two services.  Due to the weight differences, we should expect to see requests to the path return `hotdog` about two out of every three times, and `hamburger` one out of three.
 
 ```bash
 $ curl http://localhost:3000/forward/food
 ```
+
+This is the general technique for canary testing.  The new service (hamburger) is being brought up to replace the old one.  You can then dynamically change the weight of the paths to route more and more traffic to the new service, until you think it's safe to remove the old one.

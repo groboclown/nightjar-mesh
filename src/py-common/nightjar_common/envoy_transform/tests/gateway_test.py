@@ -451,7 +451,8 @@ class GatewayTest(unittest.TestCase):
 
 def _mk_doc(defaults: Dict[str, Any]) -> Dict[str, Any]:
     ret: Dict[str, Any] = {
-        'version': 'v1',
+        'schema-version': 'v1',
+        'document-version': 'x',
         'namespaces': [],
     }
     ret.update(defaults)

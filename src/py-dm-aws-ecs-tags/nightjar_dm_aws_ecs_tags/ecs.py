@@ -89,6 +89,23 @@ class RouteInfo:
             self.is_route_data = False
             self.data = route_value
 
+    def __repr__(self) -> str:
+        return (
+            'RouteInfo(index={index}, weight={weight}, data={data}, '
+            'container_port={container_port}, host_port={host_port}, '
+            'is_public_path={is_public_path}, is_private_path={is_private_path}, '
+            'is_route_data={is_route_data})'
+        ).format(
+            is_public_path=self.is_public_path,
+            is_private_path=self.is_private_path,
+            is_route_data=self.is_route_data,
+            data=repr(self.data),
+            index=self.index,
+            container_port=self.container_port,
+            host_port=self.host_port,
+            weight=self.weight,
+        )
+
 
 class EcsTask:
     """An ECS task with 1 or more containers.

@@ -45,8 +45,9 @@ class EnvoyProcess:
                 self._proc.send_signal(signal.SIGTERM)
                 status = self._proc.wait(self._config.envoy_kill_wait_time)
             if status is None:
-                warning("Could not terminate envoy with `sigterm`; running kill.")
-                self._proc.kill()
+                # This is really, really hard to simulate.  So we're not covering it.
+                warning("Could not terminate envoy with `sigterm`; running kill")  # pragma no cover
+                self._proc.kill()  # pragma no cover
             self._proc = None
 
 

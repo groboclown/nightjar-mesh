@@ -20,3 +20,4 @@ script:
   - ./src/build-support/test-src-dir.sh py-ds-local
   - ./src/build-support/test-src-dir.sh py-entry-standalone
   - ( cd src && docker build -t local/nightjar-envoy-standalone -f Dockerfile.envoy-standalone . )
+  - ( cd src && docker build -t local/nightjar-envoy-central -f Dockerfile.envoy-central . )

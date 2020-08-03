@@ -1,39 +1,33 @@
-# A json schema definition of the storage fetched from the data store.
+# A json schema definition of the storage committed into the data store.
 # See https://json-schema.org/
 
 "$schema": "https://json-schema.org/draft-07/schema"
 
-description: Entry data fetched from the data store.
+description: Template data definition.
 type: object
 required:
-  - version
-  - commit-version
-  - activity
-  - gateway-configurations
-  - service-configurations
+  - schema-version
+  - document-version
+  - gateway-templates
+  - service-templates
 properties:
-  version:
+  schema-version:
     description: Version of this document's schema.  The value must be the string value "v1".
     const: "v1"
 
-  commit-version:
-    description: Opaque ID for the commit version.  Allows for atomic commits on multiple data storage types.
+  document-version:
+    description: An opaque value indicating the version of this document.
     type: string
 
-  activity:
-    description: The activity associated with the entries.  Must be "configuration".
-    const: "configuration"
-
-  gateway-configurations:
-    description: Gateway configuration values fetched.
+  gateway-templates:
+    description: All templates for the gateways, along with descriptive metadata.
     type: array
     items:
       type: object
       required:
         - namespace
-        - protection
         - purpose
-        - configuration
+        - template
       properties:
         namespace:
           description: Namespace of this template, or `null` if this is the default gateway template.
@@ -43,12 +37,12 @@ properties:
             The purpose of this template, which is usually the destination file name,
             such as "cds.yaml" or "lds.yaml".  Multiple of these can be provided per namespace.
           type: string
-        configuration:
-          description: The configured text.
+        template:
+          description: The template text.
           type: string
 
-  service-configurations:
-    description: Service configuration values fetched.
+  service-templates:
+    description: All templates for the services, along with descriptive metadata.
     type: array
     items:
       type: object
@@ -57,16 +51,24 @@ properties:
         - service
         - color
         - purpose
-        - configuration
+        - template
       properties:
         namespace:
           description: Namespace of this template, or `null` if this is the default gateway template.
+          type: ["string", "null"]
+        service:
+          description: Service of this template, or `null` if this is the default service template.
+          type: ["string", "null"]
+        color:
+          description: >
+            Color of this template, or `null` if this is the default service color template.  Note that
+            if `service` is "null", then this must also be "null".
           type: ["string", "null"]
         purpose:
           description: >
             The purpose of this template, which is usually the destination file name,
             such as "cds.yaml" or "lds.yaml".  Multiple of these can be provided per namespace.
           type: string
-        configuration:
-          description: The configured text.
+        template:
+          description: The template text.
           type: string

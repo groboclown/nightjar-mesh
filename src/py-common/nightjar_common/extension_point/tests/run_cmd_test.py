@@ -8,7 +8,7 @@ import unittest
 import os
 import platform
 from .. import run_cmd
-from ..exceptions import ConfigurationError
+from ..errors import ConfigurationError
 
 
 class RunCmdTest(unittest.TestCase):
@@ -63,37 +63,31 @@ class RunCmdTest(unittest.TestCase):
         mock = BackoffMock(self, [0], [False])
         result = run_cmd.run_with_backoff(
             mock.runner_callback,
-            mock.requires_retry_callback,
             12, 12.0,
             mock.sleep_func,
         )
         self.assertEqual(0, result)
         mock.next_runner_callback()
-        mock.next_requires_retry_callback(0)
         mock.at_end()
 
     def test_run_with_backoff__maximum_time_maximum_retries(self) -> None:
         """Test run_with_backoff with no retry required."""
         mock = BackoffMock(
             self,
-            [1, 2, 3],
+            [31, 31, 3],
             [True, True, True],
         )
         result = run_cmd.run_with_backoff(
             mock.runner_callback,
-            mock.requires_retry_callback,
             3, 2.04,
             mock.sleep_func,
         )
         self.assertEqual(3, result)
         mock.next_runner_callback()
-        mock.next_requires_retry_callback(1)
         mock.next_sleep_func(2.0)
         mock.next_runner_callback()
-        mock.next_requires_retry_callback(2)
         mock.next_sleep_func(2.04)
         mock.next_runner_callback()
-        mock.next_requires_retry_callback(3)
         mock.at_end()
 
 
@@ -114,13 +108,6 @@ class BackoffMock:
         name, _ = self.calls.pop(0)
         self._tester.assertEqual('runner_callback', name)
 
-    def next_requires_retry_callback(self, expected: int) -> None:
-        """Asserts the next call was to the retry check."""
-        self._tester.assertTrue(len(self.calls) > 0)
-        name, arg = self.calls.pop(0)
-        self._tester.assertEqual('requires_retry_callback', name)
-        self._tester.assertEqual(expected, arg)
-
     def next_sleep_func(self, expected: float) -> None:
         """Asserts the next call was to the sleep function."""
         self._tester.assertTrue(len(self.calls) > 0)
@@ -137,12 +124,6 @@ class BackoffMock:
         self.calls.append(('runner_callback', 0,))
         self._tester.assertTrue(len(self._runner_responses) > 0)
         return self._runner_responses.pop(0)
-
-    def requires_retry_callback(self, code: int) -> bool:
-        """Callback for requires_retry_callback"""
-        self.calls.append(('requires_retry_callback', code,))
-        self._tester.assertTrue(len(self._retry_responses) > 0)
-        return self._retry_responses.pop(0)
 
     def sleep_func(self, sleep_time: float) -> None:
         """Callback for sleep_func"""

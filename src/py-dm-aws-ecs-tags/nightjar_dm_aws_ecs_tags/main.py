@@ -11,6 +11,7 @@ from .config import create_configuration
 
 ARG__OUTPUT_FILE = '--output-file='
 ARG__API_VERSION = '--api-version='
+# Ignores the --previous-document-version= argument
 
 # Internal usage only
 ARG__TEST = '--test=true'
@@ -39,9 +40,6 @@ def main(argv: List[str]) -> int:
         return 2
 
     data = get_mesh.get_mesh(config)
-
-    if isinstance(data, int):
-        return data
 
     with open(output_file, 'w') as f:
         json.dump(data, f)

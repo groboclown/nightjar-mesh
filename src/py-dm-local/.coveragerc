@@ -1,4 +1,0 @@
-[run]
-
-omit =
-    nightjar_dm_local/__main__.py

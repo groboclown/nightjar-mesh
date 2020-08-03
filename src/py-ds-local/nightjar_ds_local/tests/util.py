@@ -8,7 +8,7 @@ import os
 import tempfile
 import shutil
 import json
-from ..config import Config, ENV_NAME__LOCAL_TEMPLATE_FILE, ENV_NAME__LOCAL_CONFIGURATION_FILE
+from ..config import Config, ENV_NAME__LOCAL_FILE_TEMPLATES, ENV_NAME__LOCAL_FILE_DISCOVERY_MAP
 
 
 class Local:
@@ -18,11 +18,11 @@ class Local:
         self._orig_env = dict(os.environ)
         self.temp_dir = tempfile.mkdtemp()
         self.template_file = os.path.join(self.temp_dir, 'template.json')
-        self.config_file = os.path.join(self.temp_dir, 'config.json')
+        self.config_file = os.path.join(self.temp_dir, 'discovery-map.json')
         self.action_file = os.path.join(self.temp_dir, 'action.json')
         self.config = Config({
-            ENV_NAME__LOCAL_TEMPLATE_FILE: self.template_file,
-            ENV_NAME__LOCAL_CONFIGURATION_FILE: self.config_file,
+            ENV_NAME__LOCAL_FILE_TEMPLATES: self.template_file,
+            ENV_NAME__LOCAL_FILE_DISCOVERY_MAP: self.config_file,
         })
 
     def tear_down(self) -> None:

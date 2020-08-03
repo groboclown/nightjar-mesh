@@ -45,6 +45,16 @@ class EcsTaskTest(unittest.TestCase):
         self.assertEqual(('0', 1), task_full.get_route_container_host_port_for(1))
         self.assertEqual(('0', 1), task_empty.get_route_container_host_port_for(1))
 
+    def test_bad_data_format(self) -> None:
+        """Test the route data with incorrect json data"""
+        info = ecs.RouteInfo(1, '{[', '12', 21, 2)
+        self.assertEqual(1, info.index)
+        self.assertEqual('', info.data)
+        self.assertEqual(False, info.is_route_data)
+        self.assertEqual(False, info.is_public_path)
+        self.assertEqual(False, info.is_private_path)
+        self.assertEqual(2, info.weight)
+
     def test_route_use_case(self) -> None:  # pylint: disable=R0914
         """Test the standard usage of the route tags API."""
         task = ecs.EcsTask(
@@ -73,6 +83,11 @@ class EcsTaskTest(unittest.TestCase):
 
         # Coverage based checks...
         self.assertEqual('tcp', task.get_protocol_tag())
+        self.assertEqual({
+            'NJ_PROTOCOL', 'NJ_ROUTE_1', 'NJ_ROUTE_16', 'NJ_ROUTE_22',
+            'NJ_ROUTE_23', 'NJ_ROUTE_3', 'NJ_ROUTE_PORT_22', 'NJ_ROUTE_WEIGHT_16',
+            'NJ_ROUTE_WEIGHT_22', 'NJ_ROUTE_XYZ',
+        }, task.get_tag_keys())
 
         routes = task.get_routes()
         self.assertEqual(5, len(routes))

@@ -20,37 +20,16 @@ class MainTest(unittest.TestCase):
     def tearDown(self) -> None:
         shutil.rmtree(self._temp_dir)
 
-    def test_main_wrong_operation(self) -> None:
-        """Invoked main wrong."""
-        ret = main.main([
-            'main.py', '--output-file=' + self._out, '--mode=y', '--api-version=1',
-        ])
-        self.assertEqual(2, ret)
-
     def test_main_wrong_api_version(self) -> None:
         """Invoked main wrong."""
         ret = main.main([
-            'main.py', '--output-file=' + self._out, '--mode=gateway', '--api-version=abc',
+            'main.py', '--action-file=' + self._out, '--api-version=abc',
         ])
         self.assertEqual(2, ret)
-
-    def test_main_gateway(self) -> None:
-        """Invoke main with gateway"""
-        ret = main.main([
-            'main.py', '--output-file=' + self._out, '--mode=gateway', '--api-version=1',
-        ])
-        self.assertEqual(0, ret)
-
-    def test_main_service(self) -> None:
-        """Invoke main with service"""
-        ret = main.main([
-            'main.py', '--output-file=' + self._out, '--mode=service', '--api-version=1',
-        ])
-        self.assertEqual(0, ret)
 
     def test_main_mesh(self) -> None:
         """Invoke main with mesh"""
         ret = main.main([
-            'main.py', '--output-file=' + self._out, '--mode=mesh', '--api-version=1',
+            'main.py', '--action-file=' + self._out, '--api-version=1',
         ])
         self.assertEqual(0, ret)

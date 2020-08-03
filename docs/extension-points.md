@@ -4,20 +4,25 @@ Nightjar uses two kinds of extensions with well-defined interfaces: [discovery m
 
 ## Discovery Maps
 
+Discovery map extension points construct a document that describe the services and gateways within each namespace in the mesh.
+
 Discovery Map extension point executables are defined in the `DISCOVERY_MAP_EXEC` environment variable.
 
 The executable takes these arguments:
 
-* `--output-file=(filename)` The filename that the executable must generate to contain the JSON-formatted results.  See below for details about the format.
+* `--action-file=(filename)` The filename that the executable must generate to contain the JSON-formatted results.  See below for details about the format.
+* `--previous-document-version=(version id or blank)` Tells the data store to only generate an output if there is a more recent version of the document than the previously returned one.  If the value is blank, then the output is generated.  Some discovery-map implementations ignore this.
 * `--api-version=1` Indicates the extension point interface version to use.
 
 For future compatibility, other arguments may be passed in, but must be ignored.
 
-The executable's exit code must be `0` to indicate the file was generated without issue, `31` to indicate an error that might be recoverable if invoked again, and and any other number to indicate an unrecoverable error.
+The executable's exit code must be `0` to indicate the file was generated without issue, `31` to indicate an error that might be recoverable if invoked again, `30` to indicate that there are no newer version, and and any other number to indicate an unrecoverable error.
 
 The environment variables used to launch the main nightjar program will be passed to the extension point executable.
 
 If the extension point returns a recoverable error exit code, then the nightjar parent program will begin an exponential back-off retry scheme to call the extension point again.
+
+The discovery map has the arguments setup in such a way that it could be replaced by a data store execution with hard-coded arguments `--document=discovery-map --action=fetch`.  This allows the stand-alone docker container to be used for both a stand-alone execution mode and for a centralized mode.
 
 
 ### Returned Data
@@ -27,11 +32,13 @@ The discovery map extension point must generate json-formatted data to the given
 
 ## Data Store
 
+Data store extension points manage document stores for various document types.
+
 The data store extension point executables are defined in the `DATA_STORE_EXEC` environment variable.
 
 The executable takes these arguments:
 
-* `--activity=(activity name)` Uses entries for the corresponding activity, which is either "configuration" or "template".
+* `--document=(document name)` Uses entries for the corresponding document, which is currently either "discovery-map" or "templates".
 * `--previous-document-version=(version id or blank)` Tells the data store to only generate an output if there is a more recent version of the document than the previously returned one.  If the value is blank, then the output is generated.  This is only used for "pull" actions.
 * `--action=(commit / fetch)` Fetches entries from the data store, or commits entries to the data store.
 * `--action-file=(filename)`  The input (for commit actions) or output (for fetch actions) file.
@@ -39,11 +46,17 @@ The executable takes these arguments:
 
 For future compatibility, other arguments may be passed in, but must be ignored.
 
-The executable's exit code must be `0` to indicate the file was generated without issue, `31` to indicate an error that might be recoverable if invoked again, `30` to indicate that there are no new versions, and and any other number to indicate an unrecoverable error.
+The executable's exit code must be `0` to indicate the file was generated without issue, `31` to indicate an error that might be recoverable if invoked again, `30` to indicate that there are no newer version (only valid for `fetch` actions), and and any other number to indicate an unrecoverable error.
 
 The environment variables used to launch the main nightjar program will be passed to the extension point executable.
 
 If the extension point returns a recoverable error exit code, then the nightjar parent program will begin an exponential back-off retry scheme to call the extension point again.
+
+The discovery map returns data in the [Discovery Map Schema](../schema/discovery-map-schema.yaml) format.  This is a consolidated look at all the envoy configurations across the mesh.  At a high level, it is the Service Data for each configuration.
+
+Each document fetched and retrieved must be a JSON document, but the format is up to the document type.  The only requirement is that the JSON document include the top-level field `document-version` set to a string, which is the value usable in the `--previous-document-version` argument.
+
+When committing a document, the `document-version` value is ignored by the data-store implementation, and the implementation will generate a new document version.  The extension point can change or delete the `--action-file=` file. 
 
 ### Fetch and Commit Actions
 
@@ -60,27 +73,6 @@ The "version" should support redundant services running.  The use case for the c
 The implementation can clean up old versions.  However, care should be taken to allow for services that have started reading a version to finish reading that version, even if a new version was written.  This doesn't need to be a 100% guarantee, but an effort should be taken to allow reasonably new versions to stay around, or, if a new version is written, to keep the older one around to allow the existing reads to finish.
 
 One way to avoid this scenario involves storing the entire version as a single blob.  This makes debugging a little harder, but makes the implementation much easier.
-
-
-## Output Schemas
-
-The extension points must output files that conform to the published [JSON schema formats](../schema).
-
-### Discovery Map Data
-
-[Discovery Map Schema](../schema/discovery-map-schema.yaml)
-
-The discovery map is a consolidated look at all the envoy configurations across the mesh.  At a high level, it is the Service Data for each configuration.
-
-### Data Store Data
-
-[Data Store - Commit Configurations](../schema/commit-configuration-data-store-schema.yaml)
-
-[Data Store - Commit Templates](../schema/commit-template-data-store-schema.yaml)
-
-[Data Store - Fetch Configurations](../schema/fetched-configuration-data-store-schema.yaml)
-
-[Data Store - Fetch Templates](../schema/fetched-template-data-store-schema.yaml)
 
 
 ## Other Kinds of Extension Points

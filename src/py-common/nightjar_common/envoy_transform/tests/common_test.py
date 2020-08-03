@@ -489,10 +489,10 @@ class EnvoyConfigTest(unittest.TestCase):
         )
         base_context_1 = config.get_context('n1', 's1', 1)
         full_context_1 = dict(base_context_1)
-        full_context_1['version'] = 'v1'
+        full_context_1['schema-version'] = 'v1'
         base_context_none = config.get_context('n1', 's1', None)
         full_context_none = dict(base_context_none)
-        full_context_none['version'] = 'v1'
+        full_context_none['schema-version'] = 'v1'
         validate_proxy_input(full_context_1)
         validate_proxy_input(full_context_none)
         self.assertEqual(
@@ -528,7 +528,7 @@ class EnvoyConfigContextTest(unittest.TestCase):
         validate_proxy_input(context)
         self.assertEqual(
             {
-                'version': 'v1',
+                'schema-version': 'v1',
                 'network_name': 'nk1',
                 'service_member': 's1',
                 'has_admin_port': True,
@@ -554,13 +554,13 @@ class CommonFunctionTest(unittest.TestCase):
         self.assertFalse(common.is_protocol_http2(None))
 
 
-
 # ---------------------------------------------------------------------------
 # proxy-input-schema document creators.
 
 def _mk_pi_doc(overrides: Dict[str, Any]) -> Dict[str, Any]:
     ret: Dict[str, Any] = {
-        'version': 'v1',
+        'schema-version': 'v1',
+        'document-version': '12',
         'network_name': 'nk1',
         'service_member': 's1-c1',
         'has_admin_port': True,

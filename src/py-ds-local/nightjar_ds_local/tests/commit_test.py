@@ -22,30 +22,30 @@ class CommitTest(unittest.TestCase):
     def tearDown(self) -> None:
         self._local.tear_down()
 
-    def test_template_no_source_file(self) -> None:
+    def test_templates_no_source_file(self) -> None:
         """Test that the function fails correctly if the source file doesn't exist."""
         self.assertFalse(self._local.does_template_exist())
         self.assertFalse(self._local.does_action_file_exist())
-        res = commit.commit(self._local.config, 'template', self._local.action_file)
+        res = commit.commit(self._local.config, 'templates', self._local.action_file)
         self.assertEqual(1, res)
         self.assertFalse(self._local.does_action_file_exist())
         self.assertFalse(self._local.does_template_exist())
 
-    def test_configuration_no_source_file(self) -> None:
+    def test_discovery_map_no_source_file(self) -> None:
         """Test that the function fails correctly if the source file doesn't exist."""
         self.assertFalse(self._local.does_config_exist())
         self.assertFalse(self._local.does_action_file_exist())
-        res = commit.commit(self._local.config, 'configuration', self._local.action_file)
+        res = commit.commit(self._local.config, 'discovery-map', self._local.action_file)
         self.assertEqual(1, res)
         self.assertFalse(self._local.does_action_file_exist())
         self.assertFalse(self._local.does_config_exist())
 
-    def test_configuration_with_file(self) -> None:
+    def test_discovery_map_with_file(self) -> None:
         """Test that the function operates correctly if the source file exists."""
         self._local.write_action_file({'expected-config': True})
         self.assertFalse(self._local.does_config_exist())
         self.assertFalse(self._local.does_template_exist())
-        res = commit.commit(self._local.config, 'configuration', self._local.action_file)
+        res = commit.commit(self._local.config, 'discovery-map', self._local.action_file)
         self.assertEqual(0, res)
         self.assertTrue(self._local.does_config_exist())
         self.assertFalse(self._local.does_template_exist())
@@ -57,12 +57,12 @@ class CommitTest(unittest.TestCase):
             cast(str, data.get('commit-version'))
         ))
 
-    def test_template_with_file(self) -> None:
+    def test_templates_with_file(self) -> None:
         """Test that the function operates correctly if the source file exists."""
         self._local.write_action_file({'expected-template': True})
         self.assertFalse(self._local.does_config_exist())
         self.assertFalse(self._local.does_template_exist())
-        res = commit.commit(self._local.config, 'template', self._local.action_file)
+        res = commit.commit(self._local.config, 'templates', self._local.action_file)
         self.assertEqual(0, res)
         self.assertFalse(self._local.does_config_exist())
         self.assertTrue(self._local.does_template_exist())

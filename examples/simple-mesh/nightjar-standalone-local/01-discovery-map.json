@@ -1,5 +1,6 @@
 {
-  "version": "v1",
+  "schema-version": "v1",
+  "document-version": "1",
   "namespaces": [
     {
       "namespace": "default",

@@ -9,7 +9,7 @@ import os
 import platform
 import shutil
 import json
-from nightjar_common.validation import validate_discovery_map, validate_fetched_template_data_store
+from nightjar_common.validation import validate_discovery_map, validate_templates
 from .. import generate
 from ..config import (
     Config,
@@ -63,9 +63,8 @@ class GeneratorTest(unittest.TestCase):
         self._config.namespace = 'n1'
         self._config.data_store_exec = self._get_runnable_cmd(
             0, {
-                'version': 'v1',
-                'activity': 'template',
-                'commit-version': 'x',
+                'schema-version': 'v1',
+                'document-version': 'x',
                 'gateway-templates': [],
                 'service-templates': [],
             },
@@ -79,9 +78,8 @@ class GeneratorTest(unittest.TestCase):
         self._config.namespace = 'n1'
         self._config.data_store_exec = self._get_runnable_cmd(
             0, {
-                'version': 'v1',
-                'activity': 'template',
-                'commit-version': 'x',
+                'schema-version': 'v1',
+                'document-version': 'x',
                 'gateway-templates': [{
                     'namespace': None,
                     'protection': 'public',
@@ -104,9 +102,8 @@ class GeneratorTest(unittest.TestCase):
         self._config.namespace = 'n1'
         self._config.data_store_exec = self._get_runnable_cmd(
             0, {
-                'version': 'v1',
-                'activity': 'template',
-                'commit-version': 'x',
+                'schema-version': 'v1',
+                'document-version': 'x',
                 'gateway-templates': [{
                     'namespace': None,
                     'protection': 'public',
@@ -147,24 +144,24 @@ class GeneratorTest(unittest.TestCase):
         """Test the gateway generate_file function.  Uses a simple setup."""
         self._config.namespace = 'n1'
         self._config.data_store_exec = self._get_runnable_cmd(
-            0, validate_fetched_template_data_store({
-                'version': 'v1',
-                'activity': 'template',
-                'commit-version': 'x',
+            0, validate_templates({
+                'schema-version': 'v1',
+                'document-version': 'x',
                 'service-templates': [],
                 'gateway-templates': [{
                     'namespace': 'n1',
                     'purpose': 'out-1.txt',
-                    'template': '1 {{version}} 2 {{has_admin_port}} 3 {{has_clusters}} 4',
+                    'template': '1 {{schema-version}} 2 {{has_admin_port}} 3 {{has_clusters}} 4',
                 }, {
                     'namespace': 'n1',
                     'purpose': 'out-2.txt',
-                    'template': 'z {{version}} y',
+                    'template': 'z {{schema-version}} y',
                 }],
             }),
         )
         self._config.discovery_map_exec = self._get_runnable_cmd(0, validate_discovery_map({
-            'version': 'v1',
+            'schema-version': 'v1',
+            'document-version': 'd1',
             'namespaces': [{
                 'namespace': 'n1',
                 'network-id': 'nk1',
@@ -180,7 +177,8 @@ class GeneratorTest(unittest.TestCase):
         }))
 
         gateway = generate.GenerateGatewayConfiguration(self._config)
-        gateway.generate_file(1, 2)
+        res = gateway.generate_file(1, 2)
+        self.assertEqual(0, res)
 
         out_file_1 = os.path.join(self._config.envoy_config_dir, 'out-1.txt')
         self.assertTrue(os.path.isfile(out_file_1))
@@ -193,6 +191,51 @@ class GeneratorTest(unittest.TestCase):
         with open(out_file_2, 'r') as f:
             self.assertEqual('z v1 y', f.read())
 
+    def test_gateway_generate_file__with_error(self) -> None:
+        """Test the gateway generate_file function that generates an error."""
+        self._config.namespace = 'n1'
+        self._config.data_store_exec = self._get_runnable_cmd(
+            12, validate_templates({
+                'schema-version': 'v1',
+                'document-version': 'x',
+                'service-templates': [],
+                'gateway-templates': [{
+                    'namespace': 'n1',
+                    'purpose': 'out-1.txt',
+                    'template': '1 {{schema-version}} 2 {{has_admin_port}} 3 {{has_clusters}} 4',
+                }, {
+                    'namespace': 'n1',
+                    'purpose': 'out-2.txt',
+                    'template': 'z {{schema-version}} y',
+                }],
+            }),
+        )
+        self._config.discovery_map_exec = self._get_runnable_cmd(0, validate_discovery_map({
+            'schema-version': 'v1',
+            'document-version': 'd1',
+            'namespaces': [{
+                'namespace': 'n1',
+                'network-id': 'nk1',
+                'gateways': {'instances': [], 'prefer-gateway': False, 'protocol': 'http1.1'},
+                'service-colors': [{
+                    'service': 's1',
+                    'color': 'c1',
+                    'routes': [],
+                    'instances': [],
+                    'namespace-egress': [],
+                }],
+            }],
+        }))
+
+        gateway = generate.GenerateGatewayConfiguration(self._config)
+        res = gateway.generate_file(1, 2)
+        self.assertEqual(1, res)
+
+        out_file_1 = os.path.join(self._config.envoy_config_dir, 'out-1.txt')
+        self.assertFalse(os.path.isfile(out_file_1))
+        out_file_2 = os.path.join(self._config.envoy_config_dir, 'out-2.txt')
+        self.assertFalse(os.path.isfile(out_file_2))
+
     # -----------------------------------------------------------------------
     def test_service_get_templates__no_templates(self) -> None:
         """Test the service generator with no template files."""
@@ -201,9 +244,8 @@ class GeneratorTest(unittest.TestCase):
         self._config.color = 'c1'
         self._config.data_store_exec = self._get_runnable_cmd(
             0, {
-                'version': 'v1',
-                'activity': 'template',
-                'commit-version': 'x',
+                'schema-version': 'v1',
+                'document-version': 't1',
                 'gateway-templates': [],
                 'service-templates': [],
             },
@@ -235,9 +277,8 @@ class GeneratorTest(unittest.TestCase):
                     )
                 self._config.data_store_exec = self._get_runnable_cmd(
                     0, {
-                        'version': 'v1',
-                        'activity': 'template',
-                        'commit-version': 'x',
+                        'schema-version': 'v1',
+                        'document-version': 'x',
                         'gateway-templates': [],
                         'service-templates': [{
                             'namespace': namespace,
@@ -259,9 +300,8 @@ class GeneratorTest(unittest.TestCase):
         self._config.color = 'c1'
         self._config.data_store_exec = self._get_runnable_cmd(
             0, {
-                'version': 'v1',
-                'activity': 'template',
-                'commit-version': 'x',
+                'schema-version': 'v1',
+                'document-version': 'x',
                 'gateway-templates': [],
                 'service-templates': [{
                     'namespace': 'n1',
@@ -295,9 +335,8 @@ class GeneratorTest(unittest.TestCase):
         self._config.color = 'c1'
         self._config.data_store_exec = self._get_runnable_cmd(
             0, {
-                'version': 'v1',
-                'activity': 'template',
-                'commit-version': 'x',
+                'schema-version': 'v1',
+                'document-version': 'x',
                 'gateway-templates': [],
                 'service-templates': [{
                     'namespace': 'n1',
@@ -324,28 +363,28 @@ class GeneratorTest(unittest.TestCase):
         self._config.service = 's1'
         self._config.color = 'c1'
         self._config.data_store_exec = self._get_runnable_cmd(
-            0, validate_fetched_template_data_store({
-                'version': 'v1',
-                'activity': 'template',
-                'commit-version': 'x',
+            0, validate_templates({
+                'schema-version': 'v1',
+                'document-version': 'x',
                 'gateway-templates': [],
                 'service-templates': [{
                     'namespace': 'n1',
                     'service': 's1',
                     'color': 'c1',
                     'purpose': 'out-1.txt',
-                    'template': '1 {{version}} 2 {{has_admin_port}} 3 {{has_clusters}} 4',
+                    'template': '1 {{schema-version}} 2 {{has_admin_port}} 3 {{has_clusters}} 4',
                 }, {
                     'namespace': 'n1',
                     'service': 's1',
                     'color': 'c1',
                     'purpose': 'out-2.txt',
-                    'template': 'z {{version}} y',
+                    'template': 'z {{schema-version}} y',
                 }],
             })
         )
         self._config.discovery_map_exec = self._get_runnable_cmd(0, validate_discovery_map({
-            'version': 'v1',
+            'schema-version': 'v1',
+            'document-version': 'd12',
             'namespaces': [{
                 'namespace': 'n1',
                 'network-id': 'nk1',
@@ -373,6 +412,27 @@ class GeneratorTest(unittest.TestCase):
 
         with open(out_file_2, 'r') as f:
             self.assertEqual('z v1 y', f.read())
+
+    def test_generate_envoy_file__no_change(self) -> None:
+        """Run generate_envoy_file with no changes to the files."""
+        requested_out_file = os.path.join(self._config.envoy_config_dir, 'x.txt')
+        with open(requested_out_file, 'w') as f:
+            f.write('x')
+        generate.generate_envoy_file(self._config, 'x.txt', 'x')
+        self.assertTrue(os.path.isfile(requested_out_file))
+        with open(requested_out_file, 'r') as f:
+            self.assertEqual('x', f.read())
+
+    def test_generate_envoy_file__replaced(self) -> None:
+        """Run generate_envoy_file with no changes to the files."""
+        requested_out_file = os.path.join(self._config.envoy_config_dir, 'x.txt')
+        with open(requested_out_file, 'w') as f:
+            f.write('y')
+        generate.generate_envoy_file(self._config, 'x.txt', 'x')
+        self.assertTrue(os.path.isfile(requested_out_file))
+        with open(requested_out_file, 'r') as f:
+            self.assertEqual('x', f.read())
+
 
     # -----------------------------------------------------------------------
     def _get_runnable_cmd(

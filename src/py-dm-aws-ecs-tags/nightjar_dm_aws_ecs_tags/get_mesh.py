@@ -3,12 +3,12 @@
 Gets the current configuration for the full mesh.
 """
 
-from typing import Dict, List, Tuple, Set, Iterable, Union, Any
+from typing import Dict, List, Tuple, Set, Iterable, Any
 from .config import Config
 from .ecs import load_mesh_tasks, EcsTask, RouteInfo
 
 
-def get_mesh(config: Config) -> Union[int, Dict[str, Any]]:
+def get_mesh(config: Config) -> Dict[str, Any]:
     """Front-end call."""
     if config.test_mode:
         return {'mesh': True}
@@ -18,7 +18,8 @@ def get_mesh(config: Config) -> Union[int, Dict[str, Any]]:
     ))
 
     return {
-        'version': 'v1',
+        'schema-version': 'v1',
+        'document-version': 'none',
         'namespaces': [
             create_namespace_config(namespace, tasks[0], tasks[1])
             for namespace, tasks in sorted_tasks.items()
@@ -70,9 +71,6 @@ def create_service_color_configs(service_color_tasks: List[EcsTask]) -> List[Dic
     that, we don't need to perform tricky per-task filtering.  Instead, we'll scan the
     tasks in a service-color and use whatever we find first.
     """
-
-    # WARNING: This currently only supports one port per service-color.
-    # This needs to be improved.
 
     ret: List[Dict[str, Any]] = []
     for service_color, tasks in sort_tasks_by_service_color(service_color_tasks).items():

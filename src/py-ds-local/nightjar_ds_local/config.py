@@ -3,23 +3,31 @@
 Configuration for the local data store.
 """
 
-from typing import Dict
+from typing import Dict, Optional
 import os
 
+ENV_FORMAT__LOCAL_FILE = 'NJ_DSLOCAL_FILE_{0}'
+DEFAULT_FORMAT__LOCAL_FILE = '/usr/share/nightjar/data-store/{0}.json'
 
-ENV_NAME__LOCAL_TEMPLATE_FILE = 'NJ_DSLOCAL_TEMPLATE_FILE'
-DEFAULT__LOCAL_TEMPLATE_FILE = '/usr/share/nightjar/data-store/templates.json'
-ENV_NAME__LOCAL_CONFIGURATION_FILE = 'NJ_DSLOCAL_CONFIGURATION_FILE'
-DEFAULT__LOCAL_CONFIGURATION_FILE = '/usr/share/nightjar/data-store/configurations.json'
+ENV_NAME__LOCAL_FILE_TEMPLATES = ENV_FORMAT__LOCAL_FILE.format('TEMPLATES')
+DEFAULT__LOCAL_FILE_TEMPLATE = DEFAULT_FORMAT__LOCAL_FILE.format('templates')
+ENV_NAME__LOCAL_FILE_DISCOVERY_MAP = ENV_FORMAT__LOCAL_FILE.format('DISCOVERY_MAP')
+DEFAULT__LOCAL_FILE_DISCOVERY_MAP = DEFAULT_FORMAT__LOCAL_FILE.format('discovery-map')
 
 
 class Config:
     """The configuration."""
-    __slots__ = ('local_template_file', 'local_configuration_file')
+    __slots__ = ('local_files',)
 
     def __init__(self, env: Dict[str, str]) -> None:
-        self.local_template_file = get_template_file(env)
-        self.local_configuration_file = get_configuration_file(env)
+        self.local_files = {
+            'templates': get_templates_file(env),
+            'discovery-map': get_discovery_map_file(env),
+        }
+
+    def get_file(self, document: str) -> Optional[str]:
+        """Get the local file for the document.  Returns None if it isn't valid."""
+        return self.local_files.get(document)
 
 
 def create_configuration() -> Config:
@@ -27,15 +35,15 @@ def create_configuration() -> Config:
     return Config(dict(os.environ))
 
 
-def get_configuration_file(env: Dict[str, str]) -> str:
-    """Get the configuration file defined in the environment."""
+def get_discovery_map_file(env: Dict[str, str]) -> str:
+    """Get the discovery map file defined in the environment."""
     return env.get(
-        ENV_NAME__LOCAL_CONFIGURATION_FILE, DEFAULT__LOCAL_CONFIGURATION_FILE,
+        ENV_NAME__LOCAL_FILE_DISCOVERY_MAP, DEFAULT__LOCAL_FILE_DISCOVERY_MAP,
     )
 
 
-def get_template_file(env: Dict[str, str]) -> str:
+def get_templates_file(env: Dict[str, str]) -> str:
     """Get the template file defined in the environment"""
     return env.get(
-        ENV_NAME__LOCAL_TEMPLATE_FILE, DEFAULT__LOCAL_TEMPLATE_FILE,
+        ENV_NAME__LOCAL_FILE_TEMPLATES, DEFAULT__LOCAL_FILE_TEMPLATE,
     )

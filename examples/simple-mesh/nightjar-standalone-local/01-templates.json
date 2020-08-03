@@ -1,7 +1,6 @@
 {
-  "version": "v1",
-  "commit-version": "1",
-  "activity": "template",
+  "schema-version": "v1",
+  "document-version": "1",
   "gateway-templates": [
     {
       "namespace": "default",
