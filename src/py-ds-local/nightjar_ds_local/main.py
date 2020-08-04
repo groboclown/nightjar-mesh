@@ -38,7 +38,7 @@ def main(argv: List[str]) -> int:
             api_version = arg[len(ARG__API_VERSION):].strip()
 
     if api_version != '1':
-        print('[dm-aws-service-discovery] Unknown API version: ' + api_version)
+        print('[nightjar-ds-local] Unknown API version: ' + api_version)
         return 4
 
     if action == 'commit':

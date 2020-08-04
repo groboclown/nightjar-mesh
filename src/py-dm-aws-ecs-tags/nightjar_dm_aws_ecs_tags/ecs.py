@@ -624,6 +624,7 @@ CONFIG: Dict[str, str] = {}
 def set_aws_config(config: Dict[str, str]) -> None:
     """Set the global AWS configuration."""
     CONFIG.clear()
+    CLIENTS.clear()
     CONFIG.update(config)
 
 

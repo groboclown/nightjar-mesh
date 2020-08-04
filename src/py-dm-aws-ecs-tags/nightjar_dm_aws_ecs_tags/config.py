@@ -33,7 +33,7 @@ class Config:
         self.namespace = get_namespace(env)
         self.service = get_service(env)
         self.color = get_color(env)
-        self.aws_config: Dict[str, str] = {}
+        self.aws_config: Dict[str, str] = get_aws_config(env)
         self.test_mode = False
         self.required_tag_name = get_required_tag_name(env)
         self.required_tag_value = get_required_tag_value(env)
@@ -78,3 +78,12 @@ def get_required_tag_name(env: Dict[str, str]) -> Optional[str]:
 def get_required_tag_value(env: Dict[str, str]) -> Optional[str]:
     """Get the environment required tag value."""
     return env.get(ENV__REQUIRED_TAG_VALUE, None)
+
+
+def get_aws_config(env: Dict[str, str]) -> Dict[str, str]:
+    """Create the AWS config."""
+    ret: Dict[str, str] = {}
+    for key, value in env.items():
+        if key.startswith('AWS_'):
+            ret[key] = value
+    return ret
