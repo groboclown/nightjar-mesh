@@ -61,13 +61,12 @@ properties:
           type: ["string", "null"]
         color:
           description: >
-            Color of this template, or `null` if this is the default service color template.  Note that
-            if `service` is "null", then this must also be "null".
+            Color of this template, or `null` if this is the default service color template.
           type: ["string", "null"]
         purpose:
           description: >
             The purpose of this template, which is usually the destination file name,
-            such as "cds.yaml" or "lds.yaml".  Multiple of these can be provided per namespace.
+            such as "cds.yaml" or "lds.yaml".  Multiple of these can be provided per namespace/service/color.
           type: string
         template:
           description: The template text.

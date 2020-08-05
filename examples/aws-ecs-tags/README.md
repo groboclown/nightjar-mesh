@@ -1,5 +1,7 @@
 # Example CloudFormation Templates
 
+*In Progress.  This is expected to start with a single mesh, expand to include a central discovery-map creator, then have multiple namespaces with their own gateways.*
+
 Here you will find example CloudFormation template files that construct an ECS configuration that uses a Nightjar container loaded into the configuration.
 
 You should carefully review the templates to ensure:

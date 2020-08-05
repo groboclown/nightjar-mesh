@@ -1,5 +1,6 @@
 # Docker Container: Standalone
 
+Container that pulls from the discovery-map to get the mesh document, pulls templates from the data store, merges the two together, and manages the Envoy proxy process.
 
 ## Usage
 

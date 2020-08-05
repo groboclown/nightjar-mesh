@@ -1,4 +1,4 @@
-![Logo](docs/logo.svg)
+![Logo with Title](docs/title-logo.svg)
 
 # nightjar-mesh
 
@@ -24,7 +24,7 @@ The construction of the proxy configuration comes from these layers of data:
 
 1. The network definition.  *Defined through the discovery map extension point.*
     1. Which services to use, and where are they?
-    1. What URI paths do they respond to, and how should they be weighted?
+    1. What URI paths do they respond to, what ports to they listen on, and by how much should the traffic favor this route (weighing)?
 1. Access definition.  *Defined in the construction of the service data.*
     1. Which services and other meshes are available to each service and gateway?
     1. Which routes for those services should this allow access to?
@@ -33,30 +33,38 @@ The construction of the proxy configuration comes from these layers of data:
 
 The services call out to other by sending a request to the Envoy proxy directly, rather than to a DNS name that Envoy reroutes through ip table changes.  This makes the Envoy container setup require fewer docker permissions.
 
+Full information is available in the [documentation area](docs/README.md).
+
 
 ## Supported Infrastructure
 
 Nightjar has a series of well defined data formats that allow it to run with any number of backing technology.  It uses [extension points](docs/extension-points.md), programs with a well-defined interface, to provide integration with other technologies.
 
-**TODO This needs a fixin'**
+### Service Discovery Through AWS Elastic Cloud Services (ECS)
 
-### AWS - Cloud Map
+The [AWS ECS extension point](docs/discovery-aws-ecs-task-tags.md) scans ECS clusters for containers that belong to the mesh.  Containers with special tags and environment variables declare their participation in the mesh, and how they work within the mesh.
 
-Currently, nightjar only supports reading the service configuration defined in [AWS Cloud Map](https://docs.aws.amazon.com/cloud-map/latest/dg) to construct the Envoy *data plane* for locating services within within the AWS Elastic Cloud Services (ECS).
+As a discovery map extension point, it is called frequently to find updates to the mesh, which allows for the Envoy proxy to dynamically change the routing as the cluster changes.
 
-### AWS - ECS Tags
+### Data Storage in AWS S3
 
-**In progress - an extension that uses the tags on tasks in an ECS cluster.  This has the same benefits of the cloud-map, but with none of the associated costs.  When this is further along in development, the documentation here will change around to reflect the additional discovery method.**
+The [AWS S3 extension point](docs/store-aws-s3.md) stores and retrieves document templates from an S3 bucket.  This allows the Envoy proxy configurations to be updated, and the running proxies dynamically update with the new settings.
 
-### AWS - App Mesh
+Nightjar allows storing the discovery map definition in a data storage extension point, so you can also use this to keep a cached version of the discovery map.  In this way, your Envoy proxies don't need to each run the discovery, but instead can retrieve it from the S3 store.
 
-AWS provides their [App Mesh](https://aws.amazon.com/app-mesh/) tooling, but it involves many limitations that some deployments cannot work around, or should not work around.  Nightjar acts as a low-level intermediary between the AWS API and the Envoy Proxy to make deployments in EC2 or Fargate possible, with little fuss.  It even works without `awsvpc` networks, and takes advantage of ephemeral ports.  Additionally, the envoy configuration Nightar generates is completely configurable, which gives you flexibility to take advantage of many Envoy features without needing to wait for AWS to support them.
+### Local Container Storage
 
-### Others
+The [local store extension point](docs/store-local.md) stores and retrieves document templates from the container's local storage.  This can either be files baked into the docker image, or mounted through a volume.
 
-Have an idea for another technology to include in Nightjar?  Open a ticket, or, better yet, [submit a push request](CONTRIBUTING.md) with your code!  See details in the [guide to extending Nightjar](EXTENDING.md).
+### Service Discovery Through AWS Cloud Map (In Development)
 
-Because of the currently limited support for just AWS, the remainder of this document concerns itself only with using Nightjar with AWS.
+The [AWS Cloudmap extension point](docs/discovery-aws-cloudmap.md) scans the service configuration defined in [AWS Cloud Map](https://docs.aws.amazon.com/cloud-map/latest/dg) to construct the discovery map for locating services within within the AWS Elastic Cloud Services (ECS).
+
+*This is being developed.*
+
+### Bring Your Own Extension Point
+
+If you have other ideas for storage or discovering the mesh, you can follow the simple requirements to write your own extension point.  Want to write it in Golang?  Go for it.  How about Ruby?  Sure.
 
 
 ## Some Notes on Terminology
@@ -70,161 +78,26 @@ The **control plane** manages the configuration of the data plane.
 **Nightjar** refers to the control plane tool, while **nightjar-mesh** refers to the Nightjar docker sidecar, the network topology, and the AWS resources used in the construction of the mesh.  Nightjar, additionally, provides two deployment implementations, **standalone** and **centralized** modes.
 
 
+## Nightjar vs. AWS App Mesh
+
+AWS provides their [App Mesh](https://aws.amazon.com/app-mesh/) tooling, but it involves many limitations that some deployments cannot work around, or should not work around.  Nightjar acts as a low-level intermediary between the AWS API and the Envoy Proxy to make deployments in EC2 or Fargate possible, with little fuss.  It even works without `awsvpc` networks, and takes advantage of ephemeral ports.  Additionally, the envoy configuration Nightar generates is completely configurable, which gives you flexibility to take advantage of many Envoy features without needing to wait for AWS to support them.
+
+
 ## How It Works
 
-**TODO This needs a fixin'.  The high level ideas are right, but the details are all different now.**
+Nightjar expects each service to have an Envoy proxy sidecar running through the [Nightjar container](docs/entry-standalone.md).  The Nightjar container configures the Envoy proxy, and ensures it stays running.  The configuration involves:
 
-You add the Nightjar container to an [ECS Task Definition](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html), along with your existing service container.  The Nightjar container runs the Envoy proxy, and is considered a "sidecar" container here.  The service must be configured to send all traffic to other services in the service mesh to the Nightjar container.  Inbound traffic to the service comes from the Nightjar containers running in the other services.
+1. running the [discovery-map extension point](docs/extension-points.md#discovery-maps) to retrieve the mesh configuration;
+1. running the [data-store extension point](docs/extension-points.md#data-store) to retrieve the Envoy template files;
+1. convert the discovery-map to a form that is specialized to the current container and ready for processing through the templates;
+1. process each template as a mustache template, using the converted discovery-map.
 
-You also need to register your ECS service in an AWS Cloud Map namespace, using SVR registration.  Nightjar reads the [service name](https://docs.aws.amazon.com/cloud-map/latest/dg/working-with-services.html) information for each service registered under a single [namespace](https://docs.aws.amazon.com/cloud-map/latest/dg/working-with-namespaces.html), transforms that into a [common data format](nightjar-base/nightjar-src/python-src/nightjar/backend/api/deployment_map/service-data-schema.yaml), and uses that data with template files to generate envoy proxy files.
+The service container needs to be configured to send requests for the mesh to the Nightjar container.
 
-You can also have Nightjar run as a gateway proxy.  This does not run as a sidecar, but instead as a standalone container, usually with an AWS Application Load Balancer (ALB) running in front of it.
-
-There are two modes in which Nightjar runs, standalone and centralized.
-
-### Standalone Mode
-
-*[Details for standalone mode](docs/standalone-deployment-model.md)*
-
-In standalone mode, the Nightjar sidecar and gateway proxies are independent of each other.  They each read from the AWS Cloud Map configuration and create their own proxy configuration.  This means that problems with one container do not escalate to other containers.  Additionally, all configuration of the mesh is defined within the Cloud Formation templates, if you use those.  It works well for small deployments.
-
-This implementation has some downsides:
-
-* Changing the envoy proxy configuration requires creating new nightjar-standalone docker images.  If you want different configurations for different purposes, then you will need to create one docker image for each purpose.
-* The generated envoy proxy files can only be checked by extracting them out of the container, which requires direct access to the docker daemon.  For services running in Fargate, this is not possible.
-* As the number of running services goes up, you incur an additional fee from the API usage from AWS.  Some shops may find this fee minimal, while others may consider it too costly.  You need to decide for yourself.  [Here is some information to help you out.](docs/discovery-aws-cloudmap.md#api-usage)
+The data-store extension point is specially designed to allow it to also work as a discovery-map extension point.  That means you can have a separate [central container](docs/entry-central.md) generate the discovery-map and store it in the data store, while the [sidecar container](docs/entry-standalone.md) pulls from the data store.  This can help if you find that there are request limits or costs associated with mesh discovery.
 
 
-### Centralized Mode
+## Get Started with Examples
 
-*[Details for centralized mode](docs/centralized-deployment-model.md)*
-
-In centralized mode, the service configuration is broken up.
-
-* The envoy configuration [mustache templates](https://en.wikipedia.org/wiki/Mustache_%28template_system%29) are placed in a data store.  Currently, only S3 is supported as a data store.
-* One container runs in [configurator mode](nightjar-central/configurator-docker).  This performs the loop to check for updates to the Cloud Map configuration, generates the envoy configuration files, and stores the generated configuration files in the data store.  A future direction might add in the ability to run this as a Lambda.  This allows the configuration to be generated on demand, with only a single pass on the AWS Cloud Map API.
-* Each service and each gateway runs a nightjar-central-envoy sidecar container.  This container checks the data store for updated configuration files.
-
-The storage and retrieval of the configuration files is done atomically, so that no enovy configuration runs in a partial state.
-
-This implementation allows for visibility into the generated envoy proxy files, control over which configuration each gateway and service uses from a centralized store, and minimal impact on Cloud Map API usage.
-
-
-## Configuring Cloud Map
-
-Each service mesh will need to have its own Cloud Map namespace.  In Cloud Formation Templates, you would define it using the `AWS::ServiceDiscovery::PrivateDnsNamespace` resource type.
-
-Each service in the mesh needs to be defined in a [Cloud Map service](https://docs.aws.amazon.com/cloud-map/latest/dg/working-with-services.html), with SVR DNS records.  Additionally, one [instances](https://docs.aws.amazon.com/cloud-map/latest/dg/working-with-instances.html) within those services must be registered with ID `service-settings` and the given keys:
-
-* `SERVICE` - the name of the service.
-* `COLOR` - the deployment "color" (usually blue or green).
-* `AWS_INSTANCE_IPV4` and `AWS_INSTANCE_PORT` - these keys are required by AWS, but the value doesn't matter for the purposes of Nightjar.
-* For each path prefix that the service handles, register that path as the key, and the relative weight that this service instance should be assigned to that prefix.  For example, if the "blue" deployment has just been released and you want to lightly load it before switching over, give its paths a number significantly lower than the "green" deployment.  If the path is explicitly only used within the service mesh, and should never be accessible from outside this mesh, then prepend a question mark ('?') to the start of the key.  Note that to be recognized as a path key, the key must start with a `/`, `?`, or `*`.
-
-(Note that the explicit instance registration has a small AWS fee associated with it.)
-
-Then each ECS service must be registered to the service.
-
-Here is an example Cloud Formation template that incorporates one service ("tuna", in the "blue" deployment color) in the service mesh namespace ("fish.service.local").
-
-```yaml
-Parameters:
-  ClusterName:
-    Type: String
-    Description: >
-      The ECS cluster name or ARN in which the image registry task will run.
-
-  VPC:
-    Type: AWS::EC2::VPC::Id
-    Description: >
-      The VPC to connect everything to.
-
-Resources:
-  # The namespace for this mesh.  If we have multiple meshes, each one has its
-  # own namespace.  The primary reason to split separate clusters is due to
-  # overlapping listening paths for the services.  Another reason is better network
-  # traffic control.  It can also add extra security by limiting which paths
-  # an outside service can talk to by use of the "private" paths. 
-  FishNamespace:
-    Type: "AWS::ServiceDiscovery::PrivateDnsNamespace"
-    Properties:
-      Description: "The Fish Mesh"
-      Name: "fish.service.local"
-      Vpc: !Ref VPC
-
-  # All the different color deployments of the Tuna have their
-  # own discovery record.  
-  TunaBlueServiceDiscoveryRecord:
-    Type: 'AWS::ServiceDiscovery::Service'
-    Properties:
-      Name: tuna-blue
-      DnsConfig:
-        NamespaceId: !Ref "FishNamespace"
-        DnsRecords:
-          # Containers add themselves into this record, and with the SRV
-          # type, they register the IP and the ephemeral port they listen on. 
-          - Type: SRV
-            TTL: 300
-      HealthCheckCustomConfig:
-        FailureThreshold: 1
-
-  # The ECS service definition including the service registration.
-  TunaBlueService:
-    Type: "AWS::ECS::Service"
-    Properties:
-      Cluster: !Ref "ClusterName"
-      DeploymentConfiguration:
-        MaximumPercent: 200
-        MinimumHealthyPercent: 100
-      DesiredCount: 1
-      LaunchType: EC2
-      TaskDefinition: !Ref "TunaBlueTaskDef"
-      ServiceRegistries:
-        - RegistryArn: !GetAtt "TunaBlueServiceDiscoveryRecord.Arn"
-          # The container name and port of the service within the task definition we're registering.
-          ContainerName: service
-          ContainerPort: 3000
-
-  # A data-only service discovery instance.  Each discovery service includes
-  # one of these to tell Nightjar additional meta-data about the specific
-  # service.  This includes the different paths.
-  TunaBlueReferenceInstance:
-    Type: AWS::ServiceDiscovery::Instance
-    Properties:
-      # The instance ID MUST be "service-settings"; Nightjar looks for this ID.
-      InstanceId: service-settings
-      ServiceId: !Ref "TunaBlueServiceDiscoveryRecord"
-      InstanceAttributes:
-        # High level information about the service/color.
-        SERVICE: tuna
-        COLOR: blue
-
-        # If your service uses HTTP2, then set this attribute and value.
-        HTTP2: enabled
-        
-        # List of all the URI path prefixes that receive traffic as the
-        # keys, and the value is the relative weight to assign this
-        # service/color for this path.
-        "/tuna": "100"
-        
-        # Note that the paths weights above can be changed outside this file,
-        # through the Cloud Map UI or through the AWS cli.
-
-
-        # These settings are required for SRV records, but for this
-        # meta-data record, the values are never used.  So we set these to
-        # valid values that are harmless.
-        AWS_INSTANCE_IPV4: 127.0.0.1
-        AWS_INSTANCE_PORT: 1234
-```
-
-
-## Large Deployment Considerations
-
-Large deployments may need to separate groups of services to have better security and versioning (private, protected, and public APIs), as well as give better independence to groups of services.
-
-In these style deployments, Nightjar can use the gateway service as the entry-point between service meshes.  These can be managed independently of public entry-points.
-
-With Nightjar, you can define the envoy sidecar to redirect other service mesh services directly, which ignores the private paths (paths defined as starting with `?`; see above).
-
-Currently, Nightjar does not itself provide functionality to direct service requests to a single gateway.  However, this can be done through a custom envoy container, or directing the service to reference the ALB.  If you desire Nightjar to support a single gateway as the endpoint for an entire service mesh, please direct a feature request to the issues.  Initial design is to require the gateway to also register itself as a service, and allow for a configuration of Nightjar to direct all requests on a listener port to the instances in that one service.
+* [Running Local](examples/simple-mesh) - Run from docker-compose with local storage.  This shows a gradual introduction of more Nightjar features.
+* [AWS ECS and S3](examples/aws-ecs-tags) - Run within an ECS cluster.

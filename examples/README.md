@@ -14,7 +14,7 @@ This demonstrates the most basic way to use nightjar by setting up a simple serv
 
 ## AWS Elastic Cloud Service
 
-[standalone-aws-ecs-tags](standalone-aws-ecs-tags/README.md)
+[aws-ecs-tags](aws-ecs-tags/README.md)
 
 This example runs nightjar inside an ECS cluster, and uses tags and environment variables on the running containers to determine the mesh setup.
 

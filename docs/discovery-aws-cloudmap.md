@@ -2,6 +2,8 @@
 
 **TODO This needs updating.**
 
+*Not Yet Implemented.  This is in-progress.*
+
 
 ## API Usage
 
