@@ -32,5 +32,5 @@ After that, you should look into finding the right extension point for your situ
 
 Then there's older documentation that still needs to be sorted out.
 
-* [](standalone-deployment-model.md)
-* [](centralized-deployment-model.md)
+* [standalone-deployment-model](standalone-deployment-model.md)
+* [centralized-deployment-model](centralized-deployment-model.md)

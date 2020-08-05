@@ -1,4 +1,4 @@
-![Logo with Title](docs/title-logo.svg)
+![Logo with Title](docs/title-logo.png)
 
 # nightjar-mesh
 
