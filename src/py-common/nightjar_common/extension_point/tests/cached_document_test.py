@@ -56,6 +56,27 @@ class CachedDocumentTest(unittest.TestCase):
         self.assertEqual(1, len(self._validation_stack))
         self.assertEqual(expected_2, self._validation_stack.pop())
 
+    def test_after_fetch__valid_file_but_error(self) -> None:
+        """Ensure that the after_fetch method, with a valid update file and no error, is fine."""
+        # Run the process twice.  Once to create the initial cache value, another to test
+        # with an existing cache value.
+
+        expected_1 = {"x": "y", cached_document.DOCUMENT_VERSION_KEY: "1"}
+        expected_2 = {"x": "z", cached_document.DOCUMENT_VERSION_KEY: "2"}
+        with open(self.update_file, 'w') as f:
+            json.dump(expected_1, f)
+        res = self.doc.after_fetch(0)
+        self.assertEqual(expected_1, res)
+        self.assertEqual(1, len(self._validation_stack))
+        self.assertEqual(expected_1, self._validation_stack.pop())
+
+        with open(self.update_file, 'w') as f:
+            json.dump(expected_2, f)
+        res = self.doc.after_fetch(1)
+        self.assertEqual(expected_1, res)
+        self.assertEqual(0, len(self._validation_stack))
+        self.assertFalse(os.path.isfile(self.update_file))
+
     def test_check_run_error__success(self) -> None:
         """Ensure check_run_error does the right thing."""
         self.doc.check_run_error(0, 'foo')

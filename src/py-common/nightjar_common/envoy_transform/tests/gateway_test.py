@@ -19,6 +19,73 @@ class GatewayTest(unittest.TestCase):
     which is especially true when the discovery map data format is in flux.
     """
 
+    def test_create_gateway_proxy_input__simple(self) -> None:
+        """Test create_gateway_proxy_input using a simple setup."""
+        route_1 = _mk_route({'path-match': {'match-type': 'prefix', 'value': '/a'}, 'weight': 2})
+        discovery_map = _mk_doc({
+            'namespaces': [_mk_namespace({
+                'service-colors': [
+                    _mk_service_color({
+                        'instances': [{'ipv6': '::1', 'port': 6}, {'ipv6': '::2', 'port': 7}],
+                        'routes': [route_1],
+                    }),
+                ],
+            })],
+        })
+        res = gateway.create_gateway_proxy_input(
+            discovery_map,
+            'n1',
+            10, 11,
+        )
+        self.assertEqual(
+            {
+                'schema-version': 'v1',
+                'network_name': 'nk1',
+                'service_member': 'gateway',
+                'admin_port': 11,
+                'clusters': [{
+                    'name': 'c-s-c',
+                    'endpoints': [{'host': '::1', 'port': 6}, {'host': '::2', 'port': 7}],
+                    'hosts_are_hostname': False,
+                    'hosts_are_ipv4': False,
+                    'hosts_are_ipv6': True,
+                    'uses_http2': False,
+                }],
+                'has_admin_port': True,
+                'has_clusters': True,
+                'listeners': [{
+                    'has_mesh_port': True,
+                    'mesh_port': 10,
+                    'routes': [{
+                        'clusters': [{'cluster_name': 'c-s-c', 'route_weight': 2}],
+                        'has_header_filters': False,
+                        'has_many_clusters': False,
+                        'has_one_cluster': True,
+                        'has_query_filters': False,
+                        'header_filters': [],
+                        'path_is_case_sensitive': True,
+                        'path_is_exact': False,
+                        'path_is_prefix': True,
+                        'path_is_regex': False,
+                        'query_filters': [],
+                        'route_path': '/a',
+                        'total_cluster_weight': 2,
+                    }],
+                }],
+            },
+            res,
+        )
+
+    def test_create_gateway_proxy_input__empty(self) -> None:
+        """Test create_gateway_proxy_input with no service colors."""
+        discovery_map = _mk_doc({})
+        res = gateway.create_gateway_proxy_input(
+            discovery_map,
+            'n1',
+            10, 11,
+        )
+        self.assertEqual(1, res)
+
     def test_create_clusters__duplicates(self) -> None:
         """Test when there are duplicate cluster names."""
         discovery_map = _mk_doc({

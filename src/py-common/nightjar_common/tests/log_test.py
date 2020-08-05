@@ -29,6 +29,12 @@ class LogTest(unittest.TestCase):
         res = self._with_replace(lambda: log.log("x", "y {z}", z="abc"))
         self.assertEqual("[tuna :: x] y abc\n", res)
 
+    def test_log_raw(self) -> None:
+        """Test the log method."""
+        log.EXECUTE_MODEL = 'pike'
+        res = self._with_replace(lambda: log.log_raw("x", "y {z}"))
+        self.assertEqual("[pike :: x] y {z}\n", res)
+
     def test_debug__disabled(self) -> None:
         """Test the debug function with debug disabled."""
         log.DEBUG_ON = False
@@ -41,6 +47,19 @@ class LogTest(unittest.TestCase):
         log.DEBUG_ON = True
         res = self._with_replace(lambda: log.debug("x {y}", y="q"))
         self.assertEqual("[marlin :: DEBUG] x q\n", res)
+
+    def test_debug_raw__disabled(self) -> None:
+        """Test the debug_raw function with debug disabled."""
+        log.DEBUG_ON = False
+        res = self._with_replace(lambda: log.debug_raw("x {x}"))
+        self.assertEqual("", res)
+
+    def test_debug_raw__enabled(self) -> None:
+        """Test the debug function with debug enabled."""
+        log.EXECUTE_MODEL = 'marlin'
+        log.DEBUG_ON = True
+        res = self._with_replace(lambda: log.debug_raw("x {y}"))
+        self.assertEqual("[marlin :: DEBUG] x {y}\n", res)
 
     def test_warning(self) -> None:
         """Test the warning function."""

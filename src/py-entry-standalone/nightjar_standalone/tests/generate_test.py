@@ -433,7 +433,6 @@ class GeneratorTest(unittest.TestCase):
         with open(requested_out_file, 'r') as f:
             self.assertEqual('x', f.read())
 
-
     # -----------------------------------------------------------------------
     def _get_runnable_cmd(
             self, exit_code: int, src_contents: Dict[str, Any],

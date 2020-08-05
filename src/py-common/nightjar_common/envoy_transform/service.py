@@ -80,18 +80,9 @@ def create_service_color_proxy_input(
             service=service,
             color=color,
         )
-        return 1
+        return 2
 
     listeners = create_route_listeners(listen_port, namespace, service, color, discovery_map_data)
-    if listeners is None:
-        warning(
-            "No routes for namespace {namespace}, service {service}"
-            ", color {color} found in discovery map.",
-            namespace=namespace,
-            service=service,
-            color=color,
-        )
-        return 1
 
     return EnvoyConfigContext(
         EnvoyConfig(listeners, clusters),
@@ -255,6 +246,7 @@ def create_local_route_listener(
     # Here, the kind of route matching matters.
     services_by_routes = group_service_colors_by_route(
         namespace_obj['service-colors'],
+        None,
         create_local_cluster_name,
     )
 
@@ -291,7 +283,8 @@ def create_nonlocal_route_listeners(
         egress_instance = get_namespace_egress_instance(
             namespace_obj['namespace'], local_service_color_obj,
         )
-        # Should never happen, due to the data construction.
+        # egress_instance must be non-none, due to the data construction in the
+        # find_nonlocal_namespaces function.
         assert egress_instance is not None
         if (
                 namespace_obj['gateways']['prefer-gateway'] is True
@@ -306,6 +299,7 @@ def create_nonlocal_route_listeners(
         else:
             # Use the services directly.
             listener = create_remote_namespace_listener(
+                namespace,
                 egress_instance,
                 namespace_obj,
             )
@@ -329,6 +323,7 @@ def create_remote_gateway_listener(
 
 
 def create_remote_namespace_listener(
+        local_namespace: str,
         listen_instance: Dict[str, Any],
         namespace_obj: Dict[str, Any],
 ) -> Optional[EnvoyListener]:
@@ -338,6 +333,7 @@ def create_remote_namespace_listener(
     # Collate all the service-colors by route.
     services_by_routes = group_service_colors_by_route(
         namespace_obj['service-colors'],
+        local_namespace,
         lambda svc, clr: create_nonlocal_service_cluster_name(namespace, svc, clr),
     )
 
@@ -424,11 +420,14 @@ def get_namespace_egress_instance(
 
 def group_service_colors_by_route(
         service_color_list: List[Dict[str, Any]],
-        create_cluster_name_callback: Callable[[str, str], str]
+        local_namespace_accessing_remote_route: Optional[str],
+        create_cluster_name_callback: Callable[[str, str], str],
 ) -> Dict[RouteMatcher, List[Tuple[str, Dict[str, Any]]]]:
     """
     Transforms the service-color list into a dictionary that is:
         route match -> List[service-color cluster name, route-data]
+    If local_namespace_accessing_remote_route is not None, then
+    this is a local namespace reaching out to a remote namespace.
     """
 
     ret: Dict[RouteMatcher, List[Tuple[str, Dict[str, Any]]]] = {}
@@ -436,9 +435,14 @@ def group_service_colors_by_route(
         service = service_color['service']
         color = service_color['color']
         for route in service_color['routes']:
-            # only use public routes, because this is a gateway.
-            if route['default-access'] is not True:
+            if (
+                    local_namespace_accessing_remote_route
+                    and not can_local_namespace_access_route(
+                        local_namespace_accessing_remote_route, route,
+                    )
+            ):
                 continue
+
             route_group_key = get_route_matcher_key(route)
             if route_group_key not in ret:
                 ret[route_group_key] = []
@@ -494,8 +498,7 @@ def can_local_namespace_access_route(
     """Can this local namespace access the given route?"""
     for protection in route_obj['namespace-access']:
         if protection['namespace'] == local_namespace:
-            if protection['access'] is True:
-                return True
+            return bool(protection['access'])
     return route_obj['default-access'] is True
 
 

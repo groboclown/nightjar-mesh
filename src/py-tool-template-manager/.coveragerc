@@ -1,0 +1,5 @@
+[run]
+
+omit =
+    nightjar_template_manager/__main__.py,
+    nightjar_template_manager/tests/runnable.py
