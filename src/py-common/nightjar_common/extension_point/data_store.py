@@ -22,9 +22,13 @@ class DataStoreRunner:
     __slots__ = (
         '_cached_documents',
         '_executable', 'max_retry_count', 'max_retry_wait_seconds',
+        'env',
     )
 
-    def __init__(self, cmd: Sequence[str], temp_dir: str) -> None:
+    def __init__(
+            self, cmd: Sequence[str], temp_dir: str,
+            env: Optional[Dict[str, str]] = None,
+    ) -> None:
         self._cached_documents = {
             TEMPLATES_DOCUMENT: CachedDocument(
                 'data_store',
@@ -46,6 +50,7 @@ class DataStoreRunner:
             ),
         }
         self._executable = tuple(cmd)
+        self.env = env or dict(os.environ)
         self.max_retry_count = 5
         self.max_retry_wait_seconds = 60.0
 
@@ -72,7 +77,6 @@ class DataStoreRunner:
             self,
             dest_file: str,
             action: Action, document: DocumentName, last_version: str,
-            env: Optional[Dict[str, str]] = None
     ) -> int:
         """The most basic invocation of the data store."""
         result = subprocess.run(
@@ -85,7 +89,7 @@ class DataStoreRunner:
                 '--api-version=1',
             ],
             check=False,
-            env=env or os.environ,
+            env=self.env,
         )
         return result.returncode
 

@@ -76,6 +76,7 @@ def create_configuration(vargs: Sequence[str]) -> Config:
     log.EXECUTE_MODEL = 'nightjar-template-manager'
 
     parser = argparse.ArgumentParser(
+        prog="template-manager",
         description="Tool for managing templates (and other documents) in the data store.",
     )
     parser.add_argument(
@@ -135,7 +136,7 @@ def create_configuration(vargs: Sequence[str]) -> Config:
         ),
     )
 
-    args = parser.parse_args(vargs)
+    args = parser.parse_args(vargs[1:])
     return Config(args, get_profile(args.config, args.profile))
 
 

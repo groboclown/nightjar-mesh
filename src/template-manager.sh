@@ -3,5 +3,9 @@
 pushd $( dirname "$0" ) > /dev/null 2>&1
 _HERE=$(pwd)
 popd > /dev/null 2>&1
-export PYTHONPATH="${_HERE}/py-tool-template-manager:${_HERE}/py-common"
+for i in "${_HERE}"/* ; do
+  if [ -d "$i" ] ; then
+    export PYTHONPATH="${PYTHONPATH}:${i}"
+  fi
+done
 python3 -m nightjar_template_manager "$@"

@@ -7,8 +7,9 @@ import sys
 import tempfile
 import shutil
 import json
-from nightjar_common.extension_point.data_store import DataStoreRunner, DocumentName
 from nightjar_common import log
+from nightjar_common.extension_point.errors import ExtensionPointTooManyRetries
+from nightjar_common.extension_point.data_store import DataStoreRunner, DocumentName
 from .config import Config
 
 TEMPLATES_DOCUMENT = 'templates'
@@ -31,6 +32,9 @@ def push_file(config: Config) -> int:
 def pull_file(config: Config) -> int:
     """Pull the document into the file."""
     data = pull_document(config, config.document_type)
+    if not data:
+        log.warning("No existing document.  Not pulling anything")
+        return 1
     if config.filename == '-':
         print(json.dumps(data))
     else:
@@ -42,6 +46,8 @@ def pull_file(config: Config) -> int:
 def list_template(config: Config) -> int:
     """List the templates."""
     templates = pull_document(config, TEMPLATES_DOCUMENT)
+    if not templates:
+        return 0
     output = ""
     if config.category != 'service':
         output += "Gateway-Templates:\n"
@@ -76,7 +82,8 @@ def push_template(config: Config) -> int:
     else:
         with open(config.filename, 'r') as f:
             source_data = f.read()
-    templates = pull_document(config, TEMPLATES_DOCUMENT)
+    log.debug("Pulling current templates")
+    templates = pull_document(config, TEMPLATES_DOCUMENT) or create_initial_templates_document()
     if config.category == 'gateway':
         update_gateway_template(templates, source_data, config.namespace, config.purpose)
     elif config.category == 'service':
@@ -95,7 +102,7 @@ def pull_template(config: Config) -> int:
     if not config.purpose:
         log.warning('When pushing a template, the `purpose` argument is required.')
         return 6
-    templates = pull_document(config, TEMPLATES_DOCUMENT)
+    templates = pull_document(config, TEMPLATES_DOCUMENT) or create_initial_templates_document()
     if config.category == 'gateway':
         data = extract_gateway_template(templates, config.namespace, config.purpose)
     elif config.category == 'service':
@@ -118,7 +125,7 @@ def pull_template(config: Config) -> int:
 
 def update_gateway_template(
         templates: Dict[str, Any], source_data: str,
-        namespace: str, purpose: str,
+        namespace: Optional[str], purpose: str,
 ) -> None:
     """Add or replace the gateway template for the namespace + purpose."""
     gateway_templates = templates['gateway-templates']
@@ -139,7 +146,7 @@ def update_gateway_template(
 
 def update_service_template(
         templates: Dict[str, Any], source_data: str,
-        namespace: str, service: str, color: str, purpose: str,
+        namespace: Optional[str], service: Optional[str], color: Optional[str], purpose: str,
 ) -> None:
     """Update or add the service template."""
     service_templates = templates['service-templates']
@@ -163,7 +170,7 @@ def update_service_template(
 
 
 def extract_gateway_template(
-        templates: Dict[str, Any], namespace: str, purpose: str,
+        templates: Dict[str, Any], namespace: Optional[str], purpose: str,
 ) -> Optional[str]:
     """Extract the template, or None if it does not exist."""
     for gateway_template in templates['gateway-templates']:
@@ -178,7 +185,8 @@ def extract_gateway_template(
 
 
 def extract_service_template(
-        templates: Dict[str, Any], namespace: str, service: str, color: str, purpose: str,
+        templates: Dict[str, Any],
+        namespace: Optional[str], service: Optional[str], color: Optional[str], purpose: str,
 ) -> Optional[str]:
     """Extract the template, or None if it does not exist."""
     for service_template in templates['service-templates']:
@@ -198,18 +206,31 @@ def push_document(config: Config, document_type: str, data: Dict[str, Any]) -> i
     """Push the document contents to the data store"""
     temp_dir = tempfile.mkdtemp()
     try:
-        runner = DataStoreRunner(config.data_store_exec, temp_dir)
+        runner = DataStoreRunner(config.data_store_exec, temp_dir, config.config_env)
         runner.commit_document(cast(DocumentName, document_type), data)
         return 0
     finally:
         shutil.rmtree(temp_dir)
 
 
-def pull_document(config: Config, document_type: str) -> Dict[str, Any]:
+def pull_document(config: Config, document_type: str) -> Optional[Dict[str, Any]]:
     """Pull the document."""
     temp_dir = tempfile.mkdtemp()
     try:
-        runner = DataStoreRunner(config.data_store_exec, temp_dir)
+        runner = DataStoreRunner(config.data_store_exec, temp_dir, config.config_env)
+        runner.max_retry_count = 1
         return runner.fetch_document(cast(DocumentName, document_type))
+    except ExtensionPointTooManyRetries:
+        log.warning("No existing document.")
+        return None
     finally:
         shutil.rmtree(temp_dir)
+
+
+def create_initial_templates_document() -> Dict[str, Any]:
+    """Create the empty templates document, which is necessary if this is
+    to initialize the data store."""
+    return {
+        'schema-version': 'v1', 'document-version': '',
+        'gateway-templates': [], 'service-templates': [],
+    }

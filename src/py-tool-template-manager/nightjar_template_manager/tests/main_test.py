@@ -30,7 +30,7 @@ class MainTest(unittest.TestCase):
         is setup to do what it does."""
         config_file = self._setup_config({})
         try:
-            main.main(['-C', config_file])
+            main.main(['main.py', '-C', config_file])
             self.fail('ConfigParser should have raised an error')  # pragma no cover
         except SystemExit as err:
             self.assertEqual(2, err.code)
@@ -39,28 +39,28 @@ class MainTest(unittest.TestCase):
         """Test the main program with no action.  This is just ensuring that ConfigParser
         is setup to do what it does."""
         config_file = self._setup_config({})
-        res = main.main(['-C', config_file, '--document-type', 'other', 'list'])
+        res = main.main(['main.py', '-C', config_file, '--document-type', 'other', 'list'])
         self.assertEqual(1, res)
 
     def test_main__push_template_no_purpose(self) -> None:
         """Test the main program with push, but no purpose.  We're not testing the
         actual details of the invocation, just that it's invoked."""
         config_file = self._setup_config(_mk_templates([], []))
-        res = main.main(['-C', config_file, 'push'])
+        res = main.main(['main.py', '-C', config_file, 'push'])
         self.assertEqual(3, res)
 
     def test_main__pull_template_no_purpose(self) -> None:
         """Test the main program with pull, but no purpose.  We're not testing the
         actual details of the invocation, just that it's invoked."""
         config_file = self._setup_config(_mk_templates([], []))
-        res = main.main(['-C', config_file, 'pull'])
+        res = main.main(['main.py', '-C', config_file, 'pull'])
         self.assertEqual(6, res)
 
     def test_main__push_file_no_file(self) -> None:
         """Test the main program with pull, but no purpose.  We're not testing the
         actual details of the invocation, just that it's invoked."""
         config_file = self._setup_config(_mk_templates([], []))
-        res = main.main(['-C', config_file, '--document-type', 'discovery-map', 'push'])
+        res = main.main(['main.py', '-C', config_file, '--document-type', 'discovery-map', 'push'])
         self.assertEqual(9, res)
 
     def test_main__pull_file_no_file(self) -> None:
@@ -68,7 +68,7 @@ class MainTest(unittest.TestCase):
         actual details of the invocation, just that it's invoked."""
         config_file = self._setup_config(_mk_templates([], []))
         try:
-            main.main(['-C', config_file, '--document-type', 'discovery-map', 'pull'])
+            main.main(['main.py', '-C', config_file, '--document-type', 'discovery-map', 'pull'])
             self.fail('Did not raise an error')  # pragma no cover
         except ExtensionPointRuntimeError as err:
             self.assertIsNotNone(
@@ -82,7 +82,7 @@ class MainTest(unittest.TestCase):
         """Test the main program with template list."""
         config_file = self._setup_config(_mk_templates([], []))
         try:
-            main.main(['-C', config_file, 'list'])
+            main.main(['main.py', '-C', config_file, 'list'])
             self.fail('Did not raise an error')  # pragma no cover
         except ExtensionPointRuntimeError as err:
             self.assertIsNotNone(

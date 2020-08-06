@@ -41,6 +41,7 @@ class ConfigTest(unittest.TestCase):
         with open(cfg_file, 'w') as f:
             f.write('[abc]\na = b\nDATA_STORE_EXEC = ' + self._valid_cmd + '\nCACHE_DIR = .\n')
         ret = config.create_configuration([
+            'main.py',
             '--config', cfg_file,
             '--profile', 'abc',
             '--document-type', 'other',
@@ -79,6 +80,7 @@ class ConfigTest(unittest.TestCase):
         with open(cfg_file, 'w') as f:
             f.write('[abc]\nDATA_STORE_EXEC = ' + self._valid_cmd + '\n')
         ret = config.create_configuration([
+            'main.py',
             '--config', cfg_file,
             '--profile', 'abc',
             'push',
@@ -91,9 +93,9 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(None, ret.filename)
         self.assertEqual('', ret.category)
         self.assertEqual('', ret.purpose)
-        self.assertEqual('default', ret.namespace)
-        self.assertEqual('default', ret.service)
-        self.assertEqual('default', ret.color)
+        self.assertEqual(None, ret.namespace)
+        self.assertEqual(None, ret.service)
+        self.assertEqual(None, ret.color)
         self.assertEqual('push', ret.action)
 
         self.assertTrue(os.path.isdir(cache_dir))

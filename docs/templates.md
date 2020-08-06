@@ -7,7 +7,7 @@ Templates are accessed through a [data store](extension-points.md#data-store) as
 
 Templates are files that are made available for the Envoy proxy to use in its configuration.
 
-They are processed as mustache templates, using input from the [proxy-input schema](../schema/proxy-input-schema.yaml), which itself is a processed version of the [discovery-map data](../schema/discovery-map-schema.yaml).
+They are processed as [mustache templates](https://mustache.github.io/), using input from the [proxy-input schema](../schema/proxy-input-schema.yaml), which itself is a processed version of the [discovery-map data](../schema/discovery-map-schema.yaml).
 
 The templates can have any purpose you want.  Generally, these should be to configure the Envoy proxy, but they could also be used to generate any kind of static file.  For example, it could generate an HTML report that the Envoy proxy has a static file route for.
 

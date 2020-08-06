@@ -11,6 +11,7 @@ import shutil
 import json
 import platform
 import argparse
+from nightjar_common.extension_point.errors import ExtensionPointTooManyRetries
 from .. import data_store_manage
 from ..config import Config
 
@@ -186,6 +187,24 @@ class DataStoreManageTest(unittest.TestCase):  # pylint: disable=R0904
             'template': 'foo',
         }], []), data)
 
+    def test_push_template__gateway_first_time_and_push_retry_error(self) -> None:
+        """Test push_template with a gateway, when the data store reports no existing template."""
+        config = self._setup_config({}, 31)
+        config.filename = os.path.join(self._temp_dir, 'x.txt')
+        with open(config.filename, 'w') as f:
+            f.write('foo')
+        config.purpose = 'x'
+        config.category = 'gateway'
+        config.namespace = 'n1'
+        # Due to the underlying implementation of the runnable and config, this isn't really
+        # possible to try.  It ends up causing the push to also raise a too-many retries error.
+        # Fixing this requires a major change...
+        try:
+            data_store_manage.push_template(config)
+            self.fail('Did not raise an error')  # pragma no cover
+        except ExtensionPointTooManyRetries:
+            pass
+
     def test_push_template__service_stdin(self) -> None:
         """Test push_template with a service"""
         config = self._setup_config(_mk_templates([], []))
@@ -252,7 +271,7 @@ class DataStoreManageTest(unittest.TestCase):  # pylint: disable=R0904
         self.assertEqual(8, res)
 
     def test_pull_template__print(self) -> None:
-        """Test pull_template for a gateway with no such namespace."""
+        """Test pull_template for a gateway to stdout."""
         config = self._setup_config(_mk_templates([{
             'namespace': 'n1',
             'purpose': 'p',
@@ -265,8 +284,8 @@ class DataStoreManageTest(unittest.TestCase):  # pylint: disable=R0904
         res = data_store_manage.pull_template(config)
         self.assertEqual(0, res)
 
-    def test_pull_template__write(self) -> None:
-        """Test pull_template for a gateway with no such namespace."""
+    def test_pull_template__file(self) -> None:
+        """Test pull_template for a gateway to a file."""
         config = self._setup_config(_mk_templates([{
             'namespace': 'n1',
             'purpose': 'p',
@@ -322,6 +341,14 @@ class DataStoreManageTest(unittest.TestCase):  # pylint: disable=R0904
         res = data_store_manage.pull_file(config)
         self.assertEqual(0, res)
 
+    def test_pull_file__none(self) -> None:
+        """Test list_template to stdout"""
+        config = self._setup_config({}, 31)
+        config.filename = '-'
+        config.document_type = 'discovery-map'
+        res = data_store_manage.pull_file(config)
+        self.assertEqual(1, res)
+
     def test_pull_file__file(self) -> None:
         """Test pull_file, extracting to a file"""
         templates = _mk_templates([], [])
@@ -338,6 +365,13 @@ class DataStoreManageTest(unittest.TestCase):  # pylint: disable=R0904
     def test_list_template__stdout(self) -> None:
         """Test list_template to stdout"""
         config = self._setup_config(_mk_templates([], []))
+        config.filename = '-'
+        res = data_store_manage.list_template(config)
+        self.assertEqual(0, res)
+
+    def test_list_template__none(self) -> None:
+        """Test list_template to stdout"""
+        config = self._setup_config({}, 31)
         config.filename = '-'
         res = data_store_manage.list_template(config)
         self.assertEqual(0, res)
@@ -501,14 +535,20 @@ Service-Templates:
             data,
         )
 
-    def _setup_config(self, fetched_contents: Dict[str, Any]) -> Config:
+    def test_pull_document_too_many_retries(self) -> None:
+        """Test out pull_document when it generates too many retries"""
+        config = self._setup_config({}, 31)
+        res = data_store_manage.pull_document(config, 'templates')
+        self.assertIsNone(res)
+
+    def _setup_config(self, fetched_contents: Dict[str, Any], exit_code: int = 0) -> Config:
         self.received_file = os.path.join(self._temp_dir, '{0}-out.json'.format(self._file_index))
         generate = os.path.join(self._temp_dir, '{0}-out.json'.format(self._file_index))
         self._file_index += 1
         with open(generate, 'w') as f:
             json.dump(fetched_contents, f)
         command = list(self._runnable)
-        command.append('0')
+        command.append(str(exit_code))
         command.append(self.received_file)
         command.append(generate)
 
