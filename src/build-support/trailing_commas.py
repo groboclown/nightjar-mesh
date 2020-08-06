@@ -262,8 +262,9 @@ class BracketContext:  # pylint: disable=R0902
         # if the separator is on a different line than the last token, then that's
         # a problem.
         if token.start_line_no != self._current_line_no:
-            assert len(self._current_token) <= 0
-            self._messages.append(("leading-comma", [], token.start_line_no,))
+            if len(self._current_token) <= 0:
+                self._messages.append(("leading-comma", [], token.start_line_no,))
+            # Otherwise, could be a """ string...
 
         if self._current_token:
             self._current_line_items.append(self._current_token)

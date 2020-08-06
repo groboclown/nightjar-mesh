@@ -3,46 +3,173 @@
 Configuration settings for the standalone.
 """
 
-from typing import Dict
+from typing import Dict, Sequence, Optional
 import os
+import argparse
+import configparser
 import tempfile
+import shutil
+import platform
 from nightjar_common import log
 from nightjar_common.extension_point.run_cmd import get_env_executable_cmd
 
-
-TEST_PROXY_MODE = 'test'
-
-ENV__TRIGGER_STOP_FILE = 'TRIGGER_STOP_FILE'
-DEFAULT_TRIGGER_STOP_FILE = '/tmp/stop.txt'
-ENV__ENVOY_KILL_WAIT_TIME = 'ENVOY_KILL_WAIT_TIME'
-DEFAULT_ENVOY_KILL_WAIT_TIME = 60
-
-ENV__TEMP_DIR = 'NJ_TEMP_DIR'
+ONE_TEMPLATE_DOCUMENT_TYPE = 'one-template'
 
 ENV__DATA_STORE_EXEC = 'DATA_STORE_EXEC'
 ENV__DISCOVERY_MAP_EXEC = 'DISCOVERY_MAP_EXEC'
 
 
-class Config:  # pylint: disable=R0902
+class Config:
     """Configuration settings"""
     __slots__ = (
-        'data_store_exec', 'discovery_map_exec', 'temp_dir',
+        'data_store_exec',
+        'document_type', 'filename',
+        'category', 'namespace', 'service', 'color',
+        'action', 'config_env', 'purpose', 'cache_dir',
+        '_is_temp_dir',
     )
 
-    def __init__(self, env: Dict[str, str]) -> None:
-        self.data_store_exec = get_env_executable_cmd(env, ENV__DATA_STORE_EXEC)
-        self.discovery_map_exec = get_env_executable_cmd(env, ENV__DISCOVERY_MAP_EXEC)
-
-        env_temp_dir = env.get(ENV__TEMP_DIR)
-        if env_temp_dir:
-            self.temp_dir = env_temp_dir
-            os.makedirs(self.temp_dir, exist_ok=True)
+    def __init__(self, args: argparse.Namespace, env: Dict[str, str]) -> None:
+        self.config_env = env
+        self.data_store_exec = get_data_store_exec(env)
+        self.document_type = args.document
+        self.filename = args.local_file
+        self.category = args.category
+        self.purpose = args.purpose
+        self.namespace = get_namespace(args.namespace)
+        self.service = get_service(args.service)
+        self.color = get_color(args.color)
+        self.action = args.action
+        cache_dir = env.get('CACHE_DIR', None)
+        if cache_dir is None:
+            self.cache_dir = tempfile.mkdtemp()
+            self._is_temp_dir = True
         else:
-            self.temp_dir = tempfile.mkdtemp()
+            self.cache_dir = cache_dir
+            self._is_temp_dir = False
+
+    def __del__(self) -> None:
+        if self._is_temp_dir and os.path.isdir(self.cache_dir):
+            print("Removing cache dir " + self.cache_dir)
+            shutil.rmtree(self.cache_dir)
+        else:
+            print("Keeping cache dir " + self.cache_dir)
 
 
-def create_configuration() -> Config:
+def get_namespace(orig: str) -> Optional[str]:
+    """Get the actual namespace as used by templates."""
+    return None if not orig or orig == 'default' else orig
+
+
+def get_service(orig: str) -> Optional[str]:
+    """Get the actual service as used by templates."""
+    return None if not orig or orig == 'default' else orig
+
+
+def get_color(orig: str) -> Optional[str]:
+    """Get the actual color as used by templates."""
+    return None if not orig or orig == 'default' else orig
+
+
+def create_configuration(vargs: Sequence[str]) -> Config:
     """Create and load the configuration."""
     log.EXECUTE_MODEL = 'nightjar-template-manager'
-    env = dict(os.environ)
-    return Config(env)
+
+    parser = argparse.ArgumentParser(
+        description="Tool for managing templates (and other documents) in the data store.",
+    )
+    parser.add_argument(
+        '--config', '-C', action='store', default='local-data-store-profiles.ini', type=str,
+        help="Configuration (.ini) file, each section defines a profile.",
+    )
+    parser.add_argument(
+        '--profile', '-P', action='store', default='default', type=str,
+        help=(
+            "Profile section within the config file that sets up the properties used for "
+            "the data store invocation."
+        ),
+    )
+    parser.add_argument(
+        '--document-type', '-D', action='store', default=ONE_TEMPLATE_DOCUMENT_TYPE,
+        type=str, dest="document",
+        help=(
+            "The document type to store; the supported types are defined by the data store, but, "
+            "at a minimum, `templates` and `discovery-map` are guaranteed to be supported.  "
+            "The special value, `{0}` (the default value) is for managing a single "
+            "template within the templates document, and requires additional arguments.".format(
+                ONE_TEMPLATE_DOCUMENT_TYPE,
+            )
+        ),
+    )
+    parser.add_argument(
+        '--file', '-f', action='store', type=str, dest="local_file",
+        help="Local file to read or write.  Use `-` to send to stdout.",
+    )
+    parser.add_argument(
+        '--category', '-y', action='store', type=str, default="",
+        choices=['', 'gateway', 'service'],
+        help="Template category to use (required for single templates)",
+    )
+    parser.add_argument(
+        '--purpose', '-p', action='store', type=str, default="",
+        help="The output file name, or `purpose` of the template.",
+    )
+    parser.add_argument(
+        '--namespace', '-n', action='store', type=str, default="default",
+        help="Namespace for the stored template.  Only used for single template management.",
+    )
+    parser.add_argument(
+        '--service', '-s', action='store', type=str, default="default",
+        help="Service name.  Only used for service category single template management.",
+    )
+    parser.add_argument(
+        '--color', '-c', action='store', type=str, default="default",
+        help="Color name.  Only used for service category single template management.",
+    )
+    parser.add_argument(
+        'action',
+        choices=['push', 'pull', 'list'],
+        help=(
+            "Action to perform on the document.  `push` commits the document into the data store, "
+            "and `pull` extracts it from the data store."
+        ),
+    )
+
+    args = parser.parse_args(vargs)
+    return Config(args, get_profile(args.config, args.profile))
+
+
+def get_profile(config_filename: str, profile_name: str) -> Dict[str, str]:
+    """Gets the profile from the ini file."""
+    if not os.path.isfile(config_filename):
+        log.warning('No such configuration file {name}', name=config_filename)
+        return {}
+    config = configparser.ConfigParser()
+    config.read(config_filename)
+    if profile_name not in config:
+        log.warning(
+            'No profile `{profile}` in configuration file {name}',
+            name=config_filename,
+            profile=profile_name,
+        )
+        return {}
+
+    ret: Dict[str, str] = dict(os.environ)
+
+    # ini files force the key name to be lower-cased,
+    # and environment variables should be upper-cased.
+    for key, value in config[profile_name].items():
+        ret[key.upper()] = value
+    return ret
+
+
+def get_data_store_exec(env: Dict[str, str]) -> Sequence[str]:
+    """This is a hack for allowing execution on Windows.
+    The underlying process is written under the assumption that it's running on
+    Unix.  However, for Windows, the command-line parsing is broken (known limitation
+    with the library).  For people running on Windows, the best alternative is to run
+    this manager through a container."""
+    if platform.system() == 'Windows' and ENV__DATA_STORE_EXEC in env:
+        line = env[ENV__DATA_STORE_EXEC]  # pragma no cover
+        env[ENV__DATA_STORE_EXEC] = line.replace('\\', '\\\\')  # pragma no cover
+    return get_env_executable_cmd(env, ENV__DATA_STORE_EXEC)

@@ -3,7 +3,7 @@
 Runs the data store extension point.
 """
 
-from typing import Sequence, Literal, Dict, Any, cast
+from typing import Sequence, Literal, Dict, Any, Optional, cast
 import os
 import subprocess
 from .cached_document import CachedDocument
@@ -72,6 +72,7 @@ class DataStoreRunner:
             self,
             dest_file: str,
             action: Action, document: DocumentName, last_version: str,
+            env: Optional[Dict[str, str]] = None
     ) -> int:
         """The most basic invocation of the data store."""
         result = subprocess.run(
@@ -84,6 +85,7 @@ class DataStoreRunner:
                 '--api-version=1',
             ],
             check=False,
+            env=env or os.environ,
         )
         return result.returncode
 
