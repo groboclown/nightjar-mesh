@@ -56,11 +56,12 @@ def list_template(config: Config) -> int:
             output += "    purpose:   {0}\n".format(gateway['purpose'])
     if config.category != 'gateway':
         output += "Service-Templates:\n"
-        for gateway in templates['service-templates']:
-            output += "  - namespace: {0}\n".format(gateway['namespace'])
-            output += "    service:   {0}\n".format(gateway['service'])
-            output += "    color:     {0}\n".format(gateway['color'])
-            output += "    purpose:   {0}\n".format(gateway['purpose'])
+        for service in templates['service-templates']:
+            output += "  - namespace: {0}\n".format(service['namespace'])
+            output += "    service:   {0}\n".format(service['service'])
+            output += "    color:     {0}\n".format(service['color'])
+            output += "    index:     {0}\n".format(service['index'])
+            output += "    purpose:   {0}\n".format(service['purpose'])
     if not config.filename or config.filename == '-':
         print(output)
     else:

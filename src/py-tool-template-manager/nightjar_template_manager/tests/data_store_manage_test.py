@@ -395,6 +395,7 @@ class DataStoreManageTest(unittest.TestCase):  # pylint: disable=R0904
                     'namespace': 'n1',
                     'service': 's1',
                     'color': 'c1',
+                    'index': 2,
                     'purpose': 'p1',
                     'template': 'sc1',
                 },
@@ -402,6 +403,7 @@ class DataStoreManageTest(unittest.TestCase):  # pylint: disable=R0904
                     'namespace': 'n2',
                     'service': 's2',
                     'color': 'c2',
+                    'index': 3,
                     'purpose': 'p2',
                     'template': 'sc2',
                 },
@@ -424,10 +426,12 @@ Service-Templates:
   - namespace: n1
     service:   s1
     color:     c1
+    index:     2
     purpose:   p1
   - namespace: n2
     service:   s2
     color:     c2
+    index:     3
     purpose:   p2
 """,
             data,
@@ -452,6 +456,7 @@ Service-Templates:
                     'namespace': 'n1',
                     'service': 's1',
                     'color': 'c1',
+                    'index': 1,
                     'purpose': 'p1',
                     'template': 'sc1',
                 },
@@ -459,6 +464,7 @@ Service-Templates:
                     'namespace': 'n2',
                     'service': 's2',
                     'color': 'c2',
+                    'index': 2,
                     'purpose': 'p2',
                     'template': 'sc2',
                 },
@@ -501,6 +507,7 @@ Service-Templates:
                     'namespace': 'n1',
                     'service': 's1',
                     'color': 'c1',
+                    'index': 21,
                     'purpose': 'p1',
                     'template': 'sc1',
                 },
@@ -508,6 +515,7 @@ Service-Templates:
                     'namespace': 'n2',
                     'service': 's2',
                     'color': 'c2',
+                    'index': 22,
                     'purpose': 'p2',
                     'template': 'sc2',
                 },
@@ -526,10 +534,12 @@ Service-Templates:
   - namespace: n1
     service:   s1
     color:     c1
+    index:     21
     purpose:   p1
   - namespace: n2
     service:   s2
     color:     c2
+    index:     22
     purpose:   p2
 """,
             data,
