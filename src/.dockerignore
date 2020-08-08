@@ -17,11 +17,12 @@
 **/htmlcov/
 **/.mypy_cache/
 **/mypy.ini
+**/pylintrc
 **/venv/
 **/.venv/
 **/test-requirements.txt
 **/tests/
 
-local*.sh
+local-*
 Dockerfile*
 .dockerignore

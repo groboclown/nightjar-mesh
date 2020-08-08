@@ -79,7 +79,8 @@ def create_clusters(namespace: str, service_colors: List[Dict[str, Any]]) -> Lis
     for service_color in service_colors:
         service = service_color['service']
         color = service_color['color']
-        cluster_name = get_service_color_cluster_name(service, color)
+        index = service_color['index']
+        cluster_name = get_service_color_cluster_name(service, color, index)
         if cluster_name in known_cluster_names:
             warning(
                 'Found duplicate service-color {service}-{color} in namespace {namespace}.',
@@ -145,6 +146,7 @@ def group_service_colors_by_route(
     for service_color in service_color_list:
         service = service_color['service']
         color = service_color['color']
+        index = service_color['index']
         for route in service_color['routes']:
             # only use public routes, because this is a gateway.
             if route['default-access'] is not True:
@@ -152,7 +154,9 @@ def group_service_colors_by_route(
             route_group_key = get_route_matcher_key(route)
             if route_group_key not in ret:
                 ret[route_group_key] = []
-            ret[route_group_key].append((get_service_color_cluster_name(service, color), route,))
+            ret[route_group_key].append(
+                (get_service_color_cluster_name(service, color, index), route,),
+            )
 
     return ret
 
@@ -195,9 +199,9 @@ def parse_header_query_matcher(
     )
 
 
-def get_service_color_cluster_name(service: str, color: str) -> str:
+def get_service_color_cluster_name(service: str, color: str, index: int) -> str:
     """Creates the internal envoy cluster name from the service and color."""
-    return 'c-{0}-{1}'.format(service, color)
+    return 'c-{0}-{1}-{2}'.format(service, color, index)
 
 
 def get_service_color_instance(data: Dict[str, Any]) -> EnvoyClusterEndpoint:

@@ -14,6 +14,7 @@
         {
           "service": "service-food",
           "color": "hamburger",
+          "index": 1,
           "routes": [
             {
               "path-match": {"match-type": "exact", "value": "/key/food"},
@@ -28,6 +29,7 @@
         {
           "service": "service-food",
           "color": "hotdog",
+          "index": 1,
           "routes": [
             {
               "path-match": {"match-type": "exact", "value": "/key/food"},
@@ -42,6 +44,7 @@
         {
           "service": "food-forwarder",
           "color": "default",
+          "index": 1,
           "routes": [
             {
               "path-match": {"match-type": "exact", "value": "/forward/food"},

@@ -7,7 +7,7 @@ import json
 import boto3
 # from botocore.exceptions import ClientError  # type: ignore
 from botocore.config import Config  # type: ignore
-from .warn import warning
+from .warn import warning, debug
 
 
 RouteProtection = Literal['public', 'private']
@@ -366,7 +366,10 @@ def filter_tasks(
 
         # Must be either a valid gateway or service-color.
         if task.get_gateway_config() or task.get_service_color_config():
+            debug('filter_tasks', 'Using task {task}', task=task)
             ret.append(task)
+        else:
+            debug('filter_tasks', 'Omitting task {task}', task=task)
     return ret
 
 
@@ -388,6 +391,10 @@ def get_task_arns_in_cluster(cluster_name: str) -> Iterable[str]:
     for page in response_iterator:
         for task_arn in page['taskArns']:
             ret.append(task_arn)
+    debug(
+        'get_task_arns_in_cluster',
+        'Cluster {name} has task arns {tasks}', name=cluster_name, tasks=ret,
+    )
     return ret
 
 
@@ -431,7 +438,7 @@ def load_tasks_by_arns(
                         for env in override['environment']:
                             container_env[dt_str(env, 'name')] = dt_str(env, 'value')
 
-            discovered_tasks.append(EcsTask(
+            task = EcsTask(
                 task_name=service_name,
                 task_arn=dt_str(task, 'taskArn'),
                 taskdef_arn=dt_str(task, 'taskDefinitionArn'),
@@ -449,7 +456,9 @@ def load_tasks_by_arns(
 
                 taskdef_tags={},
                 taskdef_env={},
-            ))
+            )
+            # debug('load_tasks_by_arns', 'Constructed {task}', task=task)
+            discovered_tasks.append(task)
     return discovered_tasks
 
 
@@ -569,8 +578,8 @@ def load_ec2_host_ip_by_info(
                 # match up the network interface with the vpc and subnet...
                 for network in ec2_instance['NetworkInterfaces']:
                     if (
-                            (not vpc_id or dt_str(network, 'VpcId') == vpc_id) and
-                            (not subnet_id or dt_str(network, 'SubnetId') == subnet_id)
+                            (not vpc_id or dt_opt_str(network, 'VpcId') == vpc_id) and
+                            (not subnet_id or dt_opt_str(network, 'SubnetId') == subnet_id)
                     ):
                         ret[container_arn] = dt_str(network, 'PrivateIpAddress')
                 if container_arn not in ret:

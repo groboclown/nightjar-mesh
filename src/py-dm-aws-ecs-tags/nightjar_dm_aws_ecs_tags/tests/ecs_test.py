@@ -8,6 +8,7 @@ import boto3
 import botocore.stub  # type: ignore
 import botocore.exceptions  # type: ignore
 from .. import ecs
+from .. import warn
 
 
 class EcsTaskTest(unittest.TestCase):
@@ -146,6 +147,7 @@ class EcsTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self._orig_config = ecs.CONFIG
+        warn.DEBUG = True
 
     def tearDown(self) -> None:
         ecs.CONFIG.clear()
@@ -509,6 +511,36 @@ class EcsTest(unittest.TestCase):
         )]
         filtered = ecs.filter_tasks(tasks, None, None)
         self.assertEqual([], filtered)
+
+    def test_load_ec2_host_ip_by_info__detatching_network(self) -> None:
+        """Test the load_ec2_host_ip_by_info method, but where the network state is detaching."""
+        mock_ecs = MockEcs()
+        detaching_network = {
+            'NetworkInterfaceId': 'eni-12345678',
+            'Attachment': {
+                'AttachTime': datetime.datetime(2000, 12, 1),
+                'AttachmentId': 'eni-attach-12345678',
+                'DeleteOnTermination': False,
+                'DeviceIndex': 1,
+                'Status': 'detaching',
+            },
+            'OwnerId': '123456789012',
+            'Status': 'in-use',
+        }
+        mock_ecs.mk_describe_instances(['i12345678'], [_mk_ec2_instance({
+            'InstanceId': 'i12345678',
+            'PrivateDnsName': 'my.host.internal',
+            'PrivateIpAddress': '1.2.3.4',
+            'SubnetId': 'subnet-1234',
+            'VpcId': 'vpc-abcd',
+            'NetworkInterfaces': [detaching_network],
+            'Tags': [],
+        })])
+        with mock_ecs:
+            res = ecs.load_ec2_host_ip_by_info({
+                'c1': ('i12345678', 'vpc-123', 'sn-123'),
+            })
+            self.assertEqual({'c1': '1.2.3.4'}, res)
 
 
 class MockEcs:

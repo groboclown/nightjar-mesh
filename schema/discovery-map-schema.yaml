@@ -76,6 +76,7 @@ properties:
             required:
               - service
               - color
+              - index
               - routes
               - instances
               - namespace-egress
@@ -88,6 +89,11 @@ properties:
                   The service "color", which indicates different deployment characteristics
                   of the service.
                 type: string
+              index:
+                description: >
+                  Some services must be split out into separate groups due to routes only serving
+                  select ports.  These are then split out by the index.
+                type: integer
               protocol:
                 description: >
                   The communication protocol.  If not given, this assumes HTTP 1.1.  Currently

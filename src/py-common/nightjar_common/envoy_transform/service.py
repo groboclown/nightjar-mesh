@@ -124,7 +124,10 @@ def create_local_namespace_clusters(
     ret: List[EnvoyCluster] = []
     for service_color_obj in service_colors:
         cluster = create_service_color_cluster(
-            create_local_cluster_name(service_color_obj['service'], service_color_obj['color']),
+            create_local_cluster_name(
+                service_color_obj['service'], service_color_obj['color'],
+                service_color_obj['index'],
+            ),
             service_color_obj,
         )
         if cluster:
@@ -164,6 +167,7 @@ def create_nonlocal_namespace_clusters(
                         namespace_obj['namespace'],
                         service_color_obj['service'],
                         service_color_obj['color'],
+                        service_color_obj['index'],
                     ),
                     service_color_obj,
                 )
@@ -334,7 +338,7 @@ def create_remote_namespace_listener(
     services_by_routes = group_service_colors_by_route(
         namespace_obj['service-colors'],
         local_namespace,
-        lambda svc, clr: create_nonlocal_service_cluster_name(namespace, svc, clr),
+        lambda svc, clr, idx: create_nonlocal_service_cluster_name(namespace, svc, clr, idx),
     )
 
     routes: List[EnvoyRoute] = []
@@ -421,7 +425,7 @@ def get_namespace_egress_instance(
 def group_service_colors_by_route(
         service_color_list: List[Dict[str, Any]],
         local_namespace_accessing_remote_route: Optional[str],
-        create_cluster_name_callback: Callable[[str, str], str],
+        create_cluster_name_callback: Callable[[str, str, int], str],
 ) -> Dict[RouteMatcher, List[Tuple[str, Dict[str, Any]]]]:
     """
     Transforms the service-color list into a dictionary that is:
@@ -434,6 +438,7 @@ def group_service_colors_by_route(
     for service_color in service_color_list:
         service = service_color['service']
         color = service_color['color']
+        index = service_color['index']
         for route in service_color['routes']:
             if (
                     local_namespace_accessing_remote_route
@@ -447,7 +452,7 @@ def group_service_colors_by_route(
             if route_group_key not in ret:
                 ret[route_group_key] = []
             ret[route_group_key].append(
-                (create_cluster_name_callback(service, color), route,)
+                (create_cluster_name_callback(service, color, index), route,)
             )
 
     return ret
@@ -514,9 +519,9 @@ def find_namespace(
     return None
 
 
-def create_local_cluster_name(service: str, color: str) -> str:
+def create_local_cluster_name(service: str, color: str, index: int) -> str:
     """Create the local service-color cluster name."""
-    return "local-{0}-{1}".format(service, color)
+    return "local-{0}-{1}-{2}".format(service, color, index)
 
 
 def create_nonlocal_gateway_cluster_name(namespace: str) -> str:
@@ -524,6 +529,8 @@ def create_nonlocal_gateway_cluster_name(namespace: str) -> str:
     return "remote-{0}-gateway".format(namespace)
 
 
-def create_nonlocal_service_cluster_name(namespace: str, service: str, color: str) -> str:
+def create_nonlocal_service_cluster_name(
+        namespace: str, service: str, color: str, index: int,
+) -> str:
     """Create the cluster name for the non-local namespace, service, color."""
-    return "remote-{0}-{1}-{2}".format(namespace, service, color)
+    return "remote-{0}-{1}-{2}-{3}".format(namespace, service, color, index)

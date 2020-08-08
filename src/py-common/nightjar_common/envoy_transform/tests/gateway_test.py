@@ -44,7 +44,7 @@ class GatewayTest(unittest.TestCase):
                 'service_member': 'gateway',
                 'admin_port': 11,
                 'clusters': [{
-                    'name': 'c-s-c',
+                    'name': 'c-s-c-1',
                     'endpoints': [{'host': '::1', 'port': 6}, {'host': '::2', 'port': 7}],
                     'hosts_are_hostname': False,
                     'hosts_are_ipv4': False,
@@ -57,7 +57,7 @@ class GatewayTest(unittest.TestCase):
                     'has_mesh_port': True,
                     'mesh_port': 10,
                     'routes': [{
-                        'clusters': [{'cluster_name': 'c-s-c', 'route_weight': 2}],
+                        'clusters': [{'cluster_name': 'c-s-c-1', 'route_weight': 2}],
                         'has_header_filters': False,
                         'has_many_clusters': False,
                         'has_one_cluster': True,
@@ -139,7 +139,7 @@ class GatewayTest(unittest.TestCase):
                         'routes': [route_1a],
                     }),
                     _mk_service_color({
-                        'service': 's1', 'color': 'c2',
+                        'service': 's1', 'color': 'c1', 'index': 2,
                         'routes': [route_1b, route_2],
                     }),
                     _mk_service_color({
@@ -167,8 +167,8 @@ class GatewayTest(unittest.TestCase):
                     header_matchers=[],
                     query_matchers=[],
                 ), {
-                    'c-s1-c1': 2,
-                    'c-s1-c2': 4,
+                    'c-s1-c1-1': 2,
+                    'c-s1-c1-2': 4,
                 }).get_context(),
                 common.EnvoyRoute(common.RouteMatcher(
                     path_matcher=common.RoutePathMatcher(
@@ -177,8 +177,8 @@ class GatewayTest(unittest.TestCase):
                     header_matchers=[],
                     query_matchers=[],
                 ), {
-                    'c-s1-c2': 3,
-                    'c-s2-c1': 3,
+                    'c-s1-c1-2': 3,
+                    'c-s2-c1-1': 3,
                 }).get_context(),
                 common.EnvoyRoute(common.RouteMatcher(
                     path_matcher=common.RoutePathMatcher(
@@ -187,7 +187,7 @@ class GatewayTest(unittest.TestCase):
                     header_matchers=[common.HeaderQueryMatcher('n', 'present', True, '', False)],
                     query_matchers=[],
                 ), {
-                    'c-s2-c1': 6,
+                    'c-s2-c1-1': 6,
                 }).get_context(),
             ],
             [route.get_context() for route in listener.routes],
@@ -219,6 +219,10 @@ class GatewayTest(unittest.TestCase):
                         'routes': [route_1],
                     }),
                     _mk_service_color({
+                        'service': 's1', 'color': 'c1', 'index': 2,
+                        'routes': [route_2],
+                    }),
+                    _mk_service_color({
                         'service': 's1', 'color': 'c2',
                         'routes': [route_1, route_2],
                     }),
@@ -237,9 +241,11 @@ class GatewayTest(unittest.TestCase):
         )
         self.assertEqual(
             {
-                route_matcher_1: [('c-s1-c1', route_1), ('c-s1-c2', route_1)],
-                route_matcher_2: [('c-s1-c2', route_2), ('c-s2-c1', route_2)],
-                route_matcher_3: [('c-s2-c1', route_3)],
+                route_matcher_1: [('c-s1-c1-1', route_1), ('c-s1-c2-1', route_1)],
+                route_matcher_2: [
+                    ('c-s1-c1-2', route_2), ('c-s1-c2-1', route_2), ('c-s2-c1-1', route_2),
+                ],
+                route_matcher_3: [('c-s2-c1-1', route_3)],
             },
             res,
         )
@@ -407,8 +413,8 @@ class GatewayTest(unittest.TestCase):
 
     def test_get_service_color_cluster_name(self) -> None:
         """Test get_service_color_cluster_name"""
-        res = gateway.get_service_color_cluster_name('s1', 'c1')
-        self.assertEqual('c-s1-c1', res)
+        res = gateway.get_service_color_cluster_name('s1', 'c1', 65535)
+        self.assertEqual('c-s1-c1-65535', res)
 
     def test_get_service_color_instance__ipv4(self) -> None:
         """Test get_service_color_instance with ipv4 address"""
@@ -540,7 +546,8 @@ def _mk_namespace(defaults: Dict[str, Any]) -> Dict[str, Any]:
 
 def _mk_service_color(defaults: Dict[str, Any]) -> Dict[str, Any]:
     ret: Dict[str, Any] = {
-        'service': 's', 'color': 'c', 'routes': [], 'namespace-egress': [], 'instances': [],
+        'service': 's', 'color': 'c', 'index': 1,
+        'routes': [], 'namespace-egress': [], 'instances': [],
     }
     ret.update(defaults)
     return ret

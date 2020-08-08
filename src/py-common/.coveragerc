@@ -2,4 +2,5 @@
 
 omit =
     nightjar_common/validation/*,
-    nightjar_common/extension_point/tests/runnable.py
+    nightjar_common/extension_point/tests/runnable.py,
+    nightjar_common/generator-test.py

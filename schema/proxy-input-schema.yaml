@@ -7,6 +7,8 @@ description: Input data for the mustache file generation.  The data is construct
 type: object
 required:
   - schema-version
+  - network_name
+  - service_member
   - has_admin_port
   - listeners
   - has_clusters

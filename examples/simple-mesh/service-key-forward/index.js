@@ -11,7 +11,7 @@ const app = express();
     let value = process.env[env_key] || key;
     app.get(`/key/${key}`, (req, res) => {
       res.type('json');
-      res.send(`{"value":"${value}"}`);
+      res.send(`{"value":"${value}"}\n`);
     });
     console.log(` - Listening for /key/${key} -> ${value}`);
   }

@@ -100,4 +100,4 @@ The data-store extension point is specially designed to allow it to also work as
 ## Get Started with Examples
 
 * [Running Local](examples/simple-mesh) - Run from docker-compose with local storage.  This shows a gradual introduction of more Nightjar features.
-* [AWS ECS and S3](examples/aws-ecs-tags) - Run within an ECS cluster.
+* [AWS ECS and S3](examples/aws-ecs-tags) - Run within an Amazon Web Services Elastic Cloud cluster.

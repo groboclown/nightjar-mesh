@@ -4,7 +4,8 @@ In this example, we construct a simple mesh based on a simple service ([service-
 
 The service itself is configured through environment variables:
 
-* `KEYS` - Comma-separated list of "keys".  Each key is assigned a path, in the form `/key/${key}`, and it returns the JSON data `{"key":"${key}"}`.
+* `KEYS` - Comma-separated list of "keys".  Each key is assigned a path, in the form `/key/${key}`, and it returns the JSON data `{"key":"${${key}_VALUE}"}`.
+* `${key}_VALUE` - the response for the request to the key from `KEYS`.  If not given, then the response will be the key name itself.
 * `FORWARD_KEYS` - Comma-separated list of environment variable `keys`, which make up a path and URL to forward to.  Requests to `/forward/${key}` cause the service to make a request to the URL defined in the environment variable `${key}_URL`.  Its response and status code are returned to the caller.
 * `${key}_URL` - Path part of the `FORWARDED_KEYS` key element, where `${key}` is the upper-case version of the key.
 
@@ -48,8 +49,7 @@ $ curl http://localhost:3001/key/f1
 For the next example, we'll need the stand-alone version of nightjar's docker image built locally.
 
 ```bash
-$ cd ../../src
-$ docker build -t local/nightjar-standalone -f Dockerfile.envoy-standalone .
+$ docker build -t local/nightjar-standalone -f ../../src/Dockerfile.envoy-standalone ../../src
 ```
 
 Then we start [docker-compose-01.yaml](docker-compose-01.yaml) to introduce nightjar as a gateway.  In this case, because the mesh is so simple, the gateway is being shared between all the services as also the sidecar.

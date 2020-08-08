@@ -169,6 +169,7 @@ class GeneratorTest(unittest.TestCase):
                 'service-colors': [{
                     'service': 's1',
                     'color': 'c1',
+                    'index': 1,
                     'routes': [],
                     'instances': [],
                     'namespace-egress': [],
@@ -220,6 +221,7 @@ class GeneratorTest(unittest.TestCase):
                 'service-colors': [{
                     'service': 's1',
                     'color': 'c1',
+                    'index': 12,
                     'routes': [],
                     'instances': [],
                     'namespace-egress': [],
@@ -371,12 +373,14 @@ class GeneratorTest(unittest.TestCase):
                     'namespace': 'n1',
                     'service': 's1',
                     'color': 'c1',
+                    'index': 199,
                     'purpose': 'out-1.txt',
                     'template': '1 {{schema-version}} 2 {{has_admin_port}} 3 {{has_clusters}} 4',
                 }, {
                     'namespace': 'n1',
                     'service': 's1',
                     'color': 'c1',
+                    'index': 199,
                     'purpose': 'out-2.txt',
                     'template': 'z {{schema-version}} y',
                 }],
@@ -392,6 +396,7 @@ class GeneratorTest(unittest.TestCase):
                 'service-colors': [{
                     'service': 's1',
                     'color': 'c1',
+                    'index': 199,
                     'routes': [],
                     'instances': [],
                     'namespace-egress': [],

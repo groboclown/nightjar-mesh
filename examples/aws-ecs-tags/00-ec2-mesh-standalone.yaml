@@ -14,28 +14,54 @@ Parameters:
   Subnets:
     Type: List<AWS::EC2::Subnet::Id>
     Description: >
-      The subnets in the VPC for the service to run in.  These must already exist.
-      Be careful of cross-AZ data charges!
+      A minimum of 2 subnets in the VPC for the service to run in.  These must already exist.
+      It's recommended to use private subnets here.  Be careful of cross-AZ data charges!
+
+  SshKeyName:
+    Description: Name of the SSH key to use when creating the EC2 instances.
+    Type: AWS::EC2::KeyPair::KeyName
+
+  SshSecurityGroup:
+    Description: >
+      Security group that allows SSH into the EC2 instances.  This should allow incoming port 22
+      on the VPC CIDR IP (e.g. 10.99.0.0/16), and it should not allow any outgoing traffic.
+    Type: String
+
+  S3Bucket:
+    Description: S3 bucket for storing the Nightjar data.
+    Type: String
+
+  S3Path:
+    Description: Path in the S3 bucket where Nightjar stores its data.
+    Type: String
+
+  LoadBalancerIngressCidr:
+    Description: >
+      Load balancer CIDR IP for ingress protection.  It's a private load balancer, so it doesn't need
+      strict security, but it helps.
+    Type: String
+    Default: "0.0.0.0/0"
 
   ServiceImage:
     Type: String
     Description: >
       The fully qualified image name for the service.  See the README.md file for
       instructions on creating and uploading this to ECR.
+    # Default: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/nightjar/nightjar-central"
 
   StandaloneNightjarImage:
     Type: String
     Description: >
       The fully qualified image name for the standalone nightjar image.  See the
       README.md file for instructions on creating and uploading this to ECR.
+    # Default: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/nightjar/nightjar-standalone"
 
-  SshKeyName:
-    Description: Name of the key to use when creating the EC2 instances
-    Type: AWS::EC2::KeyPair::KeyName
-
-  SshSecurityGroup:
-    Description: Security group that allows SSH into the EC2 instances.
+  CentralNightjarImage:
     Type: String
+    Description: >
+      The fully qualified image name for the central nightjar image.  See the
+      README.md file for instructions on creating and uploading this to ECR.
+    # Default: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/nightjar/nightjar-central"
 
   SpotPrice:
     Description: Maximum bid price to place on your EC2 instances
@@ -61,50 +87,56 @@ Resources:
 
   ClusterAutoScaling:
     Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn: ClusterLaunchTemplate
     Properties:
       DesiredCapacity: '1'
-      MaxSize: '1'
-      MinSize: '0'
+      MaxSize: '4'
+      MinSize: '1'
       HealthCheckType: EC2
       VPCZoneIdentifier: !Ref Subnets
-      MixedInstancesPolicy:
-        LaunchTemplateSpecification:
-          LaunchConfigurationName: !GetAtt "ClusterLaunchConfiguration.Name"
-          Version: "$Latest"
-        Overrides:
-          # Cross reference:
-          # https://aws.amazon.com/ec2/spot/instance-advisor/
-          # and
-          # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html#AvailableInstanceTypes
-          # These are the free tier instance types.
-          - InstanceType: t2.micro
-          - InstanceType: t3.micro
+      LaunchTemplate:
+        LaunchTemplateId: !Ref ClusterLaunchTemplate
+        Version: !GetAtt "ClusterLaunchTemplate.LatestVersionNumber"
 
-  ClusterLaunchConfiguration:
-    Type: AWS::AutoScaling::LaunchConfiguration
+  ClusterLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
     Properties:
-      EbsOptimized: false
-      IamInstanceProfile: !Ref "ECSInstanceProfile"
-      ImageId: !Ref "AmazonAMI"
-      InstanceMonitoring: false
-      InstanceType: t2.micro
-      KeyName: !Ref "SshKeyName"
-      SecurityGroups:
-      - !Ref ServiceConnectionSecurityGroup
-      - !Ref InterClusterSecurityGroup
-      - !Ref SshSecurityGroup
-      SpotPrice: !Ref SpotPrice
+      LaunchTemplateName: !Sub "${AWS::StackName}-lt"
+      LaunchTemplateData:
+        EbsOptimized: false
+        IamInstanceProfile:
+          Arn: !GetAtt "ECSInstanceProfile.Arn"
+        ImageId: !Ref "AmazonAMI"
+        Monitoring:
+          Enabled: false
+        InstanceType: t2.micro
+        KeyName: !Ref "SshKeyName"
+        SecurityGroupIds:
+        - !Ref ServiceConnectionSecurityGroup
+        - !Ref InterClusterSecurityGroup
+        - !Ref SshSecurityGroup
+        InstanceMarketOptions:
+          MarketType: spot
+          SpotOptions:
+            MaxPrice: !Ref SpotPrice
+            SpotInstanceType: one-time
 
-      UserData:
-        # Run the cfn scripts to use the metadata below.
-        Fn::Base64: !Sub |
-          #!/bin/bash -v
+        TagSpecifications:
+        - ResourceType: instance
+          Tags:
+            - Key: Name
+              Value: !Sub "${ClusterName}-${AWS::StackName}"
 
-          # the cfn-* tools need to be installed for this to work...
-          yum -y install aws-cfn-bootstrap
+        UserData:
+          # Run the cfn scripts to use the metadata below.
+          Fn::Base64: !Sub |
+            #!/bin/bash -v
 
-          # Run cfn-init
-          /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource EcsLaunchConfiguration --region ${AWS::Region}
+            # the cfn-* tools need to be installed for this to work...
+            yum -y install aws-cfn-bootstrap
+
+            # Run cfn-init
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ClusterLaunchTemplate --region ${AWS::Region}
 
     # Note: the only thing that connects an auto-scaling group to a cluster is the
     # "ECS_CLUSTER=xyz" in the /etc/ecs/ecs.config file, followed by launching the
@@ -256,8 +288,7 @@ Resources:
   # General ECS Setup Requirements
 
   TaskExecRole:
-    DependsOn:
-    - ServiceTaskRole
+    DependsOn: ServiceTaskRole
     Type: AWS::IAM::Role
     Properties:
       Path: "/"
@@ -271,7 +302,7 @@ Resources:
           Action:
           - "sts:AssumeRole"
       Policies:
-      - PolicyName: DeveloperLocalDockerImagesExec
+      - PolicyName: LaunchServicePolicy
         PolicyDocument:
           Version: "2012-10-17"
           Statement:
@@ -311,9 +342,57 @@ Resources:
       # Add policies as necessary.
       # This definition here allows for logging
       ManagedPolicyArns:
+        # Allow services to log to cloud watch.
         - arn:aws:iam::aws:policy/CloudWatchFullAccess
         # and writing to an XRay daemon, which we aren't doing right now.
         # - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+      Policies:
+      - PolicyName: RunService
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          # All the AWS resources necessary to run the s3 and ecs-tag extension points.
+
+          # Global resource policy.  These actions can only be used on
+          # "*" resources.
+          - Effect: Allow
+            Action:
+            - "ecs:DescribeTaskDefinition"
+            - "s3:ListAllMyBuckets"
+            - "s3:HeadBucket"
+            # - "s3:GetBucketLocation"
+
+            # ListTasks is supposed to be on container resources, but the request is for *.
+            - "ecs:ListTasks"
+            Resource: "*"
+
+          # Resource-specific actions.
+          - Effect: Allow
+            Action:
+            - "ecs:DescribeContainerInstances"
+            Resource:
+            - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:container-instance/*"
+          - Effect: Allow
+            Action:
+            - "ecs:DescribeTasks"
+            Resource:
+            - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task/*"
+          - Effect: Allow
+            Action:
+            - "ec2:DescribeInstances"
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - "s3:GetObject"
+            # Central Nightjar needs to put..."
+            - "s3:PutObject"
+            - "s3:CreateMultipartUpload"
+            Resource: !Sub "arn:aws:s3:::${S3Bucket}/${S3Path}/*"
+          - Effect: Allow
+            Action:
+            - "s3:ListBucket"
+            Resource: !Sub "arn:aws:s3:::${S3Bucket}"
+
 
   # =========================================================================
   # First Service: Tuna Blue
@@ -348,16 +427,16 @@ Resources:
       - Name: service
         Image: !Ref ServiceImage
         Essential: true
-        Cpu: 256
-        MemoryReservation: 1024
+        Cpu: 128
+        MemoryReservation: 32
         PortMappings:
         - ContainerPort: 3000
           # No "HostPort", which makes this an ephemeral port.
           Protocol: "tcp"
         HealthCheck:
-          Command: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
-          Interval: 5
-          Timeout: 2
+          Command: ["CMD-SHELL", "curl -s http://localhost:3000/key/health | grep -q very-healthy"]
+          Interval: 30
+          Timeout: 20
           Retries: 3
 
         Environment:
@@ -371,9 +450,13 @@ Resources:
           Value: "tuna-blue"
         # Health is for internal health checks only, and is not served up by the cluster.
         - Name: HEALTH_VALUE
-          Value: ok
+          Value: very-healthy
 
-        Link:
+        DependsOn:
+          - ContainerName: nightjar
+            Condition: HEALTHY
+
+        Links:
         # Allow the service to talk to the nightjar container.
         - nightjar
 
@@ -422,11 +505,24 @@ Resources:
 
 
         # Setup the extension points
-        # The data store extension point is configured in the nightjar image.
+
+        # Use the S3 data store for templates.
+        - Name: DATA_STORE_EXEC
+          Value: python3 -m nightjar_ds_aws_s3
+        - Name: NJ_DSS3_BUCKET
+          Value: !Ref S3Bucket
+        - Name: NJ_DSS3_BASE_PATH
+          Value: !Ref S3Path
+        - Name: NJ_DSS3_MAX_DOCUMENT_SIZE_MB
+          Value: 4
 
         # This configures the discovery map extension point.
         - Name: DISCOVERY_MAP_EXEC
           Value: python3 -m nightjar_dm_aws_ecs_tags
+
+        # Scan these ECS clusters for tasks.
+        - Name: NJ_DMECS_AWS_CLUSTERS
+          Value: !Ref ClusterName
 
         # Only tasks with this tag and value will be considered part of
         # the mesh.
@@ -434,6 +530,7 @@ Resources:
           Value: MESH_MEMBERSHIP
         - Name: NJ_DMECS_REQUIRED_TAG_VALUE
           Value: Yummy-Mesh
+
         # So define this gateway as in the mesh...
         - Name: MESH_MEMBERSHIP
           Value: Yummy-Mesh
@@ -450,8 +547,10 @@ Resources:
           Value: /key/tuna
         - Name: NJ_ROUTE_2
           # "!" in front means it's internal, and can't be reached from outside the namespace.
-          Value: !/key/tuna_blue
+          Value: "!/key/tuna_blue"
 
+        - Name: REFRESH_TIME
+          Value: 120
 
         PortMappings:
         - ContainerPort: 9901
@@ -461,9 +560,9 @@ Resources:
         HealthCheck:
           Command:
           - "CMD-SHELL"
-          - "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
-          Interval: 5
-          Timeout: 2
+          - "curl -sf http://localhost:9901/server_info | grep state | grep -q LIVE"
+          Interval: 30
+          Timeout: 20
           Retries: 3
 
   # =========================================================================
@@ -499,12 +598,17 @@ Resources:
       - Name: service
         Image: !Ref ServiceImage
         Essential: true
-        Cpu: 256
-        MemoryReservation: 1024
+        Cpu: 128
+        MemoryReservation: 32
         PortMappings:
           - ContainerPort: 3000
             # No "HostPort", which makes this an ephemeral port.
             Protocol: "tcp"
+        HealthCheck:
+          Command: ["CMD-SHELL", "curl -s http://localhost:3000/key/health | grep -q very-healthy"]
+          Interval: 30
+          Timeout: 20
+          Retries: 3
 
         Environment:
         # Configuration for the service.
@@ -517,11 +621,15 @@ Resources:
           Value: "tuna-ahi"
         # Health is for internal health checks only, and is not served up by the cluster.
         - Name: HEALTH_VALUE
-          Value: ok
+          Value: very-healthy
 
-        Link:
-          # Allow the service to talk to the nightjar container.
-          - nightjar
+        DependsOn:
+          - ContainerName: nightjar
+            Condition: HEALTHY
+
+        Links:
+        # Allow the service to talk to the nightjar container.
+        - nightjar
 
       - Name: nightjar
         # Note: this is not a real image name.  You need to build it yourself.
@@ -568,11 +676,24 @@ Resources:
 
 
         # Setup the extension points
-        # The data store extension point is configured in the nightjar image.
+
+        # Use the S3 data store for templates.
+        - Name: DATA_STORE_EXEC
+          Value: python3 -m nightjar_ds_aws_s3
+        - Name: NJ_DSS3_BUCKET
+          Value: !Ref S3Bucket
+        - Name: NJ_DSS3_BASE_PATH
+          Value: !Ref S3Path
+        - Name: NJ_DSS3_MAX_DOCUMENT_SIZE_MB
+          Value: 4
 
         # This configures the discovery map extension point.
         - Name: DISCOVERY_MAP_EXEC
           Value: python3 -m nightjar_dm_aws_ecs_tags
+
+        # Scan these ECS clusters for tasks.
+        - Name: NJ_DMECS_AWS_CLUSTERS
+          Value: !Ref ClusterName
 
         # Only tasks with this tag and value will be considered part of
         # the mesh.
@@ -580,6 +701,7 @@ Resources:
           Value: MESH_MEMBERSHIP
         - Name: NJ_DMECS_REQUIRED_TAG_VALUE
           Value: Yummy-Mesh
+
         # So define this gateway as in the mesh...
         - Name: MESH_MEMBERSHIP
           Value: Yummy-Mesh
@@ -596,8 +718,10 @@ Resources:
           Value: /key/tuna
         - Name: NJ_ROUTE_2
           # "!" in front means it's internal, and can't be reached from outside the namespace.
-          Value: !/key/tuna_ahi
+          Value: "!/key/tuna_ahi"
 
+        - Name: REFRESH_TIME
+          Value: 120
 
         PortMappings:
         - ContainerPort: 9901
@@ -608,8 +732,8 @@ Resources:
           Command:
           - "CMD-SHELL"
           - "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
-          Interval: 5
-          Timeout: 2
+          Interval: 30
+          Timeout: 20
           Retries: 3
 
   # =========================================================================
@@ -634,7 +758,7 @@ Resources:
       # No network definition, which means to use the EC2 standard bridge networking mode.
       ExecutionRoleArn: !Ref TaskExecRole
       TaskRoleArn: !Ref ServiceTaskRole
-      Family: "yummy-tuna-ahi"
+      Family: "yummy-fish"
       Tags:
       # These tags can be changed on the fly to alter the behavior.
       - Key: NJ_ROUTE_WEIGHT_1
@@ -645,12 +769,17 @@ Resources:
       - Name: service
         Image: !Ref ServiceImage
         Essential: true
-        Cpu: 256
-        MemoryReservation: 1024
+        Cpu: 128
+        MemoryReservation: 32
         PortMappings:
           - ContainerPort: 3000
             # No "HostPort", which makes this an ephemeral port.
             Protocol: "tcp"
+        HealthCheck:
+          Command: ["CMD-SHELL", "curl -s http://localhost:3000/key/health | grep -q very-healthy"]
+          Interval: 30
+          Timeout: 20
+          Retries: 3
 
         Environment:
         # Configuration for the service.
@@ -666,11 +795,15 @@ Resources:
           Value: "http://nightjar:8090/key/tuna"
         # Health is for internal health checks only, and is not served up by the cluster.
         - Name: HEALTH_VALUE
-          Value: ok
+          Value: very-healthy
 
-        Link:
-          # Allow the service to talk to the nightjar container.
-          - nightjar
+        DependsOn:
+          - ContainerName: nightjar
+            Condition: HEALTHY
+
+        Links:
+        # Allow the service to talk to the nightjar container.
+        - nightjar
 
       - Name: nightjar
         # Note: this is not a real image name.  You need to build it yourself.
@@ -717,11 +850,24 @@ Resources:
 
 
         # Setup the extension points
-        # The data store extension point is configured in the nightjar image.
+
+        # Use the S3 data store for templates.
+        - Name: DATA_STORE_EXEC
+          Value: python3 -m nightjar_ds_aws_s3
+        - Name: NJ_DSS3_BUCKET
+          Value: !Ref S3Bucket
+        - Name: NJ_DSS3_BASE_PATH
+          Value: !Ref S3Path
+        - Name: NJ_DSS3_MAX_DOCUMENT_SIZE_MB
+          Value: 4
 
         # This configures the discovery map extension point.
         - Name: DISCOVERY_MAP_EXEC
           Value: python3 -m nightjar_dm_aws_ecs_tags
+
+        # Scan these ECS clusters for tasks.
+        - Name: NJ_DMECS_AWS_CLUSTERS
+          Value: !Ref ClusterName
 
         # Only tasks with this tag and value will be considered part of
         # the mesh.
@@ -729,6 +875,7 @@ Resources:
           Value: MESH_MEMBERSHIP
         - Name: NJ_DMECS_REQUIRED_TAG_VALUE
           Value: Yummy-Mesh
+
         # So define this gateway as in the mesh...
         - Name: MESH_MEMBERSHIP
           Value: Yummy-Mesh
@@ -746,6 +893,8 @@ Resources:
         - Name: NJ_ROUTE_2
           Value: /forward/fish
 
+        - Name: REFRESH_TIME
+          Value: 120
 
         PortMappings:
         - ContainerPort: 9901
@@ -756,8 +905,8 @@ Resources:
           Command:
           - "CMD-SHELL"
           - "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
-          Interval: 5
-          Timeout: 2
+          Interval: 30
+          Timeout: 20
           Retries: 3
 
 
@@ -813,6 +962,20 @@ Resources:
         Environment:
         # For ecs-task-tags, we need to define these values...
 
+        # Use the S3 data store for templates.
+        - Name: DATA_STORE_EXEC
+          Value: python3 -m nightjar_ds_aws_s3
+        - Name: NJ_DSS3_BUCKET
+          Value: !Ref S3Bucket
+        - Name: NJ_DSS3_BASE_PATH
+          Value: !Ref S3Path
+        - Name: NJ_DSS3_MAX_DOCUMENT_SIZE_MB
+          Value: 4
+
+        # Use the ecs-task-tags discovery map extension point.
+        - Name: DISCOVERY_MAP_EXEC
+          Value: python3 -m nightjar_dm_aws_ecs_tags
+
         # Scan these ECS clusters for tasks.
         - Name: NJ_DMECS_AWS_CLUSTERS
           Value: !Ref ClusterName
@@ -827,19 +990,11 @@ Resources:
         - Name: MESH_MEMBERSHIP
           Value: Yummy-Mesh
 
-        # Use the ecs-task-tags discovery map extension point.
-        - Name: DISCOVERY_MAP_EXEC
-          Value: python3 -m nightjar_dm_aws_ecs_tags
-
         # Run as a gateway.
         - Name: NJ_PROXY_MODE
           Value: GATEWAY
         - Name: NJ_NAMESPACE
           Value: Yummy
-
-        # Use the locally constructed template files.
-        - Name: DATA_STORE_EXEC
-          Value: python3 -m nightjar_ds_local
 
         # All these are the same...
         - Name: AWS_REGION
@@ -850,6 +1005,8 @@ Resources:
           Value: 2000
         - Name: NJ_ADMIN_PORT
           Value: 9901
+        - Name: REFRESH_TIME
+          Value: 120
         PortMappings:
         - ContainerPort: 9901
           Protocol: tcp
@@ -859,8 +1016,8 @@ Resources:
           Command:
           - "CMD-SHELL"
           - "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
-          Interval: 5
-          Timeout: 2
+          Interval: 30
+          Timeout: 20
           Retries: 3
 
   GatewayTargetGroup:
@@ -894,12 +1051,11 @@ Resources:
       Subnets: !Ref Subnets
       SecurityGroups:
         - !Ref LoadBalancerSecurityGroup
-        - !Ref ECSInstancesSecurityGroup
+        - !Ref InterClusterSecurityGroup
 
   GatewayLoadBalancerListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
-    DependsOn:
-    - GatewayLoadBalancer
+    DependsOn: GatewayLoadBalancer
     Properties:
       DefaultActions:
       - TargetGroupArn: !Ref GatewayTargetGroup
@@ -916,5 +1072,5 @@ Resources:
       VpcId: !Ref VPC
       SecurityGroupIngress:
       # You should probably change this to something safer.
-      - CidrIp: 0.0.0.0/0
+      - CidrIp: !Ref LoadBalancerIngressCidr
         IpProtocol: -1

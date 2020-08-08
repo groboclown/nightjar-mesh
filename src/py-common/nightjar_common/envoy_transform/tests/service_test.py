@@ -95,7 +95,7 @@ class ServiceTest(unittest.TestCase):  # pylint: disable=R0904
         assert res is not None  # mypy requirement
         self.assertEqual([
             {
-                'name': 'local-s-c',
+                'name': 'local-s-c-1',
                 'endpoints': [{'host': '1.2.3.4', 'port': 12}],
                 'hosts_are_hostname': False,
                 'hosts_are_ipv4': True,
@@ -103,7 +103,7 @@ class ServiceTest(unittest.TestCase):  # pylint: disable=R0904
                 'uses_http2': False,
             },
             {
-                'name': 'remote-n2-rs-rc',
+                'name': 'remote-n2-rs-rc-1',
                 'endpoints': [{'host': '123.45.67.89', 'port': 990}],
                 'hosts_are_hostname': False,
                 'hosts_are_ipv4': True,
@@ -129,7 +129,7 @@ class ServiceTest(unittest.TestCase):  # pylint: disable=R0904
         })])
         self.assertEqual(
             [{
-                'name': 'local-s-c',
+                'name': 'local-s-c-1',
                 'endpoints': [{'host': '1.2.3.4', 'port': 123}],
                 'hosts_are_hostname': False,
                 'hosts_are_ipv4': True,
@@ -185,7 +185,7 @@ class ServiceTest(unittest.TestCase):  # pylint: disable=R0904
             'n1', discovery_map['namespaces'][0]['service-colors'][0], discovery_map,
         )
         self.assertEqual([{
-            'name': 'remote-n2-rs-rc',
+            'name': 'remote-n2-rs-rc-1',
             'endpoints': [{'host': '123.45.67.89', 'port': 990}],
             'hosts_are_hostname': False,
             'hosts_are_ipv4': True,
@@ -339,7 +339,7 @@ class ServiceTest(unittest.TestCase):  # pylint: disable=R0904
                     'routes': [{
                         'route_path': '/c/1',
                         'clusters': [{
-                            'cluster_name': 'local-s-c',
+                            'cluster_name': 'local-s-c-1',
                             'route_weight': 1,
                         }],
                         'has_header_filters': False,
@@ -360,7 +360,7 @@ class ServiceTest(unittest.TestCase):  # pylint: disable=R0904
                     'routes': [{
                         'route_path': '/r/1',
                         'clusters': [{
-                            'cluster_name': 'remote-n2-rs-rc',
+                            'cluster_name': 'remote-n2-rs-rc-1',
                             'route_weight': 1,
                         }],
                         'has_header_filters': False,
@@ -401,7 +401,7 @@ class ServiceTest(unittest.TestCase):  # pylint: disable=R0904
         self.assertEqual({
             'has_mesh_port': True, 'mesh_port': 60, 'routes': [{
                 'route_path': '/s/1',
-                'clusters': [{'cluster_name': 'local-s-c', 'route_weight': 1}],
+                'clusters': [{'cluster_name': 'local-s-c-1', 'route_weight': 1}],
                 'has_header_filters': False,
                 'header_filters': [],
                 'has_query_filters': False,
@@ -526,7 +526,7 @@ class ServiceTest(unittest.TestCase):  # pylint: disable=R0904
             'mesh_port': 100,
             'routes': [{
                 'route_path': '/s/1',
-                'clusters': [{'cluster_name': 'remote-n2-s-c', 'route_weight': 1}],
+                'clusters': [{'cluster_name': 'remote-n2-s-c-1', 'route_weight': 1}],
                 'has_header_filters': False,
                 'header_filters': [],
                 'has_query_filters': False,
@@ -596,7 +596,7 @@ class ServiceTest(unittest.TestCase):  # pylint: disable=R0904
         assert listener is not None  # mypy requirement
         self.assertEqual(
             {'has_mesh_port': True, 'mesh_port': 2, 'routes': [{
-                'clusters': [{'cluster_name': 'remote-n1-s-c', 'route_weight': 1}],
+                'clusters': [{'cluster_name': 'remote-n1-s-c-1', 'route_weight': 1}],
                 'has_many_clusters': False,
                 'has_one_cluster': True,
                 'has_header_filters': False,
@@ -773,6 +773,11 @@ class ServiceTest(unittest.TestCase):  # pylint: disable=R0904
                         'routes': [route_1],
                     }),
                     _mk_service_color({
+                        'color': 'blue', 'index': 2,
+                        'instances': [{'ipv6': '::1', 'port': 8}],
+                        'routes': [route_1],
+                    }),
+                    _mk_service_color({
                         'color': 'green',
                         'instances': [{'ipv6': '::2', 'port': 6}],
                         'routes': [route_1],
@@ -789,13 +794,19 @@ class ServiceTest(unittest.TestCase):  # pylint: disable=R0904
         self.assertEqual(
             {
                 matched_route: [
-                    ('local-s-blue', {
+                    ('local-s-blue-1', {
                         'default-access': True,
                         'namespace-access': [],
                         'path-match': {'match-type': 'prefix', 'value': '/a'},
                         'weight': 2,
                     }),
-                    ('local-s-green', {
+                    ('local-s-blue-2', {
+                        'default-access': True,
+                        'namespace-access': [],
+                        'path-match': {'match-type': 'prefix', 'value': '/a'},
+                        'weight': 2,
+                    }),
+                    ('local-s-green-1', {
                         'default-access': True,
                         'namespace-access': [],
                         'path-match': {'match-type': 'prefix', 'value': '/a'},
@@ -973,8 +984,8 @@ class ServiceTest(unittest.TestCase):  # pylint: disable=R0904
 
     def test_create_nonlocal_service_cluster_name(self) -> None:
         """Test the create_nonlocal_service_cluster_name function"""
-        res = service.create_nonlocal_service_cluster_name('n1', 's1', 'c1')
-        self.assertEqual('remote-n1-s1-c1', res)
+        res = service.create_nonlocal_service_cluster_name('n1', 's1', 'c1', 100)
+        self.assertEqual('remote-n1-s1-c1-100', res)
 
     def test_create_nonlocal_gateway_cluster_name(self) -> None:
         """Test the create_nonlocal_gateway_cluster_name function"""
@@ -983,8 +994,8 @@ class ServiceTest(unittest.TestCase):  # pylint: disable=R0904
 
     def test_create_local_cluster_name(self) -> None:
         """Test the create_local_cluster_name function"""
-        res = service.create_local_cluster_name('s1', 'c1')
-        self.assertEqual('local-s1-c1', res)
+        res = service.create_local_cluster_name('s1', 'c1', 65535)
+        self.assertEqual('local-s1-c1-65535', res)
 
 
 # ---------------------------------------------------------------------------
@@ -1015,7 +1026,8 @@ def _mk_namespace(defaults: Dict[str, Any]) -> Dict[str, Any]:
 
 def _mk_service_color(defaults: Dict[str, Any]) -> Dict[str, Any]:
     ret: Dict[str, Any] = {
-        'service': 's', 'color': 'c', 'routes': [], 'namespace-egress': [], 'instances': [],
+        'service': 's', 'color': 'c', 'index': 1,
+        'routes': [], 'namespace-egress': [], 'instances': [],
     }
     ret.update(defaults)
     return ret

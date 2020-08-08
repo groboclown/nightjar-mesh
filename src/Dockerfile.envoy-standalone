@@ -25,7 +25,7 @@ ADD py-ds-local/requirements.txt /tmp/requirements-61.txt
 
 RUN echo "Start install..." \
     && apk upgrade \
-    && apk add --update python3 py-pip curl unzip \
+    && apk add --update python3 py3-pip curl unzip \
     && python3 -m pip install --upgrade pip \
     && cat /tmp/requirements-*.txt | sort | uniq > /tmp/requirements.txt \
     && python3 -m pip install -r /tmp/requirements.txt \

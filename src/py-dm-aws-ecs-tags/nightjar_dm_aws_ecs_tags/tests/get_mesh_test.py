@@ -74,7 +74,8 @@ class GetMeshTest(unittest.TestCase):  # pylint: disable=R0904
         res = get_mesh.create_service_color_configs([task_1])
         self.assertEqual([{
             'service': 's',
-            'color': 'c_21',
+            'color': 'c',
+            'index': 21,
             'routes': [{
                 'default-access': True,
                 'namespace-access': [],

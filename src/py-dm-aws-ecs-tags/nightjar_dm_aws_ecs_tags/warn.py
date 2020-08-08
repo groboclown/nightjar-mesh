@@ -2,7 +2,10 @@
 """Produce warning and error messages."""
 
 from typing import Any
+import os
 import sys
+
+DEBUG = os.environ.get('DEBUG', 'false') == 'true'
 
 
 def warning(source: str, message: str, **kwargs: Any) -> None:
@@ -17,3 +20,9 @@ def log(level: str, source: str, message: str, **kwargs: Any) -> None:
             level, source, message.format(**kwargs),
         )
     )
+
+
+def debug(source: str, message: str, **kwargs: Any) -> None:
+    """Print a debug message"""
+    if DEBUG:
+        log('DEBUG', source, message, **kwargs)

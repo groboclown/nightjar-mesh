@@ -78,7 +78,8 @@ def create_service_color_configs(service_color_tasks: List[EcsTask]) -> List[Dic
         for port, routes in get_routes_by_port(tasks).items():
             ret.append({
                 'service': service,
-                'color': '{0}_{1}'.format(color, port),
+                'color': color,
+                'index': port,
                 'routes': create_service_color_routes(routes),
                 'instances': create_service_color_instances(tasks, port),
                 'namespace-egress': create_service_color_namespace_egress(tasks),

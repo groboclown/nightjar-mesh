@@ -9,7 +9,7 @@ from . import get_mesh
 from .config import create_configuration
 
 
-ARG__OUTPUT_FILE = '--output-file='
+ARG__OUTPUT_FILE = '--action-file='
 ARG__API_VERSION = '--api-version='
 # Ignores the --previous-document-version= argument
 
@@ -36,7 +36,7 @@ def main(argv: List[str]) -> int:
         return 4
 
     if not output_file:
-        print('[dm-aws-ecs-tags] No --output-file given')
+        print('[dm-aws-ecs-tags] No --action-file given')
         return 2
 
     data = get_mesh.get_mesh(config)
