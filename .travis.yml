@@ -17,6 +17,7 @@ script:
   - ./src/build-support/test-src-dir.sh py-dm-aws-service-discovery
   - ./src/build-support/test-src-dir.sh py-ds-aws-s3
   - ./src/build-support/test-src-dir.sh py-ds-local
+  - ./src/build-support/test-src-dir.sh py-entry-central
   - ./src/build-support/test-src-dir.sh py-entry-standalone
   - ./src/build-support/test-src-dir.sh py-tool-template-manager
   - ( cd src && docker build -t local/nightjar-envoy-standalone -f Dockerfile.envoy-standalone . )
