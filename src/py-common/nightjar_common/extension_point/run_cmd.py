@@ -30,7 +30,7 @@ def get_env_executable_cmd(
     executable = shutil.which(cmd[0])
     if executable is None:
         raise ConfigurationError(env_name, 'No such executable: `{0}`'.format(cmd[0]))
-    return executable, *cmd[1:]
+    return [executable, *cmd[1:]]
 
 
 def run_with_backoff(

@@ -140,4 +140,6 @@ The previous example has each service discover the mesh independently.  In some 
 
 To avoid this, but keep much of the same dynamic behavior, we can use a central discovery service that periodically performs the discovery and uploads the discovery-map into S3, which each of the nightjar sidecar containers pull.
 
-*TODO create the `01-ec2-mesh-central.yaml` file that introduces the central container and replaces the discovery map extension point in the services with the S3 data store.*
+You'll find these updates in [`01-ec2-mesh-central.yaml`](01-ec2-mesh-central.yaml).  This introduces a new, central service and task definition which manages the creation of the discovery map.  The other services are changed to just pull the discovery map from the S3 data store.  As a result of this change, now only the central container needs the ECS API access.
+
+You can *update* the previous cloudformation template to the new version to see the changes.

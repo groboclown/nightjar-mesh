@@ -56,6 +56,13 @@ Parameters:
       README.md file for instructions on creating and uploading this to ECR.
     # Default: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/nightjar/nightjar-standalone"
 
+  CentralNightjarImage:
+    Type: String
+    Description: >
+      The fully qualified image name for the central nightjar image.  See the
+      README.md file for instructions on creating and uploading this to ECR.
+    # Default: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/nightjar/nightjar-central"
+
   SpotPrice:
     Description: Maximum bid price to place on your EC2 instances
     Type: String
@@ -311,7 +318,9 @@ Resources:
           - Effect: Allow
             Action:
             - "iam:PassRole"
-            Resource: !GetAtt "ServiceTaskRole.Arn"
+            Resource:
+            - !GetAtt "ServiceTaskRole.Arn"
+            - !GetAtt "CentralServiceTaskRole.Arn"
           - Effect: Allow
             Action:
             - "ecs:RunTask"
@@ -319,7 +328,9 @@ Resources:
             - "ecs:StopTask"
             Resource: "*"
 
-  ServiceTaskRole:
+  # The task role for the nightjar central container.  It needs to access the
+  # ECS APIs and push to S3.
+  CentralServiceTaskRole:
     Type: AWS::IAM::Role
     Properties:
       Path: "/"
@@ -353,7 +364,6 @@ Resources:
             - "ecs:DescribeTaskDefinition"
             - "s3:ListAllMyBuckets"
             - "s3:HeadBucket"
-            # - "s3:GetBucketLocation"
 
             # ListTasks is supposed to be on container resources, but the request is for *.
             - "ecs:ListTasks"
@@ -377,11 +387,135 @@ Resources:
           - Effect: Allow
             Action:
             - "s3:GetObject"
+            - "s3:PutObject"
+            - "s3:CreateMultipartUpload"
             Resource: !Sub "arn:aws:s3:::${S3Bucket}/${S3Path}/*"
           - Effect: Allow
             Action:
             - "s3:ListBucket"
             Resource: !Sub "arn:aws:s3:::${S3Bucket}"
+
+  # All the other nightjar services just need S3 read permissions.
+  ServiceTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: "/"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - "ecs-tasks.amazonaws.com"
+          Action:
+          - "sts:AssumeRole"
+      # Add policies as necessary.
+      # This definition here allows for logging
+      ManagedPolicyArns:
+        # Allow services to log to cloud watch.
+        - arn:aws:iam::aws:policy/CloudWatchFullAccess
+        # and writing to an XRay daemon, which we aren't doing right now.
+        # - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+      Policies:
+      - PolicyName: RunService
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          # All the AWS resources necessary to run the s3 and ecs-tag extension points.
+
+          # Global resource policy.  These actions can only be used on
+          # "*" resources.
+          - Effect: Allow
+            Action:
+            - "s3:ListAllMyBuckets"
+            - "s3:HeadBucket"
+            Resource: "*"
+
+          # Resource-specific actions.
+          - Effect: Allow
+            Action:
+            - "s3:GetObject"
+            Resource: !Sub "arn:aws:s3:::${S3Bucket}/${S3Path}/*"
+          - Effect: Allow
+            Action:
+            - "s3:ListBucket"
+            Resource: !Sub "arn:aws:s3:::${S3Bucket}"
+
+  # =========================================================================
+  # The Nightjar Central Service
+  CentralService:
+    Type: "AWS::ECS::Service"
+    Properties:
+      Cluster: !Ref "ClusterName"
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DesiredCount: 1
+      LaunchType: EC2
+      TaskDefinition: !Ref "CentralTaskDef"
+
+  CentralTaskDef:
+    Type: "AWS::ECS::TaskDefinition"
+    Properties:
+      RequiresCompatibilities:
+      - EC2
+      # No network definition, which means to use the EC2 standard bridge networking mode.
+      ExecutionRoleArn: !Ref TaskExecRole
+      TaskRoleArn: !Ref CentralServiceTaskRole
+      Family: "yummy-nightjar-central"
+      ContainerDefinitions:
+      - Name: nightjar-central
+        # Note: this is not a real image name.  You need to build it yourself.
+        Image: !Ref CentralNightjarImage
+        Essential: true
+        Memory: 128
+        Environment:
+        # These environment variables must be carefully set.
+
+        # The AWS region, so nightjar can ask for the right resources.
+        - Name: AWS_REGION
+          Value: !Ref "AWS::Region"
+
+        - Name: REFRESH_TIME
+          Value: 120
+
+        # Setup the extension points
+
+        # Use the S3 data store for templates.
+        - Name: DATA_STORE_EXEC
+          Value: python3 -m nightjar_ds_aws_s3
+        - Name: NJ_DSS3_BUCKET
+          Value: !Ref S3Bucket
+        - Name: NJ_DSS3_BASE_PATH
+          Value: !Ref S3Path
+        - Name: NJ_DSS3_MAX_DOCUMENT_SIZE_MB
+          Value: 4
+
+        # This configures the discovery map extension point.
+        - Name: DISCOVERY_MAP_EXEC
+          Value: python3 -m nightjar_dm_aws_ecs_tags
+
+        # Scan these ECS clusters for tasks.
+        - Name: NJ_DMECS_AWS_CLUSTERS
+          Value: !Ref ClusterName
+
+        # Only tasks with this tag and value will be considered part of
+        # the mesh.
+        - Name: NJ_DMECS_REQUIRED_TAG
+          Value: MESH_MEMBERSHIP
+        - Name: NJ_DMECS_REQUIRED_TAG_VALUE
+          Value: Yummy-Mesh
+
+        # No port mappings.
+        # And the health check is trivial; the container will quit if the
+        # service fails.
+        HealthCheck:
+          Command:
+          - "CMD-SHELL"
+          - "exit 0"
+          Interval: 30
+          Timeout: 20
+          Retries: 3
 
 
   # =========================================================================
@@ -408,7 +542,8 @@ Resources:
       TaskRoleArn: !Ref ServiceTaskRole
       Family: "yummy-tuna-blue"
       Tags:
-      # These tags can be changed on the fly to alter the behavior.
+      # These tags can be changed on the fly to alter the behavior of this
+      # service within the control mesh.
       - Key: NJ_ROUTE_WEIGHT_1
         Value: 1
       - Key: NJ_ROUTE_WEIGHT_2
@@ -476,52 +611,7 @@ Resources:
           Value: tuna
         - Name: NJ_COLOR
           Value: blue
-
-
-        # Purely stand-alone entry point properties.
-
-        # The port number that the envoy proxy will listen to for connections
-        # *from* the sidecar service *to* the mesh.
-        - Name: NJ_LISTEN_PORT
-          Value: 8090
-
-        # The Envoy proxy administration port.  Defaults to 9901
-        - Name: NJ_ADMIN_PORT
-          Value: 9901
-
-        # The Envoy proxy's logging level.
-        - Name: ENVOY_LOG_LEVEL
-          Value: info
-
-
-        # Setup the extension points
-
-        # Use the S3 data store for templates.
-        - Name: DATA_STORE_EXEC
-          Value: python3 -m nightjar_ds_aws_s3
-        - Name: NJ_DSS3_BUCKET
-          Value: !Ref S3Bucket
-        - Name: NJ_DSS3_BASE_PATH
-          Value: !Ref S3Path
-        - Name: NJ_DSS3_MAX_DOCUMENT_SIZE_MB
-          Value: 4
-
-        # This configures the discovery map extension point.
-        - Name: DISCOVERY_MAP_EXEC
-          Value: python3 -m nightjar_dm_aws_ecs_tags
-
-        # Scan these ECS clusters for tasks.
-        - Name: NJ_DMECS_AWS_CLUSTERS
-          Value: !Ref ClusterName
-
-        # Only tasks with this tag and value will be considered part of
-        # the mesh.
-        - Name: NJ_DMECS_REQUIRED_TAG
-          Value: MESH_MEMBERSHIP
-        - Name: NJ_DMECS_REQUIRED_TAG_VALUE
-          Value: Yummy-Mesh
-
-        # So define this service as in the mesh...
+        # This is required to exist for the service to be included in the mesh.
         - Name: MESH_MEMBERSHIP
           Value: Yummy-Mesh
 
@@ -539,8 +629,33 @@ Resources:
           # "!" in front means it's internal, and can't be reached from outside the namespace.
           Value: "!/key/tuna_blue"
 
-        - Name: REFRESH_TIME
-          Value: 120
+
+        # The port number that the envoy proxy will listen to for connections
+        # *from* the sidecar service *to* the mesh.
+        - Name: NJ_LISTEN_PORT
+          Value: 8090
+
+        # The Envoy proxy administration port.  Defaults to 9901
+        - Name: NJ_ADMIN_PORT
+          Value: 9901
+
+        # The Envoy proxy's logging level.
+        - Name: ENVOY_LOG_LEVEL
+          Value: info
+
+        # Setup the extension points
+
+        # Use the S3 data store for templates and for the discovery-map.
+        - Name: DATA_STORE_EXEC
+          Value: python3 -m nightjar_ds_aws_s3
+        - Name: DISCOVERY_MAP_EXEC
+          Value: python3 -m nightjar_ds_aws_s3 --document=discovery-map --action=fetch
+        - Name: NJ_DSS3_BUCKET
+          Value: !Ref S3Bucket
+        - Name: NJ_DSS3_BASE_PATH
+          Value: !Ref S3Path
+        - Name: NJ_DSS3_MAX_DOCUMENT_SIZE_MB
+          Value: 4
 
         PortMappings:
         - ContainerPort: 9901
@@ -647,9 +762,17 @@ Resources:
           Value: tuna
         - Name: NJ_COLOR
           Value: ahi
+        - Name: MESH_MEMBERSHIP
+          Value: Yummy-Mesh
+        - Name: NJ_PROXY_MODE
+          Value: SERVICE
+        - Name: NJ_ROUTE_PORT
+          Value: "service:3000"
+        - Name: NJ_ROUTE_1
+          Value: /key/tuna
+        - Name: NJ_ROUTE_2
+          Value: "!/key/tuna_ahi"
 
-
-        # Purely stand-alone entry point properties.
 
         # The port number that the envoy proxy will listen to for connections
         # *from* the sidecar service *to* the mesh.
@@ -667,51 +790,18 @@ Resources:
 
         # Setup the extension points
 
-        # Use the S3 data store for templates.
+
+        # Use the S3 data store for templates and for the discovery-map.
         - Name: DATA_STORE_EXEC
           Value: python3 -m nightjar_ds_aws_s3
+        - Name: DISCOVERY_MAP_EXEC
+          Value: python3 -m nightjar_ds_aws_s3 --document=discovery-map --action=fetch
         - Name: NJ_DSS3_BUCKET
           Value: !Ref S3Bucket
         - Name: NJ_DSS3_BASE_PATH
           Value: !Ref S3Path
         - Name: NJ_DSS3_MAX_DOCUMENT_SIZE_MB
           Value: 4
-
-        # This configures the discovery map extension point.
-        - Name: DISCOVERY_MAP_EXEC
-          Value: python3 -m nightjar_dm_aws_ecs_tags
-
-        # Scan these ECS clusters for tasks.
-        - Name: NJ_DMECS_AWS_CLUSTERS
-          Value: !Ref ClusterName
-
-        # Only tasks with this tag and value will be considered part of
-        # the mesh.
-        - Name: NJ_DMECS_REQUIRED_TAG
-          Value: MESH_MEMBERSHIP
-        - Name: NJ_DMECS_REQUIRED_TAG_VALUE
-          Value: Yummy-Mesh
-
-        # So define this gateway as in the mesh...
-        - Name: MESH_MEMBERSHIP
-          Value: Yummy-Mesh
-
-        # Tell the discovery map that this is a service...
-        - Name: NJ_PROXY_MODE
-          Value: SERVICE
-        # ...that listens on this port.
-        - Name: NJ_ROUTE_PORT
-          Value: "service:3000"
-
-        # Setup the routes used by this service.
-        - Name: NJ_ROUTE_1
-          Value: /key/tuna
-        - Name: NJ_ROUTE_2
-          # "!" in front means it's internal, and can't be reached from outside the namespace.
-          Value: "!/key/tuna_ahi"
-
-        - Name: REFRESH_TIME
-          Value: 120
 
         PortMappings:
         - ContainerPort: 9901
@@ -821,6 +911,16 @@ Resources:
           Value: fish-router
         - Name: NJ_COLOR
           Value: default
+        - Name: MESH_MEMBERSHIP
+          Value: Yummy-Mesh
+        - Name: NJ_PROXY_MODE
+          Value: SERVICE
+        - Name: NJ_ROUTE_PORT
+          Value: "service:3000"
+        - Name: NJ_ROUTE_1
+          Value: /key/serves
+        - Name: NJ_ROUTE_2
+          Value: /forward/fish
 
 
         # Purely stand-alone entry point properties.
@@ -841,9 +941,11 @@ Resources:
 
         # Setup the extension points
 
-        # Use the S3 data store for templates.
+        # Use the S3 data store for templates and for the discovery-map.
         - Name: DATA_STORE_EXEC
           Value: python3 -m nightjar_ds_aws_s3
+        - Name: DISCOVERY_MAP_EXEC
+          Value: python3 -m nightjar_ds_aws_s3 --document=discovery-map --action=fetch
         - Name: NJ_DSS3_BUCKET
           Value: !Ref S3Bucket
         - Name: NJ_DSS3_BASE_PATH
@@ -851,40 +953,6 @@ Resources:
         - Name: NJ_DSS3_MAX_DOCUMENT_SIZE_MB
           Value: 4
 
-        # This configures the discovery map extension point.
-        - Name: DISCOVERY_MAP_EXEC
-          Value: python3 -m nightjar_dm_aws_ecs_tags
-
-        # Scan these ECS clusters for tasks.
-        - Name: NJ_DMECS_AWS_CLUSTERS
-          Value: !Ref ClusterName
-
-        # Only tasks with this tag and value will be considered part of
-        # the mesh.
-        - Name: NJ_DMECS_REQUIRED_TAG
-          Value: MESH_MEMBERSHIP
-        - Name: NJ_DMECS_REQUIRED_TAG_VALUE
-          Value: Yummy-Mesh
-
-        # So define this gateway as in the mesh...
-        - Name: MESH_MEMBERSHIP
-          Value: Yummy-Mesh
-
-        # Tell the discovery map that this is a service...
-        - Name: NJ_PROXY_MODE
-          Value: SERVICE
-        # ...that listens on this port.
-        - Name: NJ_ROUTE_PORT
-          Value: "service:3000"
-
-        # Setup the routes used by this service.
-        - Name: NJ_ROUTE_1
-          Value: /key/serves
-        - Name: NJ_ROUTE_2
-          Value: /forward/fish
-
-        - Name: REFRESH_TIME
-          Value: 120
 
         PortMappings:
         - ContainerPort: 9901
@@ -901,7 +969,7 @@ Resources:
 
 
   # =========================================================================
-  # Gateway Service - Allows access to the mesh.
+  # Gateway Service - Allows access to the mesh from a load balancer.
 
   # Setup the gateway service + container definition.
   GatewayService:
@@ -950,43 +1018,12 @@ Resources:
           HardLimit: 15000
           SoftLimit: 15000
         Environment:
-        # For ecs-task-tags, we need to define these values...
-
-        # Use the S3 data store for templates.
-        - Name: DATA_STORE_EXEC
-          Value: python3 -m nightjar_ds_aws_s3
-        - Name: NJ_DSS3_BUCKET
-          Value: !Ref S3Bucket
-        - Name: NJ_DSS3_BASE_PATH
-          Value: !Ref S3Path
-        - Name: NJ_DSS3_MAX_DOCUMENT_SIZE_MB
-          Value: 4
-
-        # Use the ecs-task-tags discovery map extension point.
-        - Name: DISCOVERY_MAP_EXEC
-          Value: python3 -m nightjar_dm_aws_ecs_tags
-
-        # Scan these ECS clusters for tasks.
-        - Name: NJ_DMECS_AWS_CLUSTERS
-          Value: !Ref ClusterName
-
-        # Only tasks with this tag and value will be considered part of
-        # the mesh.
-        - Name: NJ_DMECS_REQUIRED_TAG
-          Value: MESH_MEMBERSHIP
-        - Name: NJ_DMECS_REQUIRED_TAG_VALUE
-          Value: Yummy-Mesh
-        # So define this gateway as in the mesh...
-        - Name: MESH_MEMBERSHIP
-          Value: Yummy-Mesh
 
         # Run as a gateway.
         - Name: NJ_PROXY_MODE
           Value: GATEWAY
         - Name: NJ_NAMESPACE
           Value: Yummy
-
-        # All these are the same...
         - Name: AWS_REGION
           Value: !Ref "AWS::Region"
         - Name: ENVOY_LOG_LEVEL
@@ -995,8 +1032,20 @@ Resources:
           Value: 2000
         - Name: NJ_ADMIN_PORT
           Value: 9901
-        - Name: REFRESH_TIME
-          Value: 120
+
+        # Use the S3 data store for templates and for the discovery-map.
+        - Name: DATA_STORE_EXEC
+          Value: python3 -m nightjar_ds_aws_s3
+        - Name: DISCOVERY_MAP_EXEC
+          Value: python3 -m nightjar_ds_aws_s3 --document=discovery-map --action=fetch
+        - Name: NJ_DSS3_BUCKET
+          Value: !Ref S3Bucket
+        - Name: NJ_DSS3_BASE_PATH
+          Value: !Ref S3Path
+        - Name: NJ_DSS3_MAX_DOCUMENT_SIZE_MB
+          Value: 4
+
+
         PortMappings:
         - ContainerPort: 9901
           Protocol: tcp

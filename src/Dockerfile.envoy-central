@@ -1,4 +1,4 @@
-FROM alpine:3.8
+FROM alpine:3.12.0
 
 # Runs both Envoy and the Standalone Loop.
 
@@ -24,8 +24,9 @@ ADD py-ds-local/requirements.txt /tmp/requirements-61.txt
 
 
 RUN echo "Start install..." \
-    && apk upgrade \
-    && apk add --update python3 py3-pip curl unzip \
+    && apk --update upgrade \
+    && apk upgrade python3=3.8 \
+    && apk add curl unzip py3-pip \
     && python3 -m pip install --upgrade pip \
     && cat /tmp/requirements-*.txt | sort | uniq > /tmp/requirements.txt \
     && python3 -m pip install -r /tmp/requirements.txt \
