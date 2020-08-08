@@ -71,6 +71,7 @@ class MainTest(unittest.TestCase):
             main.main(['main.py', '-C', config_file, '--document-type', 'discovery-map', 'pull'])
             self.fail('Did not raise an error')  # pragma no cover
         except ExtensionPointRuntimeError as err:
+            print("Raised " + repr(err))
             self.assertIsNotNone(
                 re.compile(
                     r"ExtensionPointRuntimeError\('data_store: Failed running fetch "

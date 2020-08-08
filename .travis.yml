@@ -12,6 +12,7 @@ install:
 
 script:
   - ./src/build-support/check-requirements.sh
+  - ./src/build-support/test-src-dir.sh py-tool-template-manager
   - ./src/build-support/test-src-dir.sh py-common
   - ./src/build-support/test-src-dir.sh py-dm-aws-ecs-tags
   - ./src/build-support/test-src-dir.sh py-dm-aws-service-discovery
@@ -19,6 +20,5 @@ script:
   - ./src/build-support/test-src-dir.sh py-ds-local
   - ./src/build-support/test-src-dir.sh py-entry-central
   - ./src/build-support/test-src-dir.sh py-entry-standalone
-  - ./src/build-support/test-src-dir.sh py-tool-template-manager
   - ( cd src && docker build -t local/nightjar-envoy-standalone -f Dockerfile.envoy-standalone . )
   - ( cd src && docker build -t local/nightjar-envoy-central -f Dockerfile.envoy-central . )
