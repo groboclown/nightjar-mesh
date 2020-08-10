@@ -14,6 +14,7 @@ from botocore.config import Config as BotoConfig  # type: ignore
 from botocore.exceptions import ClientError  # type: ignore
 
 from .config import Config
+from .util import debug, log
 
 
 def get_version_file_s3_key(config: Config, document_name: str, version: str) -> str:
@@ -37,7 +38,7 @@ def list_entries(config: Config, path: str) -> Iterable[Tuple[str, datetime.date
 
     This performs an iterable from yield, so do not loop through the returned object
     multiple times."""
-    # debug("Listing entries under {p}", p=path)
+    debug("Listing entries under {p}", p=path)
     paginator = get_s3_client().get_paginator('list_objects_v2')
     response_iterator = paginator.paginate(
         Bucket=config.bucket,
@@ -61,7 +62,7 @@ def upload(config: Config, path: str, contents: bytes) -> int:
     assert len(contents) <= config.max_document_bytes
     # Note that the path argument musn't start with a '/', but the path construction
     # should handle this.
-    print("[nightjar-ds-aws-s3] Uploading {0}".format(path))
+    log('INFO', "Uploading s3://{bucket}/{path}", bucket=config.bucket, path=path)
     inp = io.BytesIO(contents)
     try:
         get_s3_client().upload_fileobj(inp, config.bucket, path)
@@ -70,7 +71,7 @@ def upload(config: Config, path: str, contents: bytes) -> int:
         # 404 errors may happen if the bucket doesn't exist,
         # and if that happens, it's not recoverable.
         if request_requires_retry(err):
-            print("[nightjar-ds-aws-s3] Upload generated a retry request from S3: " + repr(err))
+            log('WARN', "Upload generated a retry request from S3: {err}", err=repr(err))
             return 31
         raise err
 
@@ -81,18 +82,17 @@ def download(config: Config, path: str) -> Union[bytes, int]:
     on success."""
     # Note that the path argument musn't start with a '/', but the path construction
     # should handle this.
+    debug('Downloading s3://{bucket}/{path}', bucket=config.bucket, path=path)
     out = io.BytesIO()
     try:
         get_s3_client().download_fileobj(config.bucket, path, out)
     except ClientError as err:
         if is_404_error(err):
             # File disappeared underneath us.
-            print(
-                "[nightjar-ds-aws-s3] Download generated a not-found response from S3: " + repr(err)
-            )
+            log('WARN', "Download generated a not-found response from S3: {err}", err=repr(err))
             return 31
         if request_requires_retry(err):
-            print("[nightjar-ds-aws-s3] Download generated a retry request from S3: " + repr(err))
+            log('WARN', "Download generated a retry request from S3: {err}", err=repr(err))
             return 31
         raise err
     return out.getvalue()
@@ -103,7 +103,8 @@ def delete(config: Config, keys: List[str]) -> None:
     if len(keys) <= 0:
         return
     if len(keys) > 1000:
-        raise ValueError("Cannot handle > 1000 paths right now.")
+        raise ValueError("Cannot handle deleting > 1000 items right now.")
+    debug('Attempting to delete keys {keys}', keys=keys)
     try:
         get_s3_client().delete_objects(
             Bucket=config.bucket,
@@ -113,17 +114,16 @@ def delete(config: Config, keys: List[str]) -> None:
         )
     except ClientError as err:
         if is_404_error(err):
-            print(
-                "[nightjar-ds-aws-s3] Attempted to delete at least one "
-                "non-existent S3 key: {0}".format(keys)
-            )
+            log('INFO', "Attempted to delete at least one non-existent S3 key: {key}", key=keys)
             return
         if request_requires_retry(err):
             # Ignore these in context of the s3 use-case for delete.
             # But it leaves a mess...
-            print(
-                "[nightjar-ds-aws-s3] Attempted to delete keys ({0}), "
-                "but S3 told us to retry.  Won't retry.  Error: {1}".format(keys, repr(err))
+            log(
+                'INFO',
+                "Attempted to delete keys ({keys}), but S3 told "
+                "us to retry.  Won't retry.  Error: {err}",
+                keys=keys, err=repr(err),
             )
             return
         raise err
@@ -164,11 +164,7 @@ def request_requires_retry(err: Exception) -> bool:
             or 'slow' in m_low or 'slow' in code
             or 'busy' in m_low or 'busy' in code
     ):
-        print(
-            "[nightjar-ds-aws-s3] Reporting error {message} as requiring a retry".format(
-                message=message,
-            )
-        )
+        log('INFO', "Reporting error {msg} as requiring a retry", msg=message)
         return True
     return False
 

@@ -14,6 +14,8 @@ class FetchTest(unittest.TestCase):
     """Test the fetch functions."""
 
     def setUp(self) -> None:
+        self._orig_env = dict(os.environ)
+        os.environ['DEBUG'] = 'true'
         self.config = Config({
             ENV__BUCKET: 'some-bucket',
             ENV__BASE_PATH: 'this/test',
@@ -22,6 +24,8 @@ class FetchTest(unittest.TestCase):
         self.outfile = tempfile.mktemp()
 
     def tearDown(self) -> None:
+        os.environ.clear()
+        os.environ.update(self._orig_env)
         if os.path.isfile(self.outfile):
             os.unlink(self.outfile)
 
