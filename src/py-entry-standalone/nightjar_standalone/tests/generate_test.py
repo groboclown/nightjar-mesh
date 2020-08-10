@@ -192,6 +192,31 @@ class GeneratorTest(unittest.TestCase):
         with open(out_file_2, 'r') as f:
             self.assertEqual('z v1 y', f.read())
 
+    def test_gateway_generate_file__no_match(self) -> None:
+        """Test the gateway generate_file function when the proxy input is None."""
+        self._config.namespace = 'n1'
+        self._config.data_store_exec = self._get_runnable_cmd(
+            0, validate_templates({
+                'schema-version': 'v1',
+                'document-version': 'x',
+                'service-templates': [],
+                'gateway-templates': [{
+                    'namespace': 'n1',
+                    'purpose': 'out-1.txt',
+                    'template': '1 {{schema-version}} 2 {{has_admin_port}} 3 {{has_clusters}} 4',
+                }],
+            }),
+        )
+        self._config.discovery_map_exec = self._get_runnable_cmd(0, validate_discovery_map({
+            'schema-version': 'v1',
+            'document-version': 'd1',
+            'namespaces': [],
+        }))
+
+        gateway = generate.GenerateGatewayConfiguration(self._config)
+        res = gateway.generate_file(1, 2)
+        self.assertEqual(1, res)
+
     def test_gateway_generate_file__with_error(self) -> None:
         """Test the gateway generate_file function that generates an error."""
         self._config.namespace = 'n1'
@@ -417,6 +442,36 @@ class GeneratorTest(unittest.TestCase):
 
         with open(out_file_2, 'r') as f:
             self.assertEqual('z v1 y', f.read())
+
+    def test_service_generate_file__no_match(self) -> None:
+        """Test the service generate_file function.  Uses a simple setup."""
+        self._config.namespace = 'n1'
+        self._config.service = 's1'
+        self._config.color = 'c1'
+        self._config.data_store_exec = self._get_runnable_cmd(
+            0, validate_templates({
+                'schema-version': 'v1',
+                'document-version': 'x',
+                'gateway-templates': [],
+                'service-templates': [{
+                    'namespace': 'n1',
+                    'service': 's1',
+                    'color': 'c1',
+                    'index': 199,
+                    'purpose': 'out-1.txt',
+                    'template': '1 {{schema-version}} 2 {{has_admin_port}} 3 {{has_clusters}} 4',
+                }],
+            })
+        )
+        self._config.discovery_map_exec = self._get_runnable_cmd(0, validate_discovery_map({
+            'schema-version': 'v1',
+            'document-version': 'd12',
+            'namespaces': [],
+        }))
+
+        gateway = generate.GenerateServiceConfiguration(self._config)
+        res = gateway.generate_file(3, 4)
+        self.assertEqual(1, res)
 
     def test_generate_envoy_file__no_change(self) -> None:
         """Run generate_envoy_file with no changes to the files."""

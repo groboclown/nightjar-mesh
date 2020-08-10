@@ -52,6 +52,9 @@ class GenerateGatewayConfiguration(Generator):
                 discovery_map, self._config.namespace,
                 listen_port, admin_port,
             )
+            if isinstance(mapping, int):
+                print("[nightjar-standalone] Could not create mapping.")
+                return mapping
             for purpose, template in self.get_templates().items():
                 rendered = pystache.render(template, mapping)
                 generate_envoy_file(self._config, purpose, rendered)
@@ -92,6 +95,9 @@ class GenerateServiceConfiguration(Generator):
             discovery_map, self._config.namespace, self._config.service, self._config.color,
             listen_port, admin_port,
         )
+        if isinstance(mapping, int):
+            print("[nightjar-standalone] Could not generate mapping.")
+            return mapping
         for purpose, template in self.get_templates().items():
             rendered = pystache.render(template, mapping)
             generate_envoy_file(self._config, purpose, rendered)
