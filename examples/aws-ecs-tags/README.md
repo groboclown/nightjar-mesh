@@ -69,7 +69,7 @@ $ docker push 123456789012.dkr.ecr.us-west-2.amazonaws.com/nightjar/nightjar-cen
 
 The templates are managed by the [aws s3 data store](../../docs/store-aws-s3.md).  This uses an internal method to construct the storage to allow for nearly atomic operations.  Fortunately, the [`template-manager.sh`](../../docs/templates.md) script can help push these out to S3.
 
-First, we'll create a local configuration that the template manager will use to know about our S3 bucket.  Create the file named `local-data-store-profiles.ini`, which looks like the following example (remember to replace values with your local configuration):
+First, we'll create a local configuration that the template manager will use to know about the S3 bucket.  Create the file named `local-data-store-profiles.ini`, which looks like the following example (remember to replace values with your local configuration):
 
 ```ini
 [default]

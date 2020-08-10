@@ -13,6 +13,7 @@ The [simple mesh example](../examples/simple-mesh/README.md) is also a good intr
 [Templates](templates.md) describes the templates document, and how Nightjar matches up services and gateways to a template.  It also describes the data format that Nightjar transforms the discovery-map to use with the templates.
 
 
+
 ## Usage Details
 
 [Extension points](extension-points.md) describes how the extension points work, and what's expected of them.
@@ -26,11 +27,3 @@ After that, you should look into finding the right extension point for your situ
 * Data Store extension points store and retrieve documents, and can be used as a discovery-map by fetching it as a document.
     * [Local storage](store-local.md) for simple file-based approaches.
     * [AWS S3](store-aws-s3.md) keeps the files in S3.
-
-
-## Older Cruft
-
-Then there's older documentation that still needs to be sorted out.
-
-* [standalone-deployment-model](standalone-deployment-model.md)
-* [centralized-deployment-model](centralized-deployment-model.md)
