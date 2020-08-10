@@ -13,6 +13,7 @@ from nightjar_common.extension_point.data_store import DataStoreRunner, Document
 from .config import Config
 
 TEMPLATES_DOCUMENT = 'templates'
+DISPLAY_DEFAULT_TEXT = '<default>'
 
 
 def push_file(config: Config) -> int:
@@ -52,15 +53,14 @@ def list_template(config: Config) -> int:
     if config.category != 'service':
         output += "Gateway-Templates:\n"
         for gateway in templates['gateway-templates']:
-            output += "  - namespace: {0}\n".format(gateway['namespace'])
+            output += "  - namespace: {0}\n".format(gateway['namespace'] or DISPLAY_DEFAULT_TEXT)
             output += "    purpose:   {0}\n".format(gateway['purpose'])
     if config.category != 'gateway':
         output += "Service-Templates:\n"
         for service in templates['service-templates']:
-            output += "  - namespace: {0}\n".format(service['namespace'])
-            output += "    service:   {0}\n".format(service['service'])
-            output += "    color:     {0}\n".format(service['color'])
-            output += "    index:     {0}\n".format(service['index'])
+            output += "  - namespace: {0}\n".format(service['namespace'] or DISPLAY_DEFAULT_TEXT)
+            output += "    service:   {0}\n".format(service['service'] or DISPLAY_DEFAULT_TEXT)
+            output += "    color:     {0}\n".format(service['color'] or DISPLAY_DEFAULT_TEXT)
             output += "    purpose:   {0}\n".format(service['purpose'])
     if not config.filename or config.filename == '-':
         print(output)

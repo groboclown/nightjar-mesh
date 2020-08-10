@@ -5,6 +5,7 @@ Configuration settings for the standalone.
 
 from typing import Dict, Sequence, Optional
 import os
+import sys
 import argparse
 import configparser
 import tempfile
@@ -50,10 +51,10 @@ class Config:
 
     def __del__(self) -> None:
         if self._is_temp_dir and os.path.isdir(self.cache_dir):
-            print("Removing cache dir " + self.cache_dir)
+            sys.stderr.write(
+                "[nightjar-template-manager] Removing cache dir {d}.\n".format(d=self.cache_dir),
+            )
             shutil.rmtree(self.cache_dir)
-        else:
-            print("Keeping cache dir " + self.cache_dir)
 
 
 def get_namespace(orig: str) -> Optional[str]:
