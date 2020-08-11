@@ -15,6 +15,7 @@ from nightjar_common import log
 from nightjar_common.extension_point.run_cmd import get_env_executable_cmd
 
 ONE_TEMPLATE_DOCUMENT_TYPE = 'one-template'
+ARG_DEFAULT_VALUE = 'default'
 
 ENV__DATA_STORE_EXEC = 'DATA_STORE_EXEC'
 ENV__DISCOVERY_MAP_EXEC = 'DISCOVERY_MAP_EXEC'
@@ -59,17 +60,17 @@ class Config:
 
 def get_namespace(orig: str) -> Optional[str]:
     """Get the actual namespace as used by templates."""
-    return None if not orig or orig == 'default' else orig
+    return None if not orig or orig == ARG_DEFAULT_VALUE else orig
 
 
 def get_service(orig: str) -> Optional[str]:
     """Get the actual service as used by templates."""
-    return None if not orig or orig == 'default' else orig
+    return None if not orig or orig == ARG_DEFAULT_VALUE else orig
 
 
 def get_color(orig: str) -> Optional[str]:
     """Get the actual color as used by templates."""
-    return None if not orig or orig == 'default' else orig
+    return None if not orig or orig == ARG_DEFAULT_VALUE else orig
 
 
 def create_configuration(vargs: Sequence[str]) -> Config:
@@ -85,7 +86,7 @@ def create_configuration(vargs: Sequence[str]) -> Config:
         help="Configuration (.ini) file, each section defines a profile.",
     )
     parser.add_argument(
-        '--profile', '-P', action='store', default='default', type=str,
+        '--profile', '-P', action='store', default=ARG_DEFAULT_VALUE, type=str,
         help=(
             "Profile section within the config file that sets up the properties used for "
             "the data store invocation."
@@ -117,15 +118,15 @@ def create_configuration(vargs: Sequence[str]) -> Config:
         help="The output file name, or `purpose` of the template.",
     )
     parser.add_argument(
-        '--namespace', '-n', action='store', type=str, default="default",
+        '--namespace', '-n', action='store', type=str, default=ARG_DEFAULT_VALUE,
         help="Namespace for the stored template.  Only used for single template management.",
     )
     parser.add_argument(
-        '--service', '-s', action='store', type=str, default="default",
+        '--service', '-s', action='store', type=str, default=ARG_DEFAULT_VALUE,
         help="Service name.  Only used for service category single template management.",
     )
     parser.add_argument(
-        '--color', '-c', action='store', type=str, default="default",
+        '--color', '-c', action='store', type=str, default=ARG_DEFAULT_VALUE,
         help="Color name.  Only used for service category single template management.",
     )
     parser.add_argument(

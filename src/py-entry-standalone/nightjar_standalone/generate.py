@@ -3,7 +3,7 @@
 Generate the current configuration.
 """
 
-from typing import Dict, Tuple, Iterable
+from typing import Dict, Tuple, Iterable, Optional
 import os
 import tempfile
 import pystache  # type: ignore
@@ -15,7 +15,9 @@ from nightjar_common.envoy_transform.service import create_service_color_proxy_i
 from nightjar_common.extension_point.errors import (
     ExtensionPointRuntimeError, ExtensionPointTooManyRetries,
 )
-from .config import Config, DEFAULT_NAMESPACE, DEFAULT_SERVICE, DEFAULT_COLOR
+from .config import Config
+
+TEMPLATE_DEFAULT = None
 
 
 class Generator:
@@ -47,15 +49,17 @@ class GenerateGatewayConfiguration(Generator):
     def generate_file(self, listen_port: int, admin_port: int) -> int:
         """Runs the generation process."""
         try:
+            log.debug("Fetching discovery map")
             discovery_map = self._discovery_map.get_mesh()
             mapping = create_gateway_proxy_input(
                 discovery_map, self._config.namespace,
                 listen_port, admin_port,
             )
             if isinstance(mapping, int):
-                print("[nightjar-standalone] Could not create mapping.")
+                log.warning("Could not create mapping.")
                 return mapping
             for purpose, template in self.get_templates().items():
+                log.debug("Rendering template {purpose}", purpose=purpose)
                 rendered = pystache.render(template, mapping)
                 generate_envoy_file(self._config, purpose, rendered)
             return 0
@@ -65,15 +69,16 @@ class GenerateGatewayConfiguration(Generator):
 
     def get_templates(self) -> Dict[str, str]:
         """Get the right templates for this mode (purpose -> template)."""
+        log.debug("Fetching templates")
         all_templates = self._data_store.fetch_document('templates')
         default_templates: Dict[str, str] = {}
         namespace_templates: Dict[str, str] = {}
         for gateway_template in all_templates['gateway-templates']:
-            namespace = gateway_template['namespace'] or DEFAULT_NAMESPACE
+            namespace = gateway_template['namespace']
             purpose = gateway_template['purpose']
             if namespace == self._config.namespace:
                 namespace_templates[purpose] = gateway_template['template']
-            elif namespace == DEFAULT_NAMESPACE:
+            elif namespace == TEMPLATE_DEFAULT:
                 default_templates[purpose] = gateway_template['template']
         return namespace_templates or default_templates
 
@@ -96,7 +101,7 @@ class GenerateServiceConfiguration(Generator):
             listen_port, admin_port,
         )
         if isinstance(mapping, int):
-            print("[nightjar-standalone] Could not generate mapping.")
+            log.warning("Could not generate mapping.")
             return mapping
         for purpose, template in self.get_templates().items():
             rendered = pystache.render(template, mapping)
@@ -106,14 +111,16 @@ class GenerateServiceConfiguration(Generator):
     def get_templates(self) -> Dict[str, str]:
         """Get the right templates for this mode (purpose -> template)."""
         all_templates = self._data_store.fetch_document('templates')
-        possible_templates: Dict[Tuple[str, str, str], Dict[str, str]] = {
+        possible_templates: Dict[
+            Tuple[Optional[str], Optional[str], Optional[str]], Dict[str, str],
+        ] = {
             # Ensure defaults are always present...
-            (DEFAULT_NAMESPACE, DEFAULT_SERVICE, DEFAULT_COLOR): {},
+            (TEMPLATE_DEFAULT, TEMPLATE_DEFAULT, TEMPLATE_DEFAULT): {},
         }
         for service_template in all_templates['service-templates']:
-            namespace = service_template['namespace'] or DEFAULT_NAMESPACE
-            service = service_template['service'] or DEFAULT_SERVICE
-            color = service_template['color'] or DEFAULT_COLOR
+            namespace = service_template['namespace']
+            service = service_template['service']
+            color = service_template['color']
             if self.is_possible_match(namespace, service, color):
                 purpose = service_template['purpose']
                 key = (namespace, service, color,)
@@ -125,16 +132,20 @@ class GenerateServiceConfiguration(Generator):
     def is_possible_match(self, namespace: str, service: str, color: str) -> bool:
         """Are the given arguments possible matches?"""
         return (
-            namespace in (DEFAULT_NAMESPACE, self._config.namespace)
+            namespace in (TEMPLATE_DEFAULT, self._config.namespace)
             and
-            service in (DEFAULT_SERVICE, self._config.service)
+            service in (TEMPLATE_DEFAULT, self._config.service)
             and
-            color in (DEFAULT_COLOR, self._config.color)
+            color in (TEMPLATE_DEFAULT, self._config.color)
         )
 
-    def get_best_match(self, keys: Iterable[Tuple[str, str, str]]) -> Tuple[str, str, str]:
+    def get_best_match(
+            self, keys: Iterable[Tuple[Optional[str], Optional[str], Optional[str]]],
+    ) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         """Finds the best match for the keys to this configuration."""
-        best = DEFAULT_NAMESPACE, DEFAULT_SERVICE, DEFAULT_COLOR
+        best: Tuple[Optional[str], Optional[str], Optional[str]] = (
+            TEMPLATE_DEFAULT, TEMPLATE_DEFAULT, TEMPLATE_DEFAULT,
+        )
         best_key = 0
         for key in keys:
             match = self.get_key_match(key)
@@ -143,7 +154,7 @@ class GenerateServiceConfiguration(Generator):
                 best_key = match
         return best
 
-    def get_key_match(self, key: Tuple[str, str, str]) -> int:
+    def get_key_match(self, key: Tuple[Optional[str], Optional[str], Optional[str]]) -> int:
         """Get the key match number.  Higher is better.  Only works for default or exact match."""
         return (
             (5 if key[0] == self._config.namespace else 0)

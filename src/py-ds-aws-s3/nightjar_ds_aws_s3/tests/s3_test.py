@@ -170,7 +170,7 @@ class S3Test(unittest.TestCase):  # pylint: disable=R0904
                 self.fail("Did not raise an exception")  # pragma no cover
             except ValueError as err:
                 self.assertEqual(
-                    "ValueError('Cannot handle > 1000 paths right now.')",
+                    "ValueError('Cannot handle deleting > 1000 items right now.')",
                     repr(err)
                 )
 
