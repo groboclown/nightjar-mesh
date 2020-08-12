@@ -360,6 +360,10 @@ def filter_tasks(
                     # value does not correspond to that required value.
                     (required_tag_value and value != required_tag_value)
             ):
+                debug(
+                    'filter_tasks', 'Skipping task {t} - not marked as in the mesh',
+                    t=task.taskdef_arn,
+                )
                 continue
             # Else, the tag is assigned to a value, and either
             # the value doesn't matter, or the value matches the required value.

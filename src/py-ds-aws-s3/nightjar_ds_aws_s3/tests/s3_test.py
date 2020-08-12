@@ -162,17 +162,12 @@ class S3Test(unittest.TestCase):  # pylint: disable=R0904
     def test_delete_too_many_keys(self) -> None:
         """Test delete with too many keys."""
         mock_s3 = MockS3()
+        # A bit of magic - turn the 'a' into 1000 characters,
+        # then split that into a list of 1000 elements, each is 'a'.
+        mock_s3.mk_delete(self.config.bucket, list('a' * 1000))
+        mock_s3.mk_delete(self.config.bucket, ['a'])
         with mock_s3:
-            # A bit of magic - turn the 'a' into 1000 characters,
-            # then split that into a list of 1000 elements, each is 'a'.
-            try:
-                s3.delete(self.config, list('a' * 1001))
-                self.fail("Did not raise an exception")  # pragma no cover
-            except ValueError as err:
-                self.assertEqual(
-                    "ValueError('Cannot handle deleting > 1000 items right now.')",
-                    repr(err)
-                )
+            s3.delete(self.config, list('a' * 1001))
 
     def test_download_404(self) -> None:
         """Test download when the key doesn't exist."""

@@ -100,33 +100,37 @@ def download(config: Config, path: str) -> Union[bytes, int]:
 
 def delete(config: Config, keys: List[str]) -> None:
     """Delete the listed keys"""
-    if len(keys) <= 0:
-        return
-    if len(keys) > 1000:
-        raise ValueError("Cannot handle deleting > 1000 items right now.")
-    debug('Attempting to delete keys {keys}', keys=keys)
-    try:
-        get_s3_client().delete_objects(
-            Bucket=config.bucket,
-            Delete={
-                'Objects': [{'Key': p} for p in keys],
-            }
-        )
-    except ClientError as err:
-        if is_404_error(err):
-            log('INFO', "Attempted to delete at least one non-existent S3 key: {key}", key=keys)
-            return
-        if request_requires_retry(err):
-            # Ignore these in context of the s3 use-case for delete.
-            # But it leaves a mess...
-            log(
-                'INFO',
-                "Attempted to delete keys ({keys}), but S3 told "
-                "us to retry.  Won't retry.  Error: {err}",
-                keys=keys, err=repr(err),
+    while keys:
+        # Can delete up to 1000 keys in a single request.
+        sub_keys = keys[0:1000]
+        del keys[0:1000]
+        debug('Attempting to delete keys {keys}', keys=sub_keys)
+        try:
+            get_s3_client().delete_objects(
+                Bucket=config.bucket,
+                Delete={
+                    'Objects': [{'Key': p} for p in sub_keys],
+                }
             )
-            return
-        raise err
+        except ClientError as err:
+            if is_404_error(err):
+                log(
+                    'INFO',
+                    "Attempted to delete at least one non-existent S3 key: {key}",
+                    key=sub_keys,
+                )
+                return
+            if request_requires_retry(err):
+                # Ignore these in context of the s3 use-case for delete.
+                # But it leaves a mess...
+                log(
+                    'INFO',
+                    "Attempted to delete keys ({keys}), but S3 told "
+                    "us to retry.  Won't retry.  Error: {err}",
+                    keys=keys, err=repr(err),
+                )
+                return
+            raise err
 
 
 def is_404_error(err: Exception) -> bool:
